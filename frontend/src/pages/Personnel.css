@@ -1,0 +1,32 @@
+.personnel-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.search-header {
+    display: flex;
+    padding: 5px 20px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.user-results {
+    display:flex;
+    flex-direction: column;
+    padding: 10px 10px;
+    border: 1px solid var(--bg-light);
+    margin: 20px;
+}
+
+.header-row {
+    display: flex;
+    border: 1px solid var(--bg-light);
+    margin: 5px;
+}
+
+.result-row {
+    display: flex;
+    border: 1px solid var(--bg-light);
+    margin: 5px;
+    padding: 10px 10px;
+}
