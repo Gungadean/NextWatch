@@ -10,6 +10,7 @@ import AuthRoute from "./routes/AuthRoute.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
 import RegisterPage from "./pages/RegisterPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
+import QualificationsPage from "./pages/QualificationsPage.tsx";
 
 const App = () => {
   return (
@@ -24,6 +25,7 @@ const App = () => {
               <Route path="builder" element={<BuilderPage />} />
               <Route path="requests" element={<RequestPage />} />
               <Route path="personnel" element={<PersonnelPage />} />
+              <Route path="qualifications" element={<QualificationsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>

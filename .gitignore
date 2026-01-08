@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 .env
 /frontend/package-lock.json
+/backend/config.ini
+/backend/database.db

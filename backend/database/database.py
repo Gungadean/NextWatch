@@ -21,7 +21,9 @@ class User(SQLModel, table=True):
 
 class Qualification(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(..., max_length=50)
     description: str = Field(..., max_length=1000)
+    created_at: datetime = Field(default=None)
 
 
 class UserQualification(SQLModel, table=True):

@@ -7,7 +7,8 @@ import {
   LuClock,
   LuUsers,
   LuSettings,
-  LuMenu
+  LuMenu,
+  LuAward
 } from "react-icons/lu";
 import {useState} from "react";
 
@@ -16,6 +17,7 @@ const LINK_ITEMS = [
   { name: 'Schedule Builder', icon: LuCalendar, path: '/builder' },
   { name: 'Leave Requests', icon: LuClock, path: '/requests' },
   { name: 'Personnel', icon: LuUsers, path: '/personnel' },
+  { name: 'Qualifications', icon: LuAward, path: '/qualifications' },
   { name: 'Settings', icon: LuSettings, path: '/settings' },
 ];
 
@@ -41,8 +43,8 @@ const Sidebar = () => {
         <Flex
           align="stretch"
           justify={isCollapsed ? "center" : "space-between"}
-          mb={8}
-          px={isCollapsed ? 0 : 2}>
+          marginBottom={8}
+          paddingX={isCollapsed ? 0 : 2}>
           {!isCollapsed && (
             <Text fontSize="xl" fontWeight="extrabold" color="blue.500">
               NextWatch
