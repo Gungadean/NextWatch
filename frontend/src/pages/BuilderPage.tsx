@@ -1,5 +1,3 @@
-import './Builder.css';
-
 const BuilderPage = () => {
   return (
     <div>

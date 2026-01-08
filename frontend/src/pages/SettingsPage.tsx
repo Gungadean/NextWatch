@@ -1,5 +1,3 @@
-import './Settings.css';
-
 const SettingsPage = () => {
   return (
     <div>

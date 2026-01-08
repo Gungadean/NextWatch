@@ -1,25 +1,20 @@
 import { Outlet } from 'react-router';
 import Sidebar from '../components/Sidebar';
-import Header from '../components/Header';
-import '../App.css'
+import { Container, HStack, VStack} from "@chakra-ui/react";
+import Header from "../components/Header.tsx";
 
 const AppLayout = () => {
   return (
-    <div className="app-container">
-      <aside className="sidebar-container">
+    <Container padding="0" height="100vh" maxWidth="1920px">
+      <HStack height="100%" alignItems="stretch">
         <Sidebar />
-      </aside>
 
-      <div className="main-content">
-        <header className="top-header">
+        <VStack flex="1" alignItems="stretch" padding="2" width="100%">
           <Header />
-        </header>
-
-        <main className="page-content">
           <Outlet />
-        </main>
-      </div>
-    </div>
+        </VStack>
+      </HStack>
+    </Container>
   )
 };
 

@@ -1,7 +1,10 @@
 import "./Calendar.css";
 import {useState} from "react";
+import {Box, Button, Grid, GridItem, Heading, Stack, Text} from "@chakra-ui/react";
+import {useColorModeValue} from "../components/ui/color-mode.tsx";
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const SHIFT_ASSIGNMENTS = {
   "2025-12-25": [{ station: "Security", name: "John Doe" }],
@@ -9,11 +12,24 @@ const SHIFT_ASSIGNMENTS = {
 };
 
 const CalendarPage = () => {
-  const [currentDate] = useState(new Date(2025, 11, 27)); // Dec 27, 2025
+  const [currentViewDate, setCurrentViewDate] = useState(new Date());
+
+  const selectedMonth = currentViewDate.getMonth()
+  const selectedYear = currentViewDate.getFullYear()
+
+  const emptyBackground = useColorModeValue("gray.100", "gray.900");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
+
+  const updateSelectedMonth = (change: number) => {
+    const newDate = new Date(currentViewDate)
+
+    newDate.setMonth(newDate.getMonth() + change)
+    setCurrentViewDate(newDate)
+  }
 
   const generateCalendarDays = () => {
-    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const startOfMonth = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth(), 1);
+    const endOfMonth = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth() + 1, 0);
 
     const days = [];
     // Padding for days from previous month to align start of week
@@ -29,41 +45,40 @@ const CalendarPage = () => {
   };
 
   return(
-    <div>
-      <section className="month-buttons">
-        <button className="previous-month">Previous Month</button>
-        <h2>{currentDate.getMonth()}, {currentDate.getFullYear()}</h2>
-        <button className="next-month">Next Month</button>
-      </section>
+    <Box>
+      <Stack direction="row" justify="space-between" paddingBottom="5">
+        <Button onClick={() => updateSelectedMonth(-1)}>Previous Month</Button>
+        <Heading>{MONTH_LABELS[selectedMonth]}, {selectedYear}</Heading>
+        <Button onClick={() => updateSelectedMonth(1)}>Next Month</Button>
+      </Stack>
 
-      <div className="workspace">
-        {/* The Watchbill Grid */}
+      <Grid templateColumns="repeat(7, 1fr)" border="1px solid" borderColor={borderColor}>
+        {DAY_LABELS.map(day => (
+          <GridItem textAlign="center" padding="3">
+            <Text fontSize="0.9rem" fontWeight="bold">{day}</Text>
+          </GridItem>
+        ))}
+      </Grid>
 
-        <section className="calendar-container">
-          <div className="calendar-header">
-            {DAY_LABELS.map(day => (
-              <div key={day} className="day-label">{day}</div>
-            ))}
-          </div>
+      <Grid templateColumns="repeat(7, 1fr)" autoRows="minmax(120px, 1fr)">
+        {generateCalendarDays().map((item) => (
+          !item.day ? <Box backgroundColor={emptyBackground} border="1px solid" borderColor={borderColor}/> :
+            <Box border="1px solid" borderColor={borderColor}>
+              <Stack direction="row" justify="center">
+                <Text fontSize="0.8rem" fontWeight="bold" color="#666">{item.day}</Text>
+              </Stack>
 
-          {/* Calendar Grid */}
-            <div className="calendar-grid">
-              {generateCalendarDays().map((item, index) => (
-                <div key={index} className={`calendar-day ${!item.day ? 'empty' : ''}`}>
-                  <span className="day-number">{item.day}</span>
-                  <div className="day-events">
-                    {item.dateKey && SHIFT_ASSIGNMENTS[item.dateKey]?.map((shift, i) => (
-                      <div key={i} className="calendar-shift-badge">
-                        <strong>{shift.station.charAt(0)}:</strong> {shift.name}
-                      </div>
-                    ))}
+              {item.dateKey && SHIFT_ASSIGNMENTS[item.dateKey]?.map((shift: any, i: number) => (
+                <Box paddingLeft="1" paddingRight="1" paddingBottom="1">
+                  <div key={i} className="calendar-shift-badge">
+                    <strong>{shift.station.charAt(0)}:</strong> {shift.name}
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
-      </div>
-    </div>
+                  </Box>
+                ))}
+            </Box>
+        ))}
+      </Grid>
+    </Box>
   )
 };
 

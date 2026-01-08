@@ -1,5 +1,3 @@
-import './Request.css';
-
 const RequestPage = () => {
   return (
     <div>

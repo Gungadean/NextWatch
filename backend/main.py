@@ -1,17 +1,29 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from backend.routers import auth, account
+from backend.utils.auth.auth_users import create_user, check_user_exists
+
+from backend.config.config import get_config
 
 app = FastAPI()
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World. This is a test"}
+prefix = get_config().get('HOST', 'path')
 
+app.include_router(auth.router, prefix=prefix)
+app.include_router(account.router, prefix=prefix)
 
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_config().get('CORS', 'allow_origins'),
+    allow_credentials=get_config().get('CORS', 'allow_credentials'),
+    allow_methods=get_config().get('CORS', 'allow_methods'),
+    allow_headers=get_config().get('CORS', 'allow_headers'),
+)
 
 
 if __name__ == "__main__":
+    if not check_user_exists("admin"):
+        create_user(username="admin", email="admin@example.com", password="password")
     uvicorn.run(app, host="0.0.0.0", port=8000)
