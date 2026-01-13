@@ -1,6 +1,12 @@
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#  Copyright (c) 2026. Ryan Huston
+
 """
+auth_models.py
+
 Module containing BaseModels for authentication endpoints.
 """
+
 from typing import Optional
 
 from pydantic import BaseModel

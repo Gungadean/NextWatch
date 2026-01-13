@@ -1,3 +1,15 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * axiosConfig.tsx
+ *
+ * Config for Axios api. Handles intercepting requests for troubleshooting, applying header data
+ * with user access tokens, and error handling for failed requests to the backend.
+ */
+
 import axios from "axios";
 import {clearAuthData, getAccessToken, refreshAccessToken} from "./features/authentication/authApi.ts";
 

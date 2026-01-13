@@ -1,6 +1,12 @@
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#  Copyright (c) 2026. Ryan Huston
+
 """
+account_models.py
+
 Module containing BaseModels for account endpoints.
 """
+
 from datetime import datetime
 
 from pydantic import BaseModel

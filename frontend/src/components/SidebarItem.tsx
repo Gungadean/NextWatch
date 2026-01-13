@@ -1,3 +1,14 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * SidebarItem.tsx
+ *
+ * Navigation link elements for displaying in sidebar.
+ */
+
 import {NavLink} from "react-router";
 import {useColorModeValue} from "./ui/color-mode.tsx";
 import {Flex, Icon, Text} from "@chakra-ui/react";
@@ -11,6 +22,14 @@ interface SidebarItemProps {
   isCollapsed: boolean;
 }
 
+/**
+ * Main sidebar navigation item.
+ * Handles dynamically creating nav buttons that are collapsible.
+ * @param icon Page icon
+ * @param to Path to direct to
+ * @param children Children elements to be displayed inside
+ * @param isCollapsed If the sidebar is currently collapsed.
+ */
 const SidebarItem = ({ icon, to, children, isCollapsed }: SidebarItemProps ) => {
   const activeBackground = useColorModeValue("blue.100", "blue.900")
   const activeColor = useColorModeValue("blue.700", "blue.200")

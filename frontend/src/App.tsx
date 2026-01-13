@@ -1,3 +1,14 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * App.tsx
+ *
+ * Application router.
+ */
+
 import './App.css'
 import {BrowserRouter, Route, Routes} from 'react-router';
 import AppLayout from './layouts/AppLayout.tsx';
@@ -12,6 +23,9 @@ import RegisterPage from "./pages/RegisterPage.tsx";
 import NotFoundPage from "./pages/NotFoundPage.tsx";
 import QualificationsPage from "./pages/QualificationsPage.tsx";
 
+/**
+ * Main application method that handles routing to all pages.
+ */
 const App = () => {
   return (
       <BrowserRouter>

@@ -1,7 +1,19 @@
-import './Personnel.css';
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * PersonnelPage.tsx
+ *
+ * Content page for displaying personnel page.
+ */
 
 const PERSONNEL = ['Test', 'Test2']
 
+/**
+ * Layout for personnel page.
+ */
 const PersonnelPage = () => {
   return (
     <div className="personnel-container">

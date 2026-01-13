@@ -1,3 +1,14 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * Sidebar.tsx
+ *
+ * Display collapsible sidebar with navigation buttons.
+ */
+
 import {Box, Flex, IconButton, Text, VStack} from "@chakra-ui/react";
 import {useColorModeValue} from "./ui/color-mode.tsx";
 import SidebarItem from "./SidebarItem.tsx";
@@ -21,6 +32,10 @@ const LINK_ITEMS = [
   { name: 'Settings', icon: LuSettings, path: '/settings' },
 ];
 
+/**
+ * Main application sidebar.
+ * Contains buttons for navigating the different pages.
+ */
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 

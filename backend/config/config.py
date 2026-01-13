@@ -1,6 +1,12 @@
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#  Copyright (c) 2026. Ryan Huston
+
 """
-Create initial config and handle
+config.py
+
+Create initial config and create get_config function.
 """
+
 import os
 import configparser
 

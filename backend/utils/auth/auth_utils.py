@@ -1,6 +1,12 @@
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#  Copyright (c) 2026. Ryan Huston
+
 """
-Utility functions for performing actions with authentication.
+auth_utils.py
+
+Utilities for performing actions with authentication.
 """
+
 import bcrypt
 from fastapi.security import OAuth2PasswordBearer
 
@@ -20,7 +26,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 def get_password_hash(password: str) -> str:
     """
-    Get a hash of a password.
+    Generate password hash.
+    :param password: Password to be hashed.
+    :return: Hashed password.
     """
     pwd_bytes = password.encode("utf-8")
     hashed_password = bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode("utf-8")
@@ -30,6 +38,9 @@ def get_password_hash(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: bytes) -> bool:
     """
     Verify a password against a hashed password.
+    :param plain_password: Plaintext password to be tested.
+    :param hashed_password: Hashed password from database.
+    :return: If the password is correct.
     """
     password_bytes = plain_password.encode("utf-8")
     return bcrypt.checkpw(password_bytes, hashed_password)
@@ -38,6 +49,9 @@ def verify_password(plain_password: str, hashed_password: bytes) -> bool:
 def update_password(email: str, new_password: str) -> User:
     """
     Update the password of the specified user.
+    :param email: Email of the user.
+    :param new_password: New password.
+    :return: Updated instance of user.
     """
     user = database_update_password(email, get_password_hash(new_password))
     return user

@@ -1,5 +1,10 @@
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#  Copyright (c) 2026. Ryan Huston
+
 """
-Create models for database and then generate local databse file.
+database.py
+
+Create models for database and then generate local database file.
 """
 from datetime import datetime
 
@@ -20,13 +25,20 @@ class User(SQLModel, table=True):
 
 
 class Qualification(SQLModel, table=True):
+    """
+    SQLModel representing a qualification in the database.
+    """
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(..., max_length=50)
     description: str = Field(..., max_length=1000)
     created_at: datetime = Field(default=None)
+    created_by: int | None = Field(default=None, foreign_key="user.id")
 
 
 class UserQualification(SQLModel, table=True):
+    """
+    SQLModel representing a qualification in the database.
+    """
     id: int | None = Field(default=None, primary_key=True)
     user_id: int | None = Field(default=None, foreign_key="user.id")
     qualification: int | None = Field(default=None, foreign_key="qualification.id")

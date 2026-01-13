@@ -1,32 +1,46 @@
-// This file contains the authentication API functions for user registration, login, logout, password reset, and Google sign-in.
-// It uses Axios for HTTP requests and manages the access token in memory.
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * authApi.ts
+ *
+ * Handles authentication API functions for registration, login, logout, and password rests.
+ * Uses Axios for requests and manages access tokens in memory.
+ */
 
 import axiosInstance from "../../axiosConfig";
 import {startTokenTimer, stopTokenTimer} from "./tokenManager.ts";
 
 let accessToken: string | undefined = undefined;
 
-/** Access token retrieval method. */
+/**
+ * Access token retrieval method.
+ */
 export const getAccessToken = (): string | undefined => {
   return accessToken;
 }
 
-/** Setter whenever we get a new token from login/Google. */
+/**
+ * Setter whenever we get a new token from login.
+ */
 export const setAccessToken = (token: string) => {
   accessToken = token;
   startTokenTimer(token);
 };
 
-/** Remove everything (on logout or refresh failure). */
+/**
+ * Remove everything (on logout or refresh failure).
+ * */
 export const clearAuthData = () => {
   accessToken = undefined;
   stopTokenTimer();
 };
 
 /**
- * Payload we send to /auth/register or /auth/login
- * Either `{ user: { email: "..." }, password: "..." }`
- * OR `{ user: { phone: "..." }, password: "..." }`.
+ * Payload we send to /auth/login.
+ * Identifier is set by type of either email or username.
  */
 export interface AuthRequest {
   identifier: string;
@@ -35,22 +49,27 @@ export interface AuthRequest {
 }
 
 /**
- * What the backend returns after /auth/register, /auth/login, or /auth/google.
- * If successful, `access_token` should exist (and be stored in memory).
+ * What the backend returns after /auth/login.
+ * If successful, access_token should exist (and be stored in memory).
  */
 export interface AuthResponse {
-  username: string;           // user’s basic info
-  message: string;       // e.g. "Registration successful" or "Invalid credentials"
-  access_token: string; // JWT access token.
+  username: string;
+  message: string;
+  access_token: string;
 }
 
+/**
+ * Payload for registering a new user.
+ */
 export interface RegisterRequest {
   username: string;
   email: string;
   password: string;
 }
 
-// ─── REGISTER ───
+/**
+ * Send user registration request to backend and promise an authentication response.
+ */
 export const registerUser = async (data: RegisterRequest): Promise<AuthResponse> => {
   try {
     const response = await axiosInstance.post<AuthResponse>('/auth/register', data, {
@@ -60,13 +79,15 @@ export const registerUser = async (data: RegisterRequest): Promise<AuthResponse>
     setAccessToken(response.data.access_token);
 
     return response.data;
-  } catch (err: unknown) {
+  } catch (err: any) {
     // If backend threw a 400/422 with { detail: "..."}:
     throw new Error(err.response?.data?.detail || "Registration failed");
   }
 };
 
-// ─── LOGIN (email/username + password) ───
+/**
+ * Send user login request to backend and promise an authentication response.
+ */
 export const loginUser = async (data: AuthRequest): Promise<AuthResponse> => {
   try {
     const response = await axiosInstance.post<AuthResponse>('/auth/login',
@@ -89,7 +110,9 @@ export const loginUser = async (data: AuthRequest): Promise<AuthResponse> => {
   }
 };
 
-// ─── LOGOUT ───
+/**
+ * Send a user logout request to backend. Local auth data is wiped regardless of if request fails.
+ */
 export const logoutUser = async (): Promise<string | void> => {
   try {
     const response = await axiosInstance.post<{ message: string }>("/auth/logout",
@@ -103,16 +126,21 @@ export const logoutUser = async (): Promise<string | void> => {
   }
 };
 
-// --- VERIFY ACCESS TOKEN ---
+/**
+ * Send a request to verify an access token for validity.
+ */
 export const verifyAccessToken = async (): Promise<void> => {
   try {
-    await axiosInstance.post<{message: string}>('/auth/verify')
+    await axiosInstance.get<{message: string}>('/auth/verify')
   } catch (error: any) {
     throw new Error(error.response?.data?.detail || "Failed to verify access token");
   }
 }
 
-// ─── REFRESH ACCESS TOKEN ───
+/**
+ * Send a request to get a new access token if expired. This looks for a refresh token
+ * cookie for validation.
+ */
 export const refreshAccessToken = async (): Promise<string> => {
   try {
     // The backend endpoint /auth/refresh should look at the HttpOnly cookie (refresh token),
@@ -120,7 +148,6 @@ export const refreshAccessToken = async (): Promise<string> => {
     const response = await axiosInstance.post<{ access_token: string }>('/auth/refresh',
         {}, {withCredentials: true});
 
-    console.log(response.data.access_token)
     setAccessToken(response.data.access_token);
 
     return response.data.access_token;

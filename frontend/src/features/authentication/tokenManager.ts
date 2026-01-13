@@ -1,3 +1,15 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * tokenManager.ts
+ *
+ * Functions for managing expiry of access tokens and automatically refreshing tokens before
+ * they expire.
+ */
+
 import {clearAuthData, refreshAccessToken} from "./authApi.ts";
 import {jwtDecode} from "jwt-decode";
 

@@ -1,3 +1,14 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * AuthLayout.tsx
+ *
+ * Defines layout for the login and register pages.
+ */
+
 import React from 'react';
 import {
   Flex,
@@ -8,11 +19,18 @@ import {
 import {useColorMode, useColorModeValue} from "../components/ui/color-mode.tsx";
 import {LuMoon, LuSun} from "react-icons/lu";
 
+/**
+ * Props that will be passed to the Forms.
+ */
 interface AuthLayoutProps {
   title: string;
   children: React.ReactNode;
 }
 
+/**
+ * Main auth layout component.
+ * Wraps register and login forms for uniformity.
+ */
 export const AuthLayout = ({ title, children }: AuthLayoutProps) => {
   const { toggleColorMode, colorMode } = useColorMode();
 

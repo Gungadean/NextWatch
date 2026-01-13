@@ -1,4 +1,16 @@
-import React, { useState } from 'react';
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * LoginForm.tsx
+ *
+ * Renders the user login interface.
+ * Handles input, client-side validation, and attempts to authenticate with useAuth hook.
+ */
+
+import React from 'react';
 import { Stack, Input, Button } from '@chakra-ui/react';
 
 import {
@@ -9,57 +21,52 @@ import {
 import {PasswordInput} from "../../../components/ui/password-input.tsx";
 import {toaster} from "../../../components/ui/toaster.tsx";
 import {Field} from "../../../components/ui/field.tsx";
-import {useAuth} from "../../../context/useAuth.ts";
+import {useAuth} from "../../../hooks/useAuth.ts";
 import {useNavigate} from "react-router";
+import {useForm} from "../../../hooks/useForm.ts";
 
+/**
+ * Login Form Component.
+ * Contains logic for authentication a user.
+ */
 export const LoginForm = () => {
   const { login, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  // centralized state for cleaner updates
-  const [formData, setFormData] = useState<AuthSignInData>({
+  // Initialize form state.
+  const {formData, errors, handleChange, setErrors} = useForm<AuthSignInData>({
     identifier: '',
     password: '',
-    type: 'username' // Default, will update dynamically
+    type: 'username'
   });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate user inputs for errors
     const validationErrors = validateSignIn(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
 
+    // Determine if login is with email or username
     const loginType = determineLoginType(formData.identifier);
 
     try {
+      // Attempt to authenticate with provider
       await login({
         identifier: formData.identifier,
         password: formData.password,
         type: loginType
       });
 
+      // Show success and redirect to dashboard
       toaster.create({ title: "Welcome back!", type: "success" });
       navigate("/");
 
     } catch (err: any) {
+      // Display any error from backend.
       toaster.create({
         title: "Login Failed",
         description: err.message || "Invalid credentials",
@@ -72,12 +79,12 @@ export const LoginForm = () => {
     <form onSubmit={handleSubmit}>
       <Stack gap="4">
 
+        {/* Identifier Field which accepts username/email. */}
         <Field
           label="Email or Username"
           invalid={!!errors.email || !!errors.username}
           errorText={errors.email || errors.username}
-          required
-        >
+          required>
           <Input
             name="identifier"
             value={formData.identifier}
@@ -86,7 +93,6 @@ export const LoginForm = () => {
           />
         </Field>
 
-        {/* Password Field */}
         <Field
           label="Password"
           invalid={!!errors.password}

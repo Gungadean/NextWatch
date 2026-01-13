@@ -1,5 +1,19 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (c) 2026. Ryan Huston
+ */
+
+/**
+ * NotFoundPage.tsx
+ *
+ * Simple 404 page.
+ */
+
 import {AbsoluteCenter, Button, Heading, VStack} from "@chakra-ui/react";
 
+/**
+ * Basic 404 page with redirect button back to dashboard.
+ */
 const NotFoundPage = () => {
   return (
     <AbsoluteCenter>

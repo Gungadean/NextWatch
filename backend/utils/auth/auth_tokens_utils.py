@@ -1,18 +1,28 @@
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#  Copyright (c) 2026. Ryan Huston
+
+"""
+auth_tokens_utils.py
+
+Utilities for generating/verifying access and refresh tokens.
+"""
+
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 
 import jwt
 from fastapi import Response, Request, HTTPException, status
 from jwt import InvalidTokenError
 
 from backend.models.auth_models import TokenData
-from backend.utils.auth.auth import ALGORITHM, SECRET_ACCESS, TOKEN_ACCESS_EXPIRATION, \
+from backend.utils.auth.auth_utils import ALGORITHM, SECRET_ACCESS, TOKEN_ACCESS_EXPIRATION, \
     TOKEN_REFRESH_EXPIRATION, SECRET_REFRESH
 
 
-def get_current_token(request: Request) -> Optional[str]:
+def get_current_token(request: Request) -> str:
     """
     Get the current token from the oauth2 header format.
+    :param request: HTTP request object (potentially) containing token.
+    :return: Instance of token that was found.
     """
     # Attempt to get the authorization header
     token = None
@@ -30,7 +40,11 @@ def get_current_token(request: Request) -> Optional[str]:
 
 def get_token_data(token: str, token_type: str) -> TokenData:
     """
-    Extract token data from JWT.
+    Extract data from a token string.
+    :param token: The raw token string.
+    :param token_type: The type of token (access/refresh).
+    :return: Instance of token if it's valid.
+    :raises HTTPException: If token is invalid, expired, or does not exist.
     """
     if token_type == "access":
         secret = SECRET_ACCESS
@@ -65,7 +79,12 @@ def get_token_data(token: str, token_type: str) -> TokenData:
         )
 
 
-def create_access_token(data: dict):
+def create_access_token(data: dict) -> str:
+    """
+    Create a JWT access token.
+    :param data: Username to create token for.
+    :return: Generated access token.
+    """
     """
     Create a JWT access token.
     """
@@ -77,9 +96,11 @@ def create_access_token(data: dict):
     return access_token
 
 
-def create_refresh_token(data: dict, response: Response):
+def create_refresh_token(data: dict, response: Response) -> None:
     """
     Create a JWT refresh token.
+    :param data: Username to create token for.
+    :param response: Response object for creating secure cookie.
     """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=TOKEN_REFRESH_EXPIRATION)
@@ -96,9 +117,12 @@ def create_refresh_token(data: dict, response: Response):
     )
 
 
-def create_tokens(data: dict, response: Response):
+def create_tokens(data: dict, response: Response) -> str:
     """
     Create refresh and access JWT tokens for new session.
+    :param data: Username to create token for.
+    :param response: Response object for creating secure cookie.
+    :return: Generated access token.
     """
     access_token = create_access_token(data)
     create_refresh_token(data, response)
