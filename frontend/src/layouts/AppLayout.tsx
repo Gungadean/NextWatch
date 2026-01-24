@@ -27,7 +27,7 @@ const AppLayout = () => {
         <Sidebar />
 
         {/* Adds header at top and the active route on the rest of the page */}
-        <VStack flex="1" alignItems="stretch" padding="2" width="100%">
+        <VStack flex="1" alignItems="stretch" padding="2" width="100%" overflow="hidden">
           <Header />
           <Outlet />
         </VStack>

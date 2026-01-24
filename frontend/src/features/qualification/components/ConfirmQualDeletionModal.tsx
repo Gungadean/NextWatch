@@ -3,20 +3,34 @@
  * Copyright (c) 2026. Ryan Huston
  */
 
+/**
+ * ConfirmQualDeletionModal.tsx
+ *
+ * Modal for deleting selected qualifications.
+ */
+
 import {Button, CloseButton, Dialog, List, Portal} from "@chakra-ui/react";
 import { toaster } from "../../../components/ui/toaster";
 import {deleteQuals, type QualificationDeleteRequest, type QualificationQueryResponse} from "../qualApi.ts";
 import type {Dispatch, SetStateAction} from "react";
 
+/**
+ * Modal props for items to be passed from parent component.
+ */
 interface ConfirmDeletionModalProps {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   selection: number[];
-  items: QualificationQueryResponse[];
-  onItemsChange: Dispatch<SetStateAction<QualificationQueryResponse[]>>
+  quals: QualificationQueryResponse[];
+  onQualsChange: Dispatch<SetStateAction<QualificationQueryResponse[]>>
 }
 
-const ConfirmDeletionModal = ({ isOpen, onOpenChange, selection, items, onItemsChange }: ConfirmDeletionModalProps) => {
+/**
+ * Delete qualification(s) modal
+ * Modal that prompts the user to confirm they want to delete the selected qualifications
+ */
+const ConfirmQualDeletionModal = ({ isOpen, onOpenChange, selection, quals, onQualsChange }: ConfirmDeletionModalProps) => {
+  // Handle call to backend for deleting one or a list of qualifications.
   const handleClick = async () => {
     try {
       const selectionList: QualificationDeleteRequest[] = selection.map(id => {
@@ -27,7 +41,7 @@ const ConfirmDeletionModal = ({ isOpen, onOpenChange, selection, items, onItemsC
 
       await deleteQuals(selectionList);
 
-      onItemsChange(items.filter(item => !selection.includes(item.id)));
+      onQualsChange(quals.filter(item => !selection.includes(item.id)));
 
       onOpenChange({ open: false });
     } catch (err: any) {
@@ -55,9 +69,10 @@ const ConfirmDeletionModal = ({ isOpen, onOpenChange, selection, items, onItemsC
             </Dialog.Header>
             <Dialog.Body>
               <p>Are you sure you would like to delete the following qualification(s)? This action is irreversible.</p>
+              {/* List of qualifications to be deleted. */}
               <List.Root paddingTop={3} paddingLeft={5}>
                 {selection.map((selectionId) => {
-                  const item = items.find((item) => item.id === selectionId);
+                  const item = quals.find((item) => item.id === selectionId);
 
                   return item ? (
                     <List.Item key={item.id}>{item.name}</List.Item>
@@ -81,4 +96,4 @@ const ConfirmDeletionModal = ({ isOpen, onOpenChange, selection, items, onItemsC
   );
 }
 
-export default ConfirmDeletionModal;
+export default ConfirmQualDeletionModal;

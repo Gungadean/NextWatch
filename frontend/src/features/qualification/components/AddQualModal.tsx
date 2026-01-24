@@ -3,26 +3,40 @@
  * Copyright (c) 2026. Ryan Huston
  */
 
-import {Button, CloseButton, Dialog, Portal, Input} from "@chakra-ui/react";
+/**
+ * AddQualModal.tsx
+ *
+ * Modal for adding qualifications.
+ */
+
+import {Button, CloseButton, Dialog, Portal, Input, Box} from "@chakra-ui/react";
 import {Field} from "../../../components/ui/field.tsx";
 import {addQual, type QualificationAddRequest, type QualificationQueryResponse} from "../qualApi.ts";
 import {toaster} from "../../../components/ui/toaster.tsx";
 import {useForm} from "../../../hooks/useForm.ts";
 import React, {type Dispatch, type SetStateAction} from "react";
 
+/**
+ * Modal props for items to be passed from parent component.
+ */
 interface AddQualModalProps {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  items: QualificationQueryResponse[];
-  onItemsChange: Dispatch<SetStateAction<QualificationQueryResponse[]>>;
+  quals: QualificationQueryResponse[];
+  onQualsChange: Dispatch<SetStateAction<QualificationQueryResponse[]>>;
 }
 
-const AddQualModal = ({ isOpen, onOpenChange, items, onItemsChange }: AddQualModalProps) => {
+/**
+ * Add qualification modal
+ * Modal that allows the user to create a new qualification.
+ */
+const AddQualModal = ({ isOpen, onOpenChange, quals, onQualsChange }: AddQualModalProps) => {
   const { formData, handleChange, resetForm } = useForm<QualificationAddRequest>({
     name: '',
     description: ''
   });
 
+  // Handle call to backend for adding qualification
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -31,7 +45,7 @@ const AddQualModal = ({ isOpen, onOpenChange, items, onItemsChange }: AddQualMod
         description: formData.description
       });
 
-      onItemsChange([...items, result]);
+      onQualsChange([...quals, result]);
 
       onOpenChange({ open: false });
       resetForm();
@@ -59,13 +73,15 @@ const AddQualModal = ({ isOpen, onOpenChange, items, onItemsChange }: AddQualMod
             </Dialog.Header>
             <Dialog.Body>
               <form id="add-qual-form" onSubmit={handleSubmit}>
-                <Field label="Name" required>
-                  <Input
+                <Box paddingBottom={5}>
+                  <Field label="Name" required>
+                    <Input
                     name="name"
                     onChange={handleChange}
                     value={formData.name}
                     placeholder="Qualfication name" />
-                </Field>
+                  </Field>
+                </Box>
                 <Field label="Description" required>
                   <Input
                     name="description"

@@ -12,7 +12,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import auth, account, qualification
+from backend.routers import auth, account, qualification, member
 from backend.utils.auth.auth_users_utils import create_user, check_user_exists
 
 from backend.config.config import get_config
@@ -24,6 +24,7 @@ prefix = get_config().get('HOST', 'path')
 app.include_router(auth.router, prefix=prefix)
 app.include_router(account.router, prefix=prefix)
 app.include_router(qualification.router, prefix=prefix)
+app.include_router(member.router, prefix=prefix)
 
 app.add_middleware(
     CORSMiddleware,

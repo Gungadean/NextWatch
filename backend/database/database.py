@@ -35,13 +35,26 @@ class Qualification(SQLModel, table=True):
     created_by: int | None = Field(default=None, foreign_key="user.id")
 
 
-class UserQualification(SQLModel, table=True):
+class Member(SQLModel, table=True):
+    """
+    SQLModel representing member in the database.
+    """
+    id: int | None = Field(default=None, primary_key=True)
+    first_name: str = Field(..., max_length=50)
+    last_name: str = Field(..., max_length=50)
+    middle_name: str = Field(..., max_length=50)
+    email: str = Field(..., max_length=50)
+    created_at: datetime = Field(default=None)
+    user: int | None = Field(default=None, foreign_key="user.id")
+
+
+class MemberQualification(SQLModel, table=True):
     """
     SQLModel representing a qualification in the database.
     """
     id: int | None = Field(default=None, primary_key=True)
-    user_id: int | None = Field(default=None, foreign_key="user.id")
-    qualification: int | None = Field(default=None, foreign_key="qualification.id")
+    member_id: int | None = Field(default=None, foreign_key="member.id", ondelete="CASCADE")
+    qualification: int | None = Field(default=None, foreign_key="qualification.id", ondelete="CASCADE")
 
 
 # Create engine from database location and create all SQLModel tables.

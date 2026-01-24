@@ -14,14 +14,14 @@ import {getQualList, type QualificationQueryResponse} from "../features/qualific
 import {useEffect, useState} from "react";
 import AddQualModal from "../features/qualification/components/AddQualModal.tsx";
 import {convertToLocalTime} from "../utils/timeUtils.ts";
-import ConfirmDeletionModal from "../features/qualification/components/ConfirmDeletionModal.tsx";
+import ConfirmQualDeletionModal from "../features/qualification/components/ConfirmQualDeletionModal.tsx";
 
 /**
  * Layout for qualifications page.
  * Lists all qualifications and allows adding/deleting qualifications from the list.
  */
 const QualificationsPage = () => {
-  const [items, setItems ] = useState<QualificationQueryResponse[]>([]);
+  const [quals, setQuals] = useState<QualificationQueryResponse[]>([]);
   const [selection, setSelection] = useState<number[]>([]);
 
   const [isAddModalOpen, setAddModalOpen] = useState(false);
@@ -33,7 +33,7 @@ const QualificationsPage = () => {
     const fetchQuals = async () => {
       try {
         const data = await getQualList();
-        setItems(data);
+        setQuals(data);
       } catch (error) {
         console.error(error);
       } finally {
@@ -64,61 +64,63 @@ const QualificationsPage = () => {
   }
 
   return (
-    <Stack paddingTop="2" width="full" gap="5">
+    <Stack paddingTop="2" height="full" width="full" gap="5">
       <HStack justify="space-between">
         <Button onClick={handleAddModalOpen}>Add Qualification</Button>
         <Button onClick={handleDeleteQual} disabled={selection.length === 0}>Delete Qualification</Button>
       </HStack>
-      <Table.Root size="sm" variant="outline">
-        <Table.Header>
-          <Table.Row>
-            <Table.ColumnHeader />
-            <Table.ColumnHeader>Name</Table.ColumnHeader>
-            <Table.ColumnHeader>Description</Table.ColumnHeader>
-            <Table.ColumnHeader>Created</Table.ColumnHeader>
-            <Table.ColumnHeader>Created By</Table.ColumnHeader>
-          </Table.Row>
-        </Table.Header>
-
-        <Table.Body>
-          {items.map((item) => (
-            <Table.Row key={item.id}>
-              <Table.Cell>
-                <Checkbox.Root
-                  size="sm"
-                  mt="0.5"
-                  aria-label="Select row"
-                  checked={selection.includes(item.id)}
-                  onCheckedChange={(changes) => {
-                    setSelection((prev) =>
-                      changes.checked ? [...prev, item.id] : selection.filter((id) => id !== item.id))
-                    }
-                  }>
-                    <Checkbox.HiddenInput />
-                    <Checkbox.Control />
-                </Checkbox.Root>
-              </Table.Cell>
-              <Table.Cell>{item.name}</Table.Cell>
-              <Table.Cell>{item.description}</Table.Cell>
-              <Table.Cell>{convertToLocalTime(item.created_at)}</Table.Cell>
-              <Table.Cell>{item.created_by}</Table.Cell>
+      <Table.ScrollArea borderWidth="1px" rounded="md" flex="1" overflowY="auto">
+        <Table.Root size="sm" variant="outline" stickyHeader interactive>
+          <Table.Header>
+            <Table.Row background="bg.subtle">
+              <Table.ColumnHeader />
+              <Table.ColumnHeader>Name</Table.ColumnHeader>
+              <Table.ColumnHeader>Description</Table.ColumnHeader>
+              <Table.ColumnHeader>Created</Table.ColumnHeader>
+              <Table.ColumnHeader>Created By</Table.ColumnHeader>
             </Table.Row>
-          ))}
-        </Table.Body>
-      </Table.Root>
+          </Table.Header>
+
+          <Table.Body>
+            {quals.map((item) => (
+              <Table.Row key={item.id}>
+                <Table.Cell>
+                  <Checkbox.Root
+                    size="sm"
+                    mt="0.5"
+                    aria-label="Select row"
+                    checked={selection.includes(item.id)}
+                    onCheckedChange={(changes) => {
+                      setSelection((prev) =>
+                        changes.checked ? [...prev, item.id] : selection.filter((id) => id !== item.id))
+                      }
+                    }>
+                      <Checkbox.HiddenInput />
+                      <Checkbox.Control />
+                  </Checkbox.Root>
+                </Table.Cell>
+                <Table.Cell>{item.name}</Table.Cell>
+                <Table.Cell>{item.description}</Table.Cell>
+                <Table.Cell>{convertToLocalTime(item.created_at)}</Table.Cell>
+                <Table.Cell>{item.created_by}</Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Root>
+      </Table.ScrollArea>
 
       <AddQualModal
         isOpen={isAddModalOpen}
         onOpenChange={(e) => setAddModalOpen(e.open)}
-        items={items}
-        onItemsChange={setItems}/>
+        quals={quals}
+        onQualsChange={setQuals}/>
 
-      <ConfirmDeletionModal
+      <ConfirmQualDeletionModal
         isOpen={isConfirmDeletionModalOpen}
         onOpenChange={(e) => setConfirmDeletionModalOpen(e.open)}
         selection={selection}
-        items={items}
-        onItemsChange={setItems}/>
+        quals={quals}
+        onQualsChange={setQuals}/>
     </Stack>
   );
 }

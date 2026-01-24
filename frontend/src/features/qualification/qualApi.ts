@@ -21,6 +21,13 @@ export interface QualificationAddRequest {
   description: string;
 }
 
+/**
+ * Payload we send to /qual/delete.
+ * Removes a qualification from server.
+ */
+export interface QualificationDeleteRequest {
+  id: number;
+}
 
 /**
  * Payload we receive from /qual/get and /qual/list
@@ -32,14 +39,6 @@ export interface QualificationQueryResponse {
   description: string;
   created_at: string;
   created_by: string;
-}
-
-/**
- * Payload we send to /qual/delete.
- * Removes a qualification from server.
- */
-export interface QualificationDeleteRequest {
-  id: number;
 }
 
 /**

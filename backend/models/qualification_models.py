@@ -19,7 +19,7 @@ class QualificationAddRequest(BaseModel):
     name: str
     description: str
 
-class QualificationResponse(QualificationAddRequest):
+class QualificationQueryResponse(QualificationAddRequest):
     """
     A model representing data for responding to Qualification data request.
     """

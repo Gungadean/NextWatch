@@ -15,15 +15,15 @@ from backend.database.database import User
 from backend.database.qualification_queries import database_add_qualification, \
     database_get_qualifications, database_del_qualifications
 from backend.models.qualification_models import QualificationAddRequest, QualificationDeleteRequest, \
-    QualificationResponse
+    QualificationQueryResponse
 from backend.utils.auth.auth_users_utils import get_current_active_user
-from backend.utils.qual.qual_utils import get_qualification
+from backend.utils.qual.qual_utils import get_qualification, add_qualification
 
 router = APIRouter()
 
 
 @router.get('/qual/list')
-async def route_list_qualifications(user: User = Depends(get_current_active_user)) -> List[QualificationResponse]:
+async def route_list_qualifications(user: User = Depends(get_current_active_user)) -> List[QualificationQueryResponse]:
     """
     Get a list of all qualifications. Requires logged-in user.
     :param user: User making the request
@@ -35,7 +35,7 @@ async def route_list_qualifications(user: User = Depends(get_current_active_user
 
 @router.get('/qual/{qualification_id}')
 async def route_get_qualification(qualification_id: int,
-                                  user: User = Depends(get_current_active_user)) -> QualificationResponse:
+                                  user: User = Depends(get_current_active_user)) -> QualificationQueryResponse:
     """
     Get information about qualification by id.
     :param qualification_id: Qualification id to be queried
@@ -48,7 +48,7 @@ async def route_get_qualification(qualification_id: int,
 
 @router.post('/qual/add')
 async def route_add_qualification(data: QualificationAddRequest,
-                                  user: User = Depends(get_current_active_user)) -> QualificationResponse:
+                                  user: User = Depends(get_current_active_user)) -> QualificationQueryResponse:
     """
     Add a qualification to the database.
     :param data: Qualification data
@@ -56,7 +56,7 @@ async def route_add_qualification(data: QualificationAddRequest,
     :return: Instance of qualification if successful
     :raise: HTTPException: If request is not from authorized user
     """
-    qualification = database_add_qualification(name=data.name, description=data.description, created_by=user)
+    qualification = add_qualification(name=data.name, description=data.description, created_by=user)
     return qualification
 
 
