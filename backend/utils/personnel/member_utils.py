@@ -48,7 +48,7 @@ def add_member(member_data: MemberAddRequest) -> MemberQueryResponse:
     qual_ids = []
 
     for qual in member_quals:
-        qual_ids.append(qual.qualification)
+        qual_ids.append(qual.qualification_id)
 
     return MemberQueryResponse(id=member.id,
         first_name=member.first_name,

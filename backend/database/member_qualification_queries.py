@@ -32,13 +32,13 @@ def database_add_member_quals(member: Member, qualifications: List[int]) -> List
     :param qualifications:
     :return:
     """
-    member_quals = [qual.qualification for qual in database_get_member_quals(member)]
+    member_quals = [qual.qualification_id for qual in database_get_member_quals(member)]
 
     filtered_quals = []
 
     for qual in qualifications:
         if not qual in member_quals:
-            filtered_quals.append(MemberQualification(member_id=member.id, qualification=qual))
+            filtered_quals.append(MemberQualification(member_id=member.id, qualification_id=qual))
 
     with Session(engine) as session:
         for qual in filtered_quals:

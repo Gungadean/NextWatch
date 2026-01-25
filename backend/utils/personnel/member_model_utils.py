@@ -16,7 +16,7 @@ from backend.models.member_models import MemberQueryResponse
 def build_members_response_model(raw_members: Sequence[Member]) -> List[MemberQueryResponse]:
     """
     Convert list of database Member model to list of MemberQueryResponse model.
-    :param members_quals: A list of members and their quals to be unpacked.
+    :param raw_members: A list of members and their quals to be unpacked.
     :return: List of response objects.
     """
     members = []
@@ -40,4 +40,4 @@ def build_member_response_model(member: Member) -> MemberQueryResponse:
         last_name=member.last_name,
         middle_name=member.middle_name,
         email=member.email,
-        quals=[qual.id for qual in quals])
+        quals=[qual.qualification_id for qual in quals])
