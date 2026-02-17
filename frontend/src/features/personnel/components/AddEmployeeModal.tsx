@@ -30,6 +30,7 @@ import {useForm} from "@/hooks/useForm.ts";
 import React, {type Dispatch, type SetStateAction, useId, useRef} from "react";
 import {addEmployee, type Employee, type EmployeeAddRequest} from "../personnelApi.ts";
 import type {PositionQueryResponse} from "../../position/positionApi.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Props for the AddEmployeeModal.
@@ -117,10 +118,10 @@ const AddEmployeeModal = ({ isOpen, onOpenChange, employees, positions, onEmploy
       resetForm();
 
       toaster.create({ title: "Employee Added", type: "success" });
-    } catch (err: any) {
+    } catch (error: unknown) {
       toaster.create({
         title: "Employee Creation Failed",
-        description: err.message,
+        description: getErrorMessage(error, "Unable to add employee"),
         type: "error"
       });
     }

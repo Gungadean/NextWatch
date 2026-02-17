@@ -11,6 +11,7 @@
  */
 
 import axiosInstance from "@/axiosConfig.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Represents a shift assigned in the official schedule.
@@ -94,6 +95,41 @@ export interface ScheduleDraft {
 }
 
 /**
+ * Request payload for initiating schedule generation.
+ * Matches backend/schemas/schedule_schemas.py -> ScheduleRequest
+ */
+export interface ScheduleRequest {
+  start_date: string;
+  end_date: string;
+  position_ids: number[];
+  min_days_off?: number;
+  max_steps?: number;
+  manual_conflicts?: Array<Record<string, unknown>>;
+  holidays?: string[];
+}
+
+/**
+ * Progress update payload from the SSE stream.
+ * Matches backend/ewatchbill/schedule_message_generator.py -> yield progress_data
+ */
+export interface GenerationProgress {
+  type: "progress";
+  step: number;
+  total: number;
+  percent: number;
+  current_score: number;
+}
+
+/**
+ * Standardized error object for the stream.
+ * Handles both local catch errors and backend SSE errors.
+ */
+export interface StreamError {
+  type: "error";
+  message: string;
+}
+
+/**
  * Manages the streaming generation of a schedule via Server-Sent Events (SSE).
  *
  *
@@ -101,10 +137,10 @@ export interface ScheduleDraft {
  * This allows the UI to show real-time progress to the user.
  */
 export const generateScheduleStream = async (
-  requestData: any,
-  onProgress: (data: any) => void,
+  requestData: ScheduleRequest,
+  onProgress: (data: GenerationProgress) => void,
   onComplete: (data: ScheduleResponse) => void,
-  onError: (err: any) => void
+  onError: (err: StreamError) => void
 ) => {
   let seenBytes = 0;
   let buffer = "";
@@ -144,8 +180,8 @@ export const generateScheduleStream = async (
         buffer = parts[parts.length - 1];
       }
     });
-  } catch (err: any) {
-    const errorMessage = err.response?.data?.detail || err.message || "Schedule Generation Failed";
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error, "Schedule Generation Failed");
     onError({ type: "error", message: errorMessage });
   }
 };
@@ -158,8 +194,8 @@ export const getScheduleDraftSummaries = async (): Promise<DraftSummary[]> => {
     const response = await axiosInstance.get(`/schedule/drafts`);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Drafts Request Failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Drafts Request Failed"));
   }
 }
 
@@ -171,8 +207,8 @@ export const getScheduleDraftSchedule = async (uuid: string): Promise<ScheduleDr
     const response = await axiosInstance.get(`/schedule/drafts/${uuid}`);
 
     return response.data
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Draft Schedule Request Failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Draft Schedule Request Failed"));
   }
 }
 
@@ -185,8 +221,8 @@ export const publishDraft = async (uuid: string): Promise<ScheduleResponse> => {
     const response = await axiosInstance.post(`/schedule/drafts/${uuid}/publish`);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Draft Publishing Failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Draft Publishing Failed"));
   }
 }
 
@@ -198,8 +234,8 @@ export const deleteDraft = async (uuid: string) => {
     const response = await axiosInstance.delete(`/schedule/drafts/${uuid}/delete`);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Draft Publishing Failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Draft Publishing Failed"));
   }
 }
 
@@ -211,7 +247,7 @@ export const getMonthlySchedule = async (year: number, month: number): Promise<S
     const response = await axiosInstance.get<Shift[]>(`/schedule/${year}/${month}`);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Schedule Request Failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Schedule Request Failed"));
   }
 }

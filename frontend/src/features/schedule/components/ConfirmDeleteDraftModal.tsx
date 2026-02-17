@@ -19,6 +19,7 @@ import {
   type ScheduleDraft,
   type ScheduleResponse
 } from "@/features/schedule/scheduleApi.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Props for the Draft Deletion Modal.
@@ -53,10 +54,10 @@ const ConfirmDeletionModalProps = ({ isOpen, onOpenChange, draft_id, drafts, onD
         title: "Draft Deleted",
         type: "success"
       });
-    } catch (err: any) {
+    } catch (error: unknown) {
       toaster.create({
         title: "Draft Deletion Failed",
-        description: err.message,
+        description: getErrorMessage(error, "Unable to delete draft"),
         type: "error"
       })
     } finally {

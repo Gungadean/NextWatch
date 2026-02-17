@@ -12,6 +12,7 @@
 
 import axiosInstance from "../../axiosConfig.tsx";
 import type {BasicEmployee} from "@/features/personnel/personnelApi.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Payload required to submit a new time-off request.
@@ -43,8 +44,8 @@ export const getRequests = async (): Promise<TimeOffResponse[]> => {
   try {
     const response = await axiosInstance.get<TimeOffResponse[]>("/requests");
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Requests query failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Requests query failed"));
   }
 }
 
@@ -56,8 +57,8 @@ export const addRequest = async (data: TimeOffAddRequest): Promise<TimeOffRespon
     const response = await axiosInstance.post<TimeOffResponse>('/requests/add', data);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Request add failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Request add failed"));
   }
 }
 
@@ -67,8 +68,8 @@ export const addRequest = async (data: TimeOffAddRequest): Promise<TimeOffRespon
 export const deleteRequest = async (request_id: number) => {
   try {
     await axiosInstance.delete<TimeOffResponse[]>(`/requests/${request_id}/delete`);
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Request deletion failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Request deletion failed"));
   }
 }
 
@@ -78,8 +79,8 @@ export const deleteRequest = async (request_id: number) => {
 export const approveRequest = async (request_id: number) => {
   try {
     await axiosInstance.patch<TimeOffResponse[]>(`/requests/${request_id}/approve`);
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Request approval failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Request approval failed"));
   }
 }
 
@@ -89,8 +90,8 @@ export const approveRequest = async (request_id: number) => {
 export const denyRequest = async (request_id: number) => {
   try {
     await axiosInstance.patch<TimeOffResponse[]>(`/requests/${request_id}/deny`);
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Request denial failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Request denial failed"));
   }
 }
 
@@ -101,7 +102,7 @@ export const denyRequest = async (request_id: number) => {
 export const modifyRequest = async (request_id: number) => {
   try {
     await axiosInstance.patch<TimeOffResponse[]>(`/requests/${request_id}/modify`);
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Request modification failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Request modification failed"));
   }
 }

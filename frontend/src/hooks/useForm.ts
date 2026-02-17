@@ -15,7 +15,7 @@ import React, { useState } from 'react';
 /**
  * Custom hook to handle form states.
  */
-export const useForm = <T extends Record<string, any>>(initialValues: T) => {
+export const useForm = <T extends Record<string, unknown>>(initialValues: T) => {
   const [formData, setFormData] = useState<T>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
 

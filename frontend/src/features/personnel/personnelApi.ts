@@ -11,6 +11,7 @@
  */
 
 import axiosInstance from "../../axiosConfig.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Represents an employee's time off request.
@@ -92,8 +93,8 @@ export const getEmployees = async (includeTimeOff = false): Promise<Employee[]> 
     const url = includeTimeOff ? "/employees?include_time_off=true" : "/employees";
     const response = await axiosInstance.get<Employee[]>(url);
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Employee query failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Employee query failed"));
   }
 }
 
@@ -112,8 +113,8 @@ export const addEmployee = async (data: EmployeeAddRequest): Promise<Employee> =
     const response = await axiosInstance.post<Employee>('/employees/add', data);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Employee adding failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Employee adding failed"));
   }
 }
 
@@ -123,7 +124,7 @@ export const addEmployee = async (data: EmployeeAddRequest): Promise<Employee> =
 export const deleteEmployees = async (employees: EmployeeDeleteRequest[]) => {
   try {
     await axiosInstance.post<EmployeeDeleteRequest[]>('/employees/delete', employees);
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Employee deletion failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Employee deletion failed"));
   }
 }

@@ -44,14 +44,16 @@ export const startTokenTimer = (token: string) => {
         sessionId = window.setTimeout(async () => {
             try {
                 await refreshAccessToken();
-            } catch (error) {
+            } catch (error: unknown) {
                 // If there was an error, it's likely the user's session has expired
                 // and will need to relog.
+                console.error(error);
                 clearAuthData();
             }
         }, timeout);
-    } catch (error) {
+    } catch (error: unknown) {
         // Clear the auth data when JWT decoding fails.
+        console.error(error);
         clearAuthData();
     }
 };

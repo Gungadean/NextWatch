@@ -33,6 +33,7 @@ import AddEmployeeModal from "../features/personnel/components/AddEmployeeModal.
 import ConfirmEmployeeDeletionModal from "../features/personnel/components/ConfirmEmployeeDeletionModal.tsx";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Main Personnel Management Page.
@@ -66,11 +67,11 @@ const PersonnelPage = () => {
         ]);
         setEmployees(employees_data);
         setPositions(positions_data);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Data Load Error:", error);
         toaster.create({
           title: "Failed to load personnel data",
-          description: error.message,
+          description: getErrorMessage(error, "Unable to retrieve data from backend."),
           type: "error"
         });
       } finally {

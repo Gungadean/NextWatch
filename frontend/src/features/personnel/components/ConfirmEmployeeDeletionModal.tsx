@@ -14,6 +14,7 @@ import {Button, CloseButton, Dialog, List, Portal} from "@chakra-ui/react";
 import {toaster} from "@/components/ui/toaster.tsx";
 import type {Dispatch, SetStateAction} from "react";
 import {deleteEmployees, type Employee, type EmployeeDeleteRequest} from "../personnelApi.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Props for the Deletion Confirmation Modal.
@@ -50,10 +51,10 @@ const ConfirmEmployeeDeletionModal = ({ isOpen, onOpenChange, selection, employe
         title: selection.length === 1 ? "Employee Deleted" : "Employees Deleted",
         type: "success"
       });
-    } catch (err: any) {
+    } catch (error: unknown) {
       toaster.create({
         title: "Employee Deletion Failed",
-        description: err.message,
+        description: getErrorMessage(error, "Unable to delete employee"),
         type: "error"
       })
     }

@@ -24,6 +24,7 @@ import {Field} from "@/components/ui/field.tsx";
 import {useAuth} from "@/hooks/useAuth.ts";
 import {useNavigate} from "react-router";
 import {useForm} from "@/hooks/useForm.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Login Form Component.
@@ -68,11 +69,11 @@ export const LoginForm = () => {
       toaster.create({ title: "Welcome back!", type: "success" });
       navigate("/");
 
-    } catch (err: any) {
+    } catch (error: unknown) {
       // Display any error from backend.
       toaster.create({
         title: "Login Failed",
-        description: err.message || "Invalid credentials",
+        description: getErrorMessage(error, "Invalid credentials"),
         type: "error",
       });
     }

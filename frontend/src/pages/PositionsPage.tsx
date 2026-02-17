@@ -31,6 +31,7 @@ import {convertToLocalTime} from "../utils/timeUtils.ts";
 import ConfirmPositionDeletionModal from "../features/position/components/ConfirmPositionDeletionModal.tsx";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Main Layout for the Positions (Watch Stations) Management Page.
@@ -59,11 +60,11 @@ const PositionsPage = () => {
       try {
         const data = await getPositionList();
         setPositions(data);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Failed to load positions:", error);
         toaster.create({
             title: "Data Load Error",
-            description: error.message || "Could not retrieve positions.",
+            description: getErrorMessage(error, "Could not retrieve positions."),
             type: "error"
         });
       } finally {

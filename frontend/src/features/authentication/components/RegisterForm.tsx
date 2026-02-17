@@ -15,11 +15,12 @@ import React, { useState } from 'react';
 import { Stack, Input, Button, Progress, Text, HStack } from '@chakra-ui/react';
 import {type AuthSignUpData, validateSignUp} from "../authValidation.ts";
 import {registerUser} from "../authApi.ts";
-import {toaster} from "../../../components/ui/toaster.tsx";
-import {Field} from "../../../components/ui/field.tsx";
-import {PasswordInput} from "../../../components/ui/password-input.tsx";
-import {useForm} from "../../../hooks/useForm.ts";
+import {toaster} from "@/components/ui/toaster.tsx";
+import {Field} from "@/components/ui/field.tsx";
+import {PasswordInput} from "@/components/ui/password-input.tsx";
+import {useForm} from "@/hooks/useForm.ts";
 import {useNavigate} from "react-router";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Register Form Component
@@ -85,8 +86,12 @@ export const RegisterForm = () => {
       toaster.create({ title: "Account created!", type: "success" });
       navigate("/login");
 
-    } catch (err: any) {
-      toaster.create({ title: "Registration Failed", description: err.message, type: "error" });
+    } catch (error: unknown) {
+      toaster.create({
+        title: "Registration Failed",
+        description: getErrorMessage(error, "Unable to register user"),
+        type: "error"
+      });
     } finally {
       setLoading(false);
     }

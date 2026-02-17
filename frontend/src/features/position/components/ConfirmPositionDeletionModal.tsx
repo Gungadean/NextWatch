@@ -14,6 +14,7 @@ import {Button, CloseButton, Dialog, List, Portal} from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster.tsx";
 import {deletePositions, type PositionDeleteRequest, type PositionQueryResponse} from "../positionApi.ts";
 import type {Dispatch, SetStateAction} from "react";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Props for the Position Deletion Modal.
@@ -45,10 +46,10 @@ const ConfirmPositionDeletionModal = ({ isOpen, onOpenChange, selection, positio
         title: selection.length === 1 ? "Position Deleted" : "Positions Deleted",
         type: "success"
       });
-    } catch (err: any) {
+    } catch (error: unknown) {
       toaster.create({
         title: "Position Deletion Failed",
-        description: err.message,
+        description: getErrorMessage(error, "Unable to delete position"),
         type: "error"
       })
     }

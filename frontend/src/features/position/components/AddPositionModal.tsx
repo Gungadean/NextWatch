@@ -26,6 +26,7 @@ import {addPosition, type PositionAddRequest, type PositionQueryResponse} from "
 import {toaster} from "@/components/ui/toaster.tsx";
 import {useForm} from "@/hooks/useForm.ts";
 import React, {type Dispatch, type SetStateAction} from "react";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Props for the AddPositionModal.
@@ -69,10 +70,10 @@ const AddPositionModal = ({ isOpen, onOpenChange, positions, onPositionsChange }
         title: "Position Created",
         type: "success"
       });
-    } catch (err: any) {
+    } catch (error: unknown) {
       toaster.create({
         title: "Position Creation Failed",
-        description: err.message,
+        description: getErrorMessage(error, "Unable to add position"),
         type: "error"
       });
     }
@@ -118,7 +119,7 @@ const AddPositionModal = ({ isOpen, onOpenChange, positions, onPositionsChange }
                              name: "color",
                              value: hexValue
                            }
-                         } as any)
+                         } as never)
                       }}
                       value={parseColor(formData.color)}
                     >

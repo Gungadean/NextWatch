@@ -11,6 +11,7 @@
  */
 
 import axiosInstance from "../../axiosConfig.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Payload required to create a new position.
@@ -48,8 +49,8 @@ export const getPositionList = async (): Promise<PositionQueryResponse[]> => {
     const response = await axiosInstance.get('/positions');
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Registration failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Registration failed"));
   }
 };
 
@@ -61,8 +62,8 @@ export const addPosition = async (positions: PositionAddRequest): Promise<Positi
     const response = await axiosInstance.post<PositionQueryResponse>('/positions/add', positions);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Position creation failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Position creation failed"));
   }
 }
 
@@ -72,7 +73,7 @@ export const addPosition = async (positions: PositionAddRequest): Promise<Positi
 export const deletePositions = async (positions: PositionDeleteRequest[]) => {
   try {
     await axiosInstance.post<PositionDeleteRequest[]>('/positions/delete', positions);
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Position deletion(s) failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Position deletion(s) failed"));
   }
 }

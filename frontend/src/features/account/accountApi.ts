@@ -11,6 +11,7 @@
  */
 
 import axiosInstance from "@/axiosConfig.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Represents the authenticated user's profile data.
@@ -32,7 +33,8 @@ export const fetchUserProfile = async (): Promise<User> => {
   try {
     const response = await axiosInstance.get<User>('/account/info');
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "User data fetching failed");
+  } catch (error: unknown) {
+
+    throw new Error(getErrorMessage(error, "User data fetching failed"));
   }
 }

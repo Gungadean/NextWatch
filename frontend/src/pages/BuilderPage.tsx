@@ -31,7 +31,11 @@ import {
   type ScheduleResponse,
   getScheduleDraftSummaries, getScheduleDraftSchedule, type DraftSummary, type ScheduleDraft, type Watchstander
 } from "../features/schedule/scheduleApi.ts";
-import {getEmployeesWithTimeOff, type EmployeeWithTimeOff, type Position} from "../features/personnel/personnelApi";
+import {
+  getEmployeesWithTimeOff,
+  type EmployeeWithTimeOff,
+  type Position
+} from "../features/personnel/personnelApi";
 import {type CalendarEvent, CalendarGrid} from "@/components/CalendarGrid.tsx";
 import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
 import {convertToLocalTime, parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
@@ -39,6 +43,7 @@ import {getPositionList} from "@/features/position/positionApi.ts";
 import ConfirmPublishDraftModal from "@/features/schedule/components/ConfirmPublishDraftModal.tsx";
 import ConfirmDeleteDraftModal from "@/features/schedule/components/ConfirmDeleteDraftModal.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
@@ -89,39 +94,27 @@ const BuilderPage = () => {
     const parts = startDate.split('-').map(Number);
     setCalendarViewDate(new Date(parts[0], parts[1] - 1, 1));
 
-    const fetchEmployees = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getEmployeesWithTimeOff();
-
-        setEmployees(data);
-      } catch (error) {
-        console.error("Failed to load employees", error);
+        const [employeeData, draftData, positionData] = await Promise.all([
+          getEmployeesWithTimeOff(),
+          getScheduleDraftSummaries(),
+          getPositionList()
+        ]);
+        setEmployees(employeeData);
+        setDraftSummaries(draftData);
+        setPositions(positionData);
+      } catch (error: unknown) {
+        toaster.create({
+          title: "Fetching Page Data Failed",
+          description: getErrorMessage(error, "Unable to fetch data from backend."),
+          type: "error"
+        });
       }
     }
 
-    const fetchDraftSummaries = async () => {
-      try {
-        const data = await getScheduleDraftSummaries();
-
-        setDraftSummaries(data);
-      } catch (error) {
-        console.error("Failed to load employees", error);
-      }
-    }
-
-    const fetchPositions = async () => {
-      try {
-        const data = await getPositionList();
-        setPositions(data);
-      } catch (error) {
-        console.error("Failed to load positions", error);
-      }
-    }
-
-    fetchEmployees();
-    fetchDraftSummaries();
-    fetchPositions();
-  }, []);
+    fetchData();
+  }, [startDate]);
 
   const handleGenerate = async () => {
     if (positions.length === 0) {

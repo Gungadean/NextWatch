@@ -38,6 +38,7 @@ import {useCurrentUser} from "@/hooks/useAuth.ts";
 import AddRequestModal from "@/features/requests/components/AddRequestModal.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {toSimpleDate} from "@/utils/timeUtils.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Main Request Management Page.
@@ -76,10 +77,10 @@ const RequestPage = () => {
         ]);
         setEmployees(empData);
         setRequests(reqData);
-      } catch (err: any) {
+      } catch (error: unknown) {
         toaster.create({
           title: "Fetching Page Data Failed",
-          description: err.message,
+          description: getErrorMessage(error, "Unable to fetch data from backend."),
           type: "error"
         });
       } finally {
@@ -177,8 +178,11 @@ const RequestPage = () => {
       ));
 
       toaster.create({ title: `Request ${action}`, type: "success" });
-    } catch (error: any) {
-      toaster.create({ title: "Action Failed", description: error.message, type: "error" });
+    } catch (error: unknown) {
+      toaster.create({
+        title: "Action Failed",
+        description: getErrorMessage(error, "Unable to perform action."),
+        type: "error" });
     }
   };
 

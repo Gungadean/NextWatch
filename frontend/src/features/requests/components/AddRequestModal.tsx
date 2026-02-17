@@ -30,6 +30,7 @@ import React, {type Dispatch, type SetStateAction, useMemo, useState} from "reac
 import {addRequest, type TimeOffAddRequest, type TimeOffResponse} from "@/features/requests/requestsApi.ts";
 import type {Employee} from "@/features/personnel/personnelApi.ts";
 import {toSimpleDate} from "@/utils/timeUtils.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Props for the AddRequestModal.
@@ -92,8 +93,12 @@ const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequests
         title: "Request Created",
         type: "success"
       });
-    } catch (err: any) {
-      toaster.create({ title: "Request Creation Failed", description: err.message, type: "error" });
+    } catch (error: unknown) {
+      toaster.create({
+        title: "Request Creation Failed",
+        description: getErrorMessage(error, "Unable to add request"),
+        type: "error"
+      });
     }
   };
 

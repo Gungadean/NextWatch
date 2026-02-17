@@ -19,6 +19,7 @@ import {
   type ScheduleResponse
 } from "@/features/schedule/scheduleApi.ts";
 import type {Dispatch, SetStateAction} from "react";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Props for the Publish Confirmation Modal.
@@ -52,10 +53,10 @@ const ConfirmPublishDraftModal = ({ isOpen, onOpenChange, draft_id, drafts, onDr
         description: "The draft has been successfully committed to the official schedule.",
         type: "success"
       });
-    } catch (err: any) {
+    } catch (error: unknown) {
       toaster.create({
         title: "Draft Publishing Failed",
-        description: err.message,
+        description: getErrorMessage(error, "Unable to publish draft"),
         type: "error"
       })
     }

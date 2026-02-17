@@ -15,6 +15,7 @@ import {Box, Button, Heading, Stack} from "@chakra-ui/react";
 import {getMonthlySchedule} from "@/features/schedule/scheduleApi.ts";
 import {type CalendarEvent, CalendarGrid} from "@/components/CalendarGrid.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 /**
  * Main calendar layout for displaying schedule calendar.
@@ -49,10 +50,10 @@ const CalendarPage = () => {
         }));
 
         setEvents(normalizedEvents);
-      } catch (error: any) {
+      } catch (error: unknown) {
         toaster.create({
           title: "Schedule Load Failed",
-          description: error.message || "Could not retrieve shifts.",
+          description: getErrorMessage(error, "Could not retrieve shifts."),
           type: "error"
         });
       }

@@ -12,6 +12,7 @@
 
 import axiosInstance from "../../axiosConfig";
 import {startTokenTimer, stopTokenTimer} from "./tokenManager.ts";
+import {getErrorMessage} from "@/utils/errorUtils.ts";
 
 let accessToken: string | undefined = undefined;
 
@@ -79,8 +80,8 @@ export const registerUser = async (data: RegisterRequest): Promise<AuthResponse>
     setAccessToken(response.data.access_token);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Registration failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Registration failed"));
   }
 };
 
@@ -104,8 +105,8 @@ export const loginUser = async (data: AuthRequest): Promise<AuthResponse> => {
     setAccessToken(response.data.access_token);
 
     return response.data;
-  } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Login failed");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Login failed"));
   }
 };
 
@@ -119,9 +120,9 @@ export const logoutUser = async (): Promise<string | void> => {
 
     clearAuthData();
     return response.data.message;
-  } catch (err: any) {
+  } catch (error: unknown) {
     clearAuthData();
-    throw new Error(err.response?.data?.detail || "Failed to send password reset email");
+    throw new Error(getErrorMessage(error, "Logout failed"));
   }
 };
 
@@ -131,8 +132,8 @@ export const logoutUser = async (): Promise<string | void> => {
 export const verifyAccessToken = async (): Promise<void> => {
   try {
     await axiosInstance.get<{message: string}>('/auth/verify')
-  } catch (error: any) {
-    throw new Error(error.response?.data?.detail || "Failed to verify access token");
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Access token verification failed"));
   }
 }
 
@@ -150,8 +151,8 @@ export const refreshAccessToken = async (): Promise<string> => {
     setAccessToken(response.data.access_token);
 
     return response.data.access_token;
-  } catch (error : any) {
+  } catch (error : unknown) {
     clearAuthData();
-    throw new Error(error.response?.data?.detail || 'Session expired. Please log in again.');
+    throw new Error(getErrorMessage(error, "Session expired. Please log in again."));
   }
 };
