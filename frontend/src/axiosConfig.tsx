@@ -13,11 +13,22 @@
 import axios from "axios";
 import {clearAuthData, getAccessToken, refreshAccessToken} from "./features/authentication/authApi.ts";
 
+/**
+ * Structure of a queued request waiting for a new token.
+ */
 interface FailedRequest {
   resolve: (value: string | null) => void;
   reject: (reason?: unknown | null) => void;
 }
 
+// Global Flags & State
+const devMode: boolean = import.meta.env.VITE_DEV.toLowerCase() === 'true';
+let isRefreshing = false;
+let failedQueue: FailedRequest[] = [];
+
+/**
+ * The singleton Axios instance used for all API calls.
+ */
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_API_URL,
   headers: {
@@ -26,16 +37,10 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
-// Boolean to check if access token is currently being refreshed.
-let isRefreshing = false;
 
-// Queue for storing failed requests (Likely because of access token)
-let failedQueue: FailedRequest[] = [];
-
-const devMode: boolean = import.meta.env.VITE_DEV.toLowerCase() === 'true';
 
 /**
- * Process failed queue for rerunning failed requests after token refresh.
+ * Processes the queue of failed requests after a refresh attempt.
  */
 const processQueue = (error: unknown | null, token: string | null = null) => {
   failedQueue.forEach(promise => {
@@ -54,43 +59,26 @@ const processQueue = (error: unknown | null, token: string | null = null) => {
  */
 axiosInstance.interceptors.request.use(
   (request) => {
-    // Add token to header.
+    // Inject token
     const token = getAccessToken();
-
     if (token && request.headers) {
       request.headers["Authorization"] = `Bearer ${token}`;
     }
 
+    // Dev Logging
     if (devMode) {
-      console.log("--------------------");
-      console.log("[Request]");
-
-      console.log("BaseURL: ", request.baseURL);
-      console.log("Url: ", request.url);
-
-      console.log("Method: ", request.method?.toUpperCase());
-      console.log("Headers: ", JSON.stringify(request.headers, null, 2));
-
-      if (request.params) {
-        console.log("Params: ", JSON.stringify(request.params, null, 2));
-      }
-
-      if (request.data) {
-        console.log("Data: ", JSON.stringify(request.data, null, 2));
-      }
-
-      console.log("--------------------");
+      console.groupCollapsed(`[Request] ${request.method?.toUpperCase()} ${request.url}`);
+      console.log("BaseURL:", request.baseURL);
+      console.log("Headers:", request.headers);
+      if (request.params) console.log("Params:", request.params);
+      if (request.data) console.log("Data:", request.data);
+      console.groupEnd();
     }
 
     return request;
   },
   (error) => {
-    if (devMode) {
-      console.error("--------------------");
-      console.error("[Request Error]");
-      console.error("Error: ", error);
-      console.error("--------------------");
-    }
+    if (devMode) console.error("[Request Error]", error);
     return Promise.reject(error);
   }
 )
@@ -100,18 +88,11 @@ axiosInstance.interceptors.request.use(
  */
 axiosInstance.interceptors.response.use(
   (response) => {
-    // Successful response (2xx)
+    // Dev Logging (Success)
     if (devMode) {
-      console.log("--------------------");
-      console.log("[Response]");
-
-      console.log("BaseURL:   ", response.config.baseURL);
-      console.log("Url:       ", response.config.url);
-
-      console.log("Status:    ", response.status);
-      console.log("Headers:   ", JSON.stringify(response.headers, null, 2));
-      console.log("Data:      ", JSON.stringify(response.data, null, 2));
-      console.log("--------------------");
+      console.groupCollapsed(`[Response] ${response.status} ${response.config.url}`);
+      console.log("Data:", response.data);
+      console.groupEnd();
     }
     return response;
   },
@@ -120,69 +101,64 @@ axiosInstance.interceptors.response.use(
     const originalRequest = error.config;
     const response = error.response; // may be undefined if there was no response
 
+    // Dev Error Logging
     if (devMode) {
-      console.error("--------------------");
-      console.error("[Response Error]");
-
-      console.error("Request BaseURL: ", originalRequest.baseURL);
-      console.error("Request Url: ", originalRequest.url);
-
-      console.error("Request Method: ", originalRequest.method?.toUpperCase());
-      console.error("Request Headers: ", JSON.stringify(originalRequest.headers, null, 2));
-
-      if (originalRequest.data) {
-        console.error("Request Payload: ", JSON.stringify(originalRequest.data, null, 2));
-      }
-
+      console.group(`[Response Error] ${response?.status || 'Network'} ${originalRequest?.url}`);
       if (response) {
-        // Server replied with a status code (e.g. 400, 401, 500)
-        console.error("Response Status: ", response.status);
-        console.error("Response Headers: ", JSON.stringify(response.headers, null, 2));
-        console.error("Response Data: ", JSON.stringify(response.data, null, 2));
+        console.error("Status:", response.status);
+        console.error("Data:", response.data);
       } else {
-        // No response received (network error, CORS, DNS, etc.)
-        console.error("No response received (network error or CORS issue)");
+        console.error("No response received (Network/CORS)");
       }
-
-      console.error("Error Object: ", error);
-      console.error("--------------------");
+      console.groupEnd();
     }
 
     // Check if the request was to any of the auth endpoints to prevent a loop.
-    const attemptRetry = (originalRequest.url !== '/auth/refresh' &&
-        originalRequest.url !== '/auth/login' &&
-        originalRequest.url !== '/auth/logout' &&
-        originalRequest.url !== '/auth/register');
+    const attemptRetry = originalRequest.url && (
+        !originalRequest.url.includes('/auth/refresh') &&
+        !originalRequest.url.includes('/auth/login') &&
+        !originalRequest.url.includes('/auth/logout') &&
+        !originalRequest.url.includes('/auth/register')
+    );
 
-    // If we got a 401 and haven’t retried yet, attempt to refresh the access token
+    // Handle 401 Unauthorized (Expired Access Token)
     if (response?.status === 401 && !originalRequest._retry && attemptRetry) {
+      // Refresh already in progress.
+      // Queue this request to wait until the first one finishes.
       if (isRefreshing) {
-        // A refresh is currently happening, add to failed queue
-        // and queue rerun and failure response.
         return new Promise<string | null>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         }).then(token => {
-          originalRequest.headers['Authorization'] = `Bearer ${token}`;
+          if (token) {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+          }
           return axiosInstance(originalRequest);
-        }).catch(error => {
-          return Promise.reject(error);
-        })
+        }).catch(err => {
+          return Promise.reject(err);
+        });
       }
 
+      // First request to fail.
+      // Lock the queue and trigger the refresh.
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        console.log("No access token found, attempting revalidate with refresh token.")
+        if(devMode) console.log("Access token expired. Attempting refresh...");
+
         const newToken = await refreshAccessToken();
+
+        // Update the header for *this* request immediately
         originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
 
-        // Process queue with new token
+        // Unlock and process all queued requests
         processQueue(null, newToken);
+
         return axiosInstance(originalRequest);
       } catch (refreshError) {
-        console.log("Refresh failed, rejecting original promise.")
-        // If refresh fails, clear auth data and reject
+        // If refresh fails (Refresh Token expired/invalid), force logout.
+        if(devMode) console.error("Refresh failed. Logging out.");
+
         processQueue(refreshError, null);
         clearAuthData();
         return Promise.reject(refreshError);
@@ -191,6 +167,7 @@ axiosInstance.interceptors.response.use(
       }
     }
 
+    // Return all other errors as is
     return Promise.reject(error);
   }
 );

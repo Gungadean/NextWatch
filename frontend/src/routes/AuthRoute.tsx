@@ -6,31 +6,34 @@
 /**
  * AuthRoute.tsx
  *
- * Route wrapper for ensuring authentication for protected routes.
+ * A "Protected Route" wrapper component.
+ * It intercepts navigation to ensure the user has a valid session before
+ * rendering the child route (Outlet).
  */
 
 import { Navigate, Outlet, useLocation } from 'react-router';
 import {useAuth} from "../hooks/useAuth.ts";
 
 /**
- * Main route logic.
- * Checks for authenticated user and redirects to login page if not session is active.
+ * AuthRoute Component
  */
 const AuthRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
+  // Prevent flashing the login screen while the token is being verified.
   if (isLoading) {
     return (
       <div>Loading...</div>
     )
   }
 
-  // Redirect the user to login page if no session is found.
+  // No Session Found
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Render the child route elements.
   return <Outlet />;
 };
 

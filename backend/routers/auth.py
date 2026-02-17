@@ -4,36 +4,54 @@
 """
 auth.py
 
-Router for authenticating with backend.
+This module defines the API router for authentication and session management using OAuth2 flow.
 """
 
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, status, HTTPException, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlmodel import Session
 
-from backend.models.auth_models import RegisterRequest, Token
-from backend.models.generic_models import MessageResponse
-from backend.utils.auth.auth_tokens_utils import create_tokens, get_current_token, \
-    create_access_token, get_token_data
-from backend.utils.auth.auth_users_utils import get_authenticated_user, check_user_exists, check_user_email_exists, \
-    create_user
+from backend.database.database import get_session, User
+from backend.schemas.auth_schemas import RegisterRequest, Token
+from backend.schemas.generic_schemas import MessageResponse
+from backend.utils.auth.auth_tokens_utils import (
+    create_tokens,
+    get_current_token,
+    create_access_token,
+    get_token_data
+)
+from backend.utils.auth.auth_users_utils import (
+    get_authenticated_user,
+    get_user
+)
 
 router = APIRouter()
 
 
 @router.post('/auth/login')
-async def route_login_user(response: Response,
-                     form_data: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
+async def route_login_user(
+        response: Response,
+        form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+        session: Session = Depends(get_session)
+) -> Token:
     """
-    Endpoint to handle a user login request using OAuth2 standards.
-    :param response: Response object for setting session cookies.
-    :param form_data: OAuth2 compliant form data for authentication.
-    :return: Token for new session if login is valid.
-    :raise: HTTPException: If login attempt fails.
+    Authenticate a user and issue session tokens.
+
+    Args:
+        response (Response): FastAPI response object (used to set cookies).
+        form_data (OAuth2PasswordRequestForm): Standard URL-encoded login form.
+        session (Session): Get database session.
+
+    Returns:
+        Token: The short-lived access token for API authorization.
+
+    Raises:
+        HTTPException (401): If credentials are invalid.
     """
     # Attempt to get an authenticated user based off of the supplied data.
-    user = get_authenticated_user(form_data.username, form_data.password)
+    user = get_authenticated_user(form_data.username, form_data.password, session)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,23 +65,34 @@ async def route_login_user(response: Response,
 
 
 @router.post('/auth/register')
-async def route_register_user(response: Response, register_data: RegisterRequest) -> Token:
+async def route_register_user(
+        response: Response,
+        register_data: RegisterRequest,
+        session: Session = Depends(get_session)
+    ) -> Token:
     """
-    Endpoint to handle a user register request.
-    :param response: Response object for setting session cookies.
-    :param register_data: Model representing new user registration info.
-    :return: Token for new session if user is successfully registered.
-    :raise: HTTPException: If user with matching data already exists.
+    Register a new user and automatically log them in.
+
+    Args:
+        response (Response): FastAPI response object (for setting cookies).
+        register_data (RegisterRequest): The registration payload (username, email, password).
+        session (Session): Get database session.
+
+    Returns:
+        Token: The access token for the newly created session.
+
+    Raises:
+        HTTPException (409): If the username or email is already taken.
     """
     # Determine if a user with this username already exists.
-    if check_user_exists(register_data.username):
+    if get_user(register_data.username, session):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Username already exists",
             headers={"WWW-Authenticate": "Bearer"}
         )
     # Determine if a user with this email already exists.
-    if check_user_email_exists(register_data.email):
+    if get_user(register_data.email, session):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already exists",
@@ -71,7 +100,17 @@ async def route_register_user(response: Response, register_data: RegisterRequest
         )
 
     # Create user and then generate an access and refresh tokens and add as cookies.
-    create_user(register_data.username, register_data.email, register_data.password)
+    new_user = User(
+        username=register_data.username,
+        email=register_data.email,
+        password_hashed=register_data.password,
+        role=register_data.role
+    )
+
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
+
     access_token = create_tokens(data={"sub": register_data.username}, response=response)
 
     return Token(username=register_data.username, access_token=access_token)
@@ -80,9 +119,14 @@ async def route_register_user(response: Response, register_data: RegisterRequest
 @router.post('/auth/logout')
 async def route_logout_user(response: Response) -> MessageResponse:
     """
-    Endpoint to handle a user logout request.
-    :param response: Response object for setting session cookies.
-    :return: Message that log out was successful.
+    Terminate the user session.
+
+    Args:
+        response (Response): FastAPI response object (for setting cookies).
+
+    Action:
+        - Clears the 'refresh_token' cookie.
+        - Clears the 'is_logged_in' client-side indicator cookie.
     """
     response.delete_cookie('refresh_token')
     response.delete_cookie('is_logged_in')
@@ -92,9 +136,10 @@ async def route_logout_user(response: Response) -> MessageResponse:
 @router.get('/auth/verify')
 async def route_verify_access_token(token: Optional[str] = Depends(get_current_token)) -> MessageResponse:
     """
-    Verify submitted user token is valid.
-    :param token: Token to be verified.
-    :return: Message if user token is valid.
+    Validate the current Access Token.
+
+    This endpoint is used by the frontend on load to determine
+    if the user's cached token is still valid.
     """
     token_data = get_token_data(token, "access")
 
@@ -104,10 +149,21 @@ async def route_verify_access_token(token: Optional[str] = Depends(get_current_t
 @router.post('/auth/refresh')
 async def route_refresh_access_token(request: Request) -> Token:
     """
-    Refresh user token
-    :param request: Response object for retrieving refresh token.
-    :return: New access token if refresh token is still valid.
+    Exchange a valid Refresh Token for a new Access Token.
+
+    This allows the frontend to maintain a session without re-prompting the user
+    for credentials, as long as the HTTP-only refresh cookie is valid.
+
+    Args:
+        request (Request): FastAPI request object (for getting cookies).
+
+    Returns:
+        Token: A new Access Token.
+
+    Raises:
+        HTTPException (401): If the refresh token is missing or expired.
     """
+    # Retrieve the refresh token from the secure cookie
     refresh_token = request.cookies.get("refresh_token")
 
     if refresh_token is None:
@@ -117,7 +173,7 @@ async def route_refresh_access_token(request: Request) -> Token:
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    # If the token is expired, then the user needs to log in again.
+    # Validate the token and extract the username
     token_data = get_token_data(refresh_token, "refresh")
 
     access_token = create_access_token(data={"sub": token_data.username})

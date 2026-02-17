@@ -4,22 +4,26 @@
 """
 config.py
 
-Create initial config and create get_config function.
+Handles the application configuration management.
 """
+
+# TODO: Migrate to pydantic configuration
 
 import os
 import configparser
 
 from secrets import token_hex
 
+# Initialize the global configuration parser instance
 config = configparser.ConfigParser()
 
 
 def initialize_config():
     """
-    Initialize default config data if file does not exist or load data from file.
+    Initialize the configuration settings.
     """
     if not os.path.exists('config.ini'):
+        # API Host settings: defines where the backend service is running
         config['HOST'] = {
             'scheme': 'http',
             'host': 'localhost',
@@ -27,6 +31,8 @@ def initialize_config():
             'path': '/api'
         }
 
+        # Authentication settings: Includes JWT secrets and expiration times.
+        # token_hex(32) generates a secure 64-character hex string.
         config['AUTH'] = {
             "secret_access": token_hex(32),
             "secret_refresh": token_hex(32),
@@ -35,6 +41,7 @@ def initialize_config():
             "refresh_token_expire_days": 30
         }
 
+        # CORS (Cross-Origin Resource Sharing) settings for frontend integration
         config['CORS'] = {
             'allow_origins': ['http://localhost:5173'],
             'allow_credentials': True,
@@ -50,7 +57,10 @@ def initialize_config():
 
 def get_config():
     """
-    Return instance of config
+    Retrieve the active configuration object.
+
+    Returns:
+        configparser.ConfigParser: The populated configuration instance.
     """
     return config
 

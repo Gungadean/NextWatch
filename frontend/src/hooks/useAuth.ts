@@ -6,15 +6,18 @@
 /**
  * useAuth.ts
  *
- * Defines react context for authentication and the consuming hook.
- * This is a bridge between AuthProvider and the rest of the app for fast reload.
+ * Defines the React Context for authentication and the consuming hooks.
+ * This acts as the bridge between the raw AuthProvider logic and the rest
+ * of the application components.
  */
+
 import type {AuthRequest} from "../features/authentication/authApi.ts";
 import {createContext, useContext} from "react";
+import type {User} from "@/features/account/accountApi.ts";
 
 /**
- * Shape of authentication context.
- * Used by consumers to get the global auth state.
+ * Shape of the Authentication Context.
+ * Defines everything available to components via `useAuth()`.
  */
 export interface AuthContextType {
     isAuthenticated: boolean;
@@ -22,17 +25,17 @@ export interface AuthContextType {
     setIsAuthenticated: (isAuthenticated: boolean) => void;
     login: (data: AuthRequest) => Promise<void>;
     logout: () => void;
+    user: User | null;
 }
 
 /**
- * The context object itself.
+ * The React Context object.
+ * Initialized to null; populated by <AuthProvider>.
  */
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 /**
- * Custom hook to access the authentication context.
- * @throws {Error} If used outside a <AuthProvider> wrapper.
- * @returns {AuthContextType} The current authentication state.
+ * Hook to access the global authentication state.
  */
 export const useAuth = (): AuthContextType => {
     const context = useContext(AuthContext);
@@ -41,3 +44,19 @@ export const useAuth = (): AuthContextType => {
     }
     return context;
 };
+
+
+/**
+ * Hook to retrieve the current user's profile safely.
+ *
+ * Unlike `useAuth()`, this hook guarantees that `user` is not null.
+ * It is designed for use inside "Protected Routes" where we know the user is already logged in.
+ */
+export const useCurrentUser = (): User => {
+    const { user } = useAuth();
+
+    if (!user) {
+        throw new Error("useCurrentUser: User is missing. Are you wrapping this in a Protected Route?")
+    }
+    return user;
+}

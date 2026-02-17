@@ -6,38 +6,73 @@
 /**
  * PersonnelPage.tsx
  *
- * Content page for displaying personnel page.
+ * The primary management interface for Employee records.
+ * Displays a searchable, selectable table of all personnel and provides
+ * access to Add/Delete workflows.
  */
 
 import {useEffect, useState} from "react";
-import {getMemberList, type MemberQueryResponse} from "../features/personnel/personnelApi.ts";
-import {getQualList, type QualificationQueryResponse} from "../features/qualification/qualApi.ts";
-import {Button, Center, Checkbox, HStack, Spinner, Stack, Table} from "@chakra-ui/react";
-import AddMemberModal from "../features/personnel/components/AddMemberModal.tsx";
-import ConfirmMemberDeletionModal from "../features/personnel/components/ConfirmMemberDeletionModal.tsx";
+import {getEmployees, type Employee} from "../features/personnel/personnelApi.ts";
+import {getPositionList, type PositionQueryResponse} from "../features/position/positionApi.ts";
+import {
+  Badge,
+  Box,
+  Button,
+  Center,
+  Checkbox,
+  Flex,
+  Heading,
+  HStack, Input,
+  Separator,
+  Spinner,
+  Table,
+  VStack,
+  Text
+} from "@chakra-ui/react";
+import AddEmployeeModal from "../features/personnel/components/AddEmployeeModal.tsx";
+import ConfirmEmployeeDeletionModal from "../features/personnel/components/ConfirmEmployeeDeletionModal.tsx";
+import {useColorModeValue} from "@/components/ui/color-mode.tsx";
+import {toaster} from "@/components/ui/toaster.tsx";
 
 /**
- * Layout for personnel page.
- * Lists all personnel and allows adding/deleting of new users.
+ * Main Personnel Management Page.
  */
 const PersonnelPage = () => {
-  const [members, setMembers] = useState<MemberQueryResponse[]>([]);
-  const [quals, setQuals] = useState<QualificationQueryResponse[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [positions, setPositions] = useState<PositionQueryResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [selection, setSelection] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isConfirmDeletionModalOpen, setConfirmDeletionModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
+  const pageBg = useColorModeValue("gray.50", "gray.900");
+  const cardBg = useColorModeValue("white", "gray.800");
+  const rowBg = useColorModeValue("gray.50", "gray.700");
+  const borderColor = useColorModeValue("gray.200", "gray.700");
+
+  /**
+   * Initialization Effect.
+   * Fetches both Employees and Positions in parallel.
+   */
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const members_data = await getMemberList();
-        const qual_data = await getQualList();
-        setMembers(members_data);
-        setQuals(qual_data);
-      } catch (error) {
-        console.error(error);
+        const [employees_data, positions_data] = await Promise.all([
+          getEmployees(),
+          getPositionList()
+        ]);
+        setEmployees(employees_data);
+        setPositions(positions_data);
+      } catch (error: any) {
+        console.error("Data Load Error:", error);
+        toaster.create({
+          title: "Failed to load personnel data",
+          description: error.message,
+          type: "error"
+        });
       } finally {
         setIsLoading(false);
       }
@@ -46,96 +81,184 @@ const PersonnelPage = () => {
     fetchData();
   }, []);
 
-  // Handle opening the modal to add quals
-  const handleAddModalOpen = () => {
-    setAddModalOpen(!isAddModalOpen);
-  }
+  // Client-side filtering logic
+  const filteredEmployees = employees.filter(e =>
+    e.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.first_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  // Handle opening the modal to delete quals
-  const handleDeleteQual = () => {
-    setConfirmDeletionModalOpen(!isConfirmDeletionModalOpen);
-  }
+  /**
+   * Toggles the selection state of a specific employee row.
+   */
+  const handleSelectionChange = (id: number, isChecked: boolean) => {
+    setSelection((prev) => {
+      if (isChecked) {
+        return [...prev, id];
+      } else {
+        return prev.filter((itemId) => itemId !== id);
+      }
+    });
+  };
 
-  const getQualNames = (qual_ids: number[] | undefined) => {
-    if (!qual_ids || qual_ids.length === 0) {
-      return "None";
-    }
-
-    return quals.filter((item) =>
-      qual_ids.includes(item.id)).map((qual) => qual.name).join(", ");
-  }
-
-  // Display a loading spinner while qual list is being fetched
+  // Loading State View
   if (isLoading) {
     return (
-      <Center height="200px">
-        <Spinner size="xl" />
+      <Center height="100vh">
+        <VStack>
+          <Spinner size="xl" color="blue.500" />
+          <Text color="gray.500">Loading Roster...</Text>
+        </VStack>
       </Center>
     );
   }
 
   return (
-    <Stack paddingTop="2" height="full" width="full" gap="5">
-      <HStack justify="space-between">
-        <Button onClick={handleAddModalOpen}>Add Member</Button>
-        <Button onClick={handleDeleteQual} disabled={selection.length === 0}>Delete Member</Button>
-      </HStack>
-      <Table.ScrollArea borderWidth="1px" rounded="md" flex="1" overflowY="auto">
-        <Table.Root size="sm" variant="outline" stickyHeader interactive>
-          <Table.Header>
-            <Table.Row background="bg.subtle">
-              <Table.ColumnHeader />
-              <Table.ColumnHeader>Last Name</Table.ColumnHeader>
-              <Table.ColumnHeader>First Name</Table.ColumnHeader>
-              <Table.ColumnHeader>Middle Name</Table.ColumnHeader>
-              <Table.ColumnHeader>Qualifications</Table.ColumnHeader>
-              <Table.ColumnHeader>Email</Table.ColumnHeader>
-            </Table.Row>
-          </Table.Header>
+    <Box borderRadius="md" bg={pageBg} h="calc(100vh - 64px)" p={6} overflow="hidden">
+      <VStack gap={4} h="100%" align="stretch">
 
-          <Table.Body>
-            {members.map((item) => (
-              <Table.Row key={item.id}>
-                <Table.Cell>
-                  <Checkbox.Root
-                    size="sm"
-                    mt="0.5"
-                    aria-label="Select row"
-                    checked={selection.includes(item.id)}
-                    onCheckedChange={(changes) => {
-                      setSelection((prev) =>
-                        changes.checked ? [...prev, item.id] : selection.filter((id) => id !== item.id))
-                      }
-                    }>
-                      <Checkbox.HiddenInput />
-                      <Checkbox.Control />
-                  </Checkbox.Root>
-                </Table.Cell>
-                <Table.Cell>{item.first_name}</Table.Cell>
-                <Table.Cell>{item.last_name}</Table.Cell>
-                <Table.Cell>{item.middle_name}</Table.Cell>
-                <Table.Cell>{getQualNames(item.quals)}</Table.Cell>
-                <Table.Cell>{item.email}</Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table.Root>
-      </Table.ScrollArea>
+        {/* Header Toolbar */}
+        <Flex
+          justify="space-between"
+          align="center"
+          bg={cardBg}
+          p={4}
+          borderRadius="md"
+          border="1px solid"
+          borderColor={borderColor}
+          shadow="sm"
+        >
+          <HStack gap={4}>
+            <Heading size="md">Personnel Management</Heading>
+            <Separator orientation="vertical" height="20px" />
+            <Text color="gray.500" fontSize="sm">
+              {filteredEmployees.length} record{filteredEmployees.length !== 1 && 's'} found
+            </Text>
+          </HStack>
 
-      <AddMemberModal
+          <HStack gap={3}>
+            {/* Search Input */}
+            <Input
+              placeholder="Search employees..."
+              size="sm"
+              w="250px"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              border="1px solid" borderColor={borderColor} shadow="sm"
+            />
+
+            {/* Action Buttons */}
+            <Button
+                size="sm"
+                colorPalette="red"
+                variant="surface"
+                disabled={selection.length === 0}
+                onClick={() => setConfirmDeletionModalOpen(true)}
+            >
+              Delete ({selection.length})
+            </Button>
+            <Button
+                size="sm"
+                colorPalette="blue"
+                onClick={() => setAddModalOpen(true)}
+            >
+              Add Employee
+            </Button>
+          </HStack>
+        </Flex>
+
+        {/* Data Table */}
+        <Box
+          flex="1"
+          bg={cardBg}
+          borderRadius="md"
+          border="1px solid"
+          borderColor={borderColor}
+          overflow="hidden"
+          shadow="sm"
+        >
+          <Table.ScrollArea h="100%">
+            <Table.Root size="sm" stickyHeader interactive>
+              <Table.Header>
+                <Table.Row bg={rowBg}>
+                  <Table.ColumnHeader w="50px" /> {/* Checkbox Column */}
+                  <Table.ColumnHeader>Last Name</Table.ColumnHeader>
+                  <Table.ColumnHeader>First Name</Table.ColumnHeader>
+                  <Table.ColumnHeader>Middle</Table.ColumnHeader>
+                  <Table.ColumnHeader>Positions</Table.ColumnHeader>
+                  <Table.ColumnHeader>Email</Table.ColumnHeader>
+                </Table.Row>
+              </Table.Header>
+
+              <Table.Body>
+                {filteredEmployees.length === 0 ? (
+                  <Table.Row>
+                    <Table.Cell colSpan={6} textAlign="center" color="gray.500" py={10}>
+                      No employees found.
+                    </Table.Cell>
+                  </Table.Row>
+                ) : (
+                  filteredEmployees.map((item) => (
+                    <Table.Row key={item.id}>
+                      <Table.Cell>
+                        <Checkbox.Root
+                          size="sm"
+                          aria-label={`Select ${item.last_name}`}
+                          checked={selection.includes(item.id)}
+                          onCheckedChange={(e) => handleSelectionChange(item.id, !!e.checked)}
+                        >
+                            <Checkbox.HiddenInput />
+                            <Checkbox.Control />
+                        </Checkbox.Root>
+                      </Table.Cell>
+
+                      <Table.Cell fontWeight="medium">{item.last_name}</Table.Cell>
+                      <Table.Cell>{item.first_name}</Table.Cell>
+                      <Table.Cell>{item.middle_name}</Table.Cell>
+
+                      {/* Positions Column (Tags) */}
+                      <Table.Cell>
+                        <HStack wrap="wrap" gap={1.5}>
+                          {item.positions.length > 0 ? (
+                              item.positions.map((position) => (
+                                <Badge key={position.id} colorPalette="blue" variant="subtle" size="xs">
+                                  {position.name}
+                                </Badge>
+                              ))
+                          ) : (
+                              <Text fontSize="xs" color="gray.400" fontStyle="italic">None</Text>
+                          )}
+                        </HStack>
+                      </Table.Cell>
+
+                      <Table.Cell color="gray.500">{item.email}</Table.Cell>
+                    </Table.Row>
+                  ))
+                )}
+              </Table.Body>
+            </Table.Root>
+          </Table.ScrollArea>
+        </Box>
+      </VStack>
+
+      <AddEmployeeModal
         isOpen={isAddModalOpen}
         onOpenChange={(e) => setAddModalOpen(e.open)}
-        members={members}
-        quals={quals}
-        onMembersChange={setMembers}/>
+        employees={employees}
+        positions={positions}
+        onEmployeesChange={setEmployees}
+      />
 
-      <ConfirmMemberDeletionModal
+      <ConfirmEmployeeDeletionModal
         isOpen={isConfirmDeletionModalOpen}
         onOpenChange={(e) => setConfirmDeletionModalOpen(e.open)}
         selection={selection}
-        members={members}
-        onMembersChange={setMembers}/>
-    </Stack>
+        employees={employees}
+        onEmployeesChange={(newEmployees) => {
+            setEmployees(newEmployees);
+            setSelection([]);
+        }}
+      />
+    </Box>
   );
 };
 

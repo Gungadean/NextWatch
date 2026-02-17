@@ -15,6 +15,14 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
 
 /**
+ * Payload we send to /auth/register login.
+ */
+export interface AuthSignInData {
+  identifier: string;
+  password: string;
+  type: "username" | "email";
+}
+/**
  * Payload we send to /auth/register for creating a new user.
  */
 export interface AuthSignUpData {

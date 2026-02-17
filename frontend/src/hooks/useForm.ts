@@ -6,20 +6,21 @@
 /**
  * useForm.ts
  *
- * Defines hook for setting and clearing errors for forms.
+ * A reusable hook for managing form state and validation errors.
+ * It abstracts away the repetitive logic of updating state objects and clearing errors on user input.
  */
 
 import React, { useState } from 'react';
 
 /**
- * Hook to handle form states.
+ * Custom hook to handle form states.
  */
 export const useForm = <T extends Record<string, any>>(initialValues: T) => {
   const [formData, setFormData] = useState<T>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   /**
-   * Updates form data for fields and clears existing errors.
+   * Updates form data for fields and intelligently clears existing errors.
    */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -27,17 +28,20 @@ export const useForm = <T extends Record<string, any>>(initialValues: T) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
 
     setErrors((prev) => {
+      // Don't trigger a state update if there are no errors.
       if (Object.keys(prev).length === 0) return prev;
 
       const newErrors = { ...prev };
       let hasChanged = false;
 
+      // Clear error for the specific field being typed in
       if (newErrors[name]) {
         delete newErrors[name];
         hasChanged = true;
       }
 
-      // If instance of AuthSignUpData interface, remove confirmPassword errors when password updates.
+      // If editing 'password', also clear 'confirmPassword' errors
+      // to prevent stale mismatch messages.
       if (name === 'password' && newErrors["confirmPassword"]) {
         delete newErrors['confirmPassword'];
         hasChanged = true;
@@ -48,7 +52,7 @@ export const useForm = <T extends Record<string, any>>(initialValues: T) => {
   };
 
   /**
-   * Reset the form back to initial values and clear errors.
+   * Resets the form back to initial values and clears all errors.
    */
   const resetForm = () => {
     setFormData(initialValues);

@@ -6,14 +6,15 @@
 /**
  * LoginPage.tsx
  *
- * Page wrapper for login form.
+ * The entry point for existing users.
+ * It composes the generic `AuthLayout` with the specific `LoginForm` feature.
  */
 
 import AuthLayout from "../layouts/AuthLayout.tsx";
 import {LoginForm} from "../features/authentication/components/LoginForm.tsx";
 
 /**
- * Main login page with login form wrapped by AuthLayout.
+ * Main Login Page.
  */
 const LoginPage = () => {
   return (

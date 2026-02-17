@@ -22,19 +22,23 @@ import {
   LuAward
 } from "react-icons/lu";
 import {useState} from "react";
+import {Footer} from "@/components/Footer.tsx";
 
+/**
+ * Configuration for sidebar navigation links.
+ * maps display names to their respective icons and route paths.
+ */
 const LINK_ITEMS = [
   { name: 'Dashboard', icon: LuHouse, path: '/' },
   { name: 'Schedule Builder', icon: LuCalendar, path: '/builder' },
   { name: 'Leave Requests', icon: LuClock, path: '/requests' },
   { name: 'Personnel', icon: LuUsers, path: '/personnel' },
-  { name: 'Qualifications', icon: LuAward, path: '/qualifications' },
+  { name: 'Positions', icon: LuAward, path: '/positions' },
   { name: 'Settings', icon: LuSettings, path: '/settings' },
 ];
 
 /**
- * Main application sidebar.
- * Contains buttons for navigating the different pages.
+ * Main application sidebar navigation with collapsible state.
  */
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -55,6 +59,7 @@ const Sidebar = () => {
 
       <Flex direction="column" h="100%" px={2}>
 
+        {/* Header Section: Logo & Toggle Button */}
         <Flex
           align="stretch"
           justify={isCollapsed ? "center" : "space-between"}
@@ -75,7 +80,8 @@ const Sidebar = () => {
           </IconButton>
         </Flex>
 
-        <VStack>
+        {/* Navigation Links */}
+        <VStack align="stretch" gap={2}>
           {LINK_ITEMS.map((link) => (
             <SidebarItem
               key={link.name}
@@ -87,6 +93,15 @@ const Sidebar = () => {
             </SidebarItem>
           ))}
         </VStack>
+
+        {/* Footer Section */}
+        <Box mt="auto" p={4} overflow="hidden">
+
+          {/* Only render the full footer if the sidebar is open */}
+          {!isCollapsed && (
+              <Footer />
+          )}
+        </Box>
       </Flex>
     </Box>
   )

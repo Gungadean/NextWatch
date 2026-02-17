@@ -6,74 +6,124 @@
 /**
  * personnelApi.ts
  *
- * Handles personnel API functions for retrieving, adding, and deleting personnel.
+ * This module manages all communication with the /employees endpoints.
+ * It provides the data structures and methods required to maintain the organization's roster.
  */
 
 import axiosInstance from "../../axiosConfig.tsx";
 
 /**
- * Interface of data to be sent when adding a member.
+ * Represents an employee's time off request.
  */
-export interface MemberAddRequest {
+export interface TimeOffRequest {
+  id: number;
+  start_date: string;
+  end_date: string;
+  request_type: string;
+  status: string;
+}
+
+/**
+ * Represents a job qualification or watch station role.
+ */
+export interface Position {
+  id: number;
+  name: string;
+}
+
+/**
+ * Minimal employee identity data.
+ */
+export interface BasicEmployee {
+  id: number;
+  first_name: string;
+  last_name: string;
+  middle_name: string;
+}
+
+/**
+ * The standard Employee model
+ * Includes nested qualifications and time-off records.
+ */
+export interface Employee {
+  id: number;
   first_name: string;
   last_name: string;
   middle_name: string;
   email: string;
-  quals: number[];
+  positions: Position[];
+  time_off_requests: TimeOffRequest[];
 }
 
 /**
- * Interface of data for deleting a member.
+ * Optimized model for scheduling views where only dates and names are required.
  */
-export interface MemberDeleteRequest {
-  id: number;
+export interface EmployeeWithTimeOff {
+    id: number;
+    first_name: string;
+    last_name: string;
+    middle_name: string;
+    time_off_requests: TimeOffRequest[];
 }
 
 /**
- * Interface of data for a member query.
+ * Interface of data to be sent when adding an employee.
  */
-export interface MemberQueryResponse {
-  id: number;
+export interface EmployeeAddRequest {
   first_name: string;
   last_name: string;
   middle_name: string;
   email: string;
-  quals: number[];
+  positions: number[];
 }
 
 /**
- * Request list of all members.
+ * Interface of data for deleting an employee.
  */
-export const getMemberList = async (): Promise<MemberQueryResponse[]> => {
-  try {
-    const response = await axiosInstance.get('/personnel/list');
+export interface EmployeeDeleteRequest {
+  id: number;
+}
 
+/**
+ * Retrieves the full list of employees from the database.
+ */
+export const getEmployees = async (includeTimeOff = false): Promise<Employee[]> => {
+  try {
+    const url = includeTimeOff ? "/employees?include_time_off=true" : "/employees";
+    const response = await axiosInstance.get<Employee[]>(url);
     return response.data;
   } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Member query failed");
+    throw new Error(err.response?.data?.detail || "Employee query failed");
   }
 }
 
 /**
- * Request a member to be added.
+ * Wrapper to fetch all employees with scheduling conflicts (Time Off) included.
  */
-export const addMember = async (data: MemberAddRequest): Promise<MemberQueryResponse> => {
+export const getEmployeesWithTimeOff = async () => {
+    return getEmployees(true);
+};
+
+/**
+ * Submits a request to add a new employee to the organization.
+ */
+export const addEmployee = async (data: EmployeeAddRequest): Promise<Employee> => {
   try {
-    const response = await axiosInstance.post<MemberQueryResponse>('/personnel/add', data);
+    const response = await axiosInstance.post<Employee>('/employees/add', data);
 
     return response.data;
   } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Member adding failed");
+    throw new Error(err.response?.data?.detail || "Employee adding failed");
   }
 }
 
 /**
- * Request for a list of members to be deleted.
+ * Performs a bulk deletion of employee records.
  */
-export const deleteMembers = async (members: MemberDeleteRequest[]) => {
+export const deleteEmployees = async (employees: EmployeeDeleteRequest[]) => {
   try {
-    await axiosInstance.post<MemberDeleteRequest[]>('/personnel/delete', members);
+    await axiosInstance.post<EmployeeDeleteRequest[]>('/employees/delete', employees);
   } catch (err: any) {
-    throw new Error(err.response?.data?.detail || "Members deletion failed");
+    throw new Error(err.response?.data?.detail || "Employee deletion failed");
   }
 }

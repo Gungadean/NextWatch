@@ -15,6 +15,9 @@ import {Flex, Icon, Text} from "@chakra-ui/react";
 import type {IconType} from "react-icons";
 import {Tooltip} from "./ui/tooltip.tsx";
 
+/**
+ * Props for the SidebarItem component.
+ */
 interface SidebarItemProps {
   icon: IconType;
   children: string;
@@ -23,12 +26,12 @@ interface SidebarItemProps {
 }
 
 /**
- * Main sidebar navigation item.
- * Handles dynamically creating nav buttons that are collapsible.
- * @param icon Page icon
- * @param to Path to direct to
- * @param children Children elements to be displayed inside
- * @param isCollapsed If the sidebar is currently collapsed.
+ * A single navigation link within the Sidebar.
+ *
+ * Behavior:
+ * - **Expanded**: Displays Icon + Text Label.
+ * - **Collapsed**: Displays Icon only. Shows a Tooltip with the label on hover.
+ * - **Active State**: Highlights with a brand color background when the current route matches `to`.
  */
 const SidebarItem = ({ icon, to, children, isCollapsed }: SidebarItemProps ) => {
   const activeBackground = useColorModeValue("blue.100", "blue.900")
@@ -38,6 +41,7 @@ const SidebarItem = ({ icon, to, children, isCollapsed }: SidebarItemProps ) => 
   return (
     <NavLink to={to} style={{ textDecoration: 'none', width: '100%' }}>
       {({ isActive }) => (
+        // Tooltip is only necessary when text is hidden (collapsed mode)
         <Tooltip content={isCollapsed ? children : undefined} disabled={!isCollapsed}>
           <Flex
             align="center"

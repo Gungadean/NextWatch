@@ -4,7 +4,7 @@
 """
 auth_tokens_utils.py
 
-Utilities for generating/verifying access and refresh tokens.
+This module provides utilities for the JWT (JSON Web Token) lifecycle.
 """
 
 from datetime import datetime, timezone, timedelta
@@ -13,16 +13,25 @@ import jwt
 from fastapi import Response, Request, HTTPException, status
 from jwt import InvalidTokenError
 
-from backend.models.auth_models import TokenData
-from backend.utils.auth.auth_utils import ALGORITHM, SECRET_ACCESS, TOKEN_ACCESS_EXPIRATION, \
-    TOKEN_REFRESH_EXPIRATION, SECRET_REFRESH
+from backend.schemas.auth_schemas import TokenData
+from backend.utils.auth.auth_utils import (
+    ALGORITHM,
+    SECRET_ACCESS,
+    TOKEN_ACCESS_EXPIRATION,
+    TOKEN_REFRESH_EXPIRATION,
+    SECRET_REFRESH
+)
 
 
 def get_current_token(request: Request) -> str:
     """
-    Get the current token from the oauth2 header format.
-    :param request: HTTP request object (potentially) containing token.
-    :return: Instance of token that was found.
+    Retrieve the current authentication token from the request.
+
+    Args:
+        request (Request): The incoming HTTP request.
+
+    Returns:
+        Optional[str]: The raw token string if found, else None.
     """
     # Attempt to get the authorization header
     token = None
@@ -40,11 +49,20 @@ def get_current_token(request: Request) -> str:
 
 def get_token_data(token: str, token_type: str) -> TokenData:
     """
-    Extract data from a token string.
-    :param token: The raw token string.
-    :param token_type: The type of token (access/refresh).
-    :return: Instance of token if it's valid.
-    :raises HTTPException: If token is invalid, expired, or does not exist.
+    Decode and validate a JWT string.
+
+    This function verifies the signature using the appropriate secret key
+    (Access vs Refresh) and checks the expiration claim.
+
+    Args:
+        token (str): The raw JWT string.
+        token_type (str): 'access' or 'refresh'. Determines which secret key to use.
+
+    Returns:
+        TokenData: The decoded claims (username/expiration).
+
+    Raises:
+        HTTPException (401): If the token is invalid, expired, or malformed.
     """
     if token_type == "access":
         secret = SECRET_ACCESS
@@ -52,6 +70,7 @@ def get_token_data(token: str, token_type: str) -> TokenData:
         secret = SECRET_REFRESH
 
     try:
+        # Decode and verify signature
         payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         expiration: int = payload.get("exp")
@@ -81,37 +100,49 @@ def get_token_data(token: str, token_type: str) -> TokenData:
 
 def create_access_token(data: dict) -> str:
     """
-    Create a JWT access token.
-    :param data: Username to create token for.
-    :return: Generated access token.
-    """
-    """
-    Create a JWT access token.
+    Generate a short-lived Access Token.
+
+    This token is used to authorize API requests.
+
+    Args:
+        data (dict): Payload data (must include 'sub' for username).
+
+    Returns:
+        str: The encoded JWT string.
     """
     to_encode = data.copy()
+
+    # Set expiration time.
     expire = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_ACCESS_EXPIRATION)
     to_encode.update({"exp": expire})
-    access_token = jwt.encode(to_encode, SECRET_ACCESS, algorithm=ALGORITHM)
 
+    access_token = jwt.encode(to_encode, SECRET_ACCESS, algorithm=ALGORITHM)
     return access_token
 
 
 def create_refresh_token(data: dict, response: Response) -> None:
     """
-    Create a JWT refresh token.
-    :param data: Username to create token for.
-    :param response: Response object for creating secure cookie.
+    Generate a long-lived Refresh Token and set it as an HTTP-Only cookie.
+
+    Use httponly=True to prevent browser from reading the cooking.
+
+    Args:
+        data (dict): Payload data.
+        response (Response): The FastAPI response object to attach the cookie to.
     """
     to_encode = data.copy()
+
+    # Set expiration
     expire = datetime.now(timezone.utc) + timedelta(days=TOKEN_REFRESH_EXPIRATION)
     to_encode.update({"exp": expire})
+
     refresh_token = jwt.encode(to_encode, SECRET_REFRESH, algorithm=ALGORITHM)
 
     response.set_cookie(
         'refresh_token',
         refresh_token,
         httponly=True,
-        secure=False,
+        secure=True,
         samesite='strict',
         max_age=60 * 60 * 24 * 30
     )
@@ -119,11 +150,18 @@ def create_refresh_token(data: dict, response: Response) -> None:
 
 def create_tokens(data: dict, response: Response) -> str:
     """
-    Create refresh and access JWT tokens for new session.
-    :param data: Username to create token for.
-    :param response: Response object for creating secure cookie.
-    :return: Generated access token.
+    Orchestrate the creation of both Access and Refresh tokens.
+
+    Used during Login and Registration flows.
+
+    Args:
+        data (dict): User data for the token payload.
+        response (Response): Response object to set the refresh cookie.
+
+    Returns:
+        str: The generated Access Token (to be returned in the response body).
     """
     access_token = create_access_token(data)
     create_refresh_token(data, response)
+
     return access_token

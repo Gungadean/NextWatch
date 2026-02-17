@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 class Watchstation(BaseModel):
     id: int
     name: str
+    color: str
 
 
 class Watchstander(BaseModel):

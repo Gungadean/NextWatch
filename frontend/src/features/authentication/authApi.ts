@@ -80,7 +80,6 @@ export const registerUser = async (data: RegisterRequest): Promise<AuthResponse>
 
     return response.data;
   } catch (err: any) {
-    // If backend threw a 400/422 with { detail: "..."}:
     throw new Error(err.response?.data?.detail || "Registration failed");
   }
 };

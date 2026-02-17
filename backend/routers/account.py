@@ -4,16 +4,17 @@
 """
 account.py
 
-Router for account backend.
+This module defines the API router for account management.
 """
 
 
 from fastapi import APIRouter, Depends, status, HTTPException
+from sqlmodel import Session
 
-from backend.database.database import User
-from backend.models.account_models import AccountDataResponse, PasswordResetRequest
-from backend.models.generic_models import MessageResponse
-from backend.utils.auth.auth_utils import update_password
+from backend.database.database import User, get_session
+from backend.schemas.account_schemas import AccountDataResponse, PasswordResetRequest
+from backend.schemas.generic_schemas import MessageResponse
+from backend.utils.auth.auth_utils import get_password_hash
 from backend.utils.auth.auth_users_utils import get_authenticated_user, get_current_active_user
 
 router = APIRouter()
@@ -22,25 +23,44 @@ router = APIRouter()
 @router.get('/account/info')
 async def route_info_user(user: User = Depends(get_current_active_user)) -> AccountDataResponse:
     """
-    Endpoint to get the current user information.
-    :param user: User instance to get data about.
-    :return: AccountDataResponse instance
+    Retrieve the profile information for the currently authenticated user.
+
+    Endpoint uses get_current_active_user dependency to validate JWT token
+
+    Returns:
+        AccountDataResponse: A Pydantic model containing username, email, role,
+        and linked employee ID (if applicable).
     """
-    return AccountDataResponse(username=user.username, email=user.email,
-                               last_login=user.last_login, creation_date=user.created_at)
+    emp_id = user.employee.id if user.employee else None
+
+    return AccountDataResponse(
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        employee_id=emp_id,
+        last_login=user.last_login,
+        created_at=user.created_at)
 
 
 @router.post('/account/change-password')
-async def route_reset_password(data: PasswordResetRequest,
-                         user: User = Depends(get_current_active_user)) -> MessageResponse:
+async def route_reset_password(
+        data: PasswordResetRequest,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+    ) -> MessageResponse:
     """
-    Endpoint to handle password reset requests.
-    :param data: Model with current and new password.
-    :param user: User instance of the password to be changed.
-    :return: If the password was successfully changed.
-    :raise: HTTPException: If password is incorrect or an unknown error occurred.
+    Change the authenticated user's password.
+
+    Args:
+        data (PasswordResetRequest): Contains old and new password.
+        user (User): The current user (injected via dependency).
+        session (Session): Get database session.
+
+    Raises:
+        HTTPException (401): If the current password provided is incorrect.
+        HTTPException (400): If the update operation fails.
     """
-    # Attempt to authenticate the user with current password before
+    # Verify current password before proceeding
     user = get_authenticated_user(user.username, data.current_password)
 
     if user is None:
@@ -50,13 +70,8 @@ async def route_reset_password(data: PasswordResetRequest,
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-    user = update_password(user.email, data.new_password)
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An unknown error occurred during password reset",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
+    user.password_hashed = get_password_hash(data.new_password)
+    session.add(user)
+    session.commit()
 
     return MessageResponse(message="Password reset successful")

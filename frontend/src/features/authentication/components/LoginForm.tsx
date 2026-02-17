@@ -18,16 +18,16 @@ import {
   determineLoginType,
   type AuthSignInData
 } from '../authValidation';
-import {PasswordInput} from "../../../components/ui/password-input.tsx";
-import {toaster} from "../../../components/ui/toaster.tsx";
-import {Field} from "../../../components/ui/field.tsx";
-import {useAuth} from "../../../hooks/useAuth.ts";
+import {PasswordInput} from "@/components/ui/password-input.tsx";
+import {toaster} from "@/components/ui/toaster.tsx";
+import {Field} from "@/components/ui/field.tsx";
+import {useAuth} from "@/hooks/useAuth.ts";
 import {useNavigate} from "react-router";
-import {useForm} from "../../../hooks/useForm.ts";
+import {useForm} from "@/hooks/useForm.ts";
 
 /**
  * Login Form Component.
- * Contains logic for authentication a user.
+ * The primary entry point for user authentication.
  */
 export const LoginForm = () => {
   const { login, isLoading } = useAuth();
@@ -40,10 +40,13 @@ export const LoginForm = () => {
     type: 'username'
   });
 
+  /**
+   * Handles the form submission event.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate user inputs for errors
+    // Perform client side validation
     const validationErrors = validateSignIn(formData);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -93,6 +96,7 @@ export const LoginForm = () => {
           />
         </Field>
 
+        {/* Password Field: Includes show/hide toggle logic internally */}
         <Field
           label="Password"
           invalid={!!errors.password}
@@ -107,6 +111,7 @@ export const LoginForm = () => {
           />
         </Field>
 
+        {/* Submit Button: Shows spinner when `isLoading` is true */}
         <Button
           type="submit"
           loading={isLoading}

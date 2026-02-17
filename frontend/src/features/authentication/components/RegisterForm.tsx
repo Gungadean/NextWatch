@@ -7,7 +7,8 @@
  * RegisterForm.tsx
  *
  * Renders the user registration interface.
- * Handles input, client-side validation, and attempts to register the new user.
+ * Handles input capture, client-side validation, password strength visualization,
+ * and the creation of new user accounts.
  */
 
 import React, { useState } from 'react';
@@ -49,7 +50,9 @@ export const RegisterForm = () => {
 
   const strengthScore = calculateStrength(formData.password);
 
-  // Color strength bar based on pass score.
+  /**
+   * Maps the numeric strength score to a UI color palette.
+   */
   const getStrengthColor = (score: number) => {
     if (score <= 1) return "red";
     if (score === 2) return "orange";
@@ -57,6 +60,9 @@ export const RegisterForm = () => {
     return "green";
   };
 
+  /**
+   * Handles the form submission.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 

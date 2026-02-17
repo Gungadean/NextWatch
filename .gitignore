@@ -16,6 +16,7 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .idea
+.vscode
 .DS_Store
 *.suo
 *.ntvs*
@@ -26,3 +27,4 @@ dist-ssr
 /frontend/package-lock.json
 /database.db
 /config.ini
+__pycache__

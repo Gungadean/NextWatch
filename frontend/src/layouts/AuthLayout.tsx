@@ -6,7 +6,8 @@
 /**
  * AuthLayout.tsx
  *
- * Defines layout for the login and register pages.
+ * Defines the shared layout structure for authentication pages
+ * (Login and Registration).
  */
 
 import React from 'react';
@@ -18,9 +19,11 @@ import {
 } from '@chakra-ui/react';
 import {useColorMode, useColorModeValue} from "../components/ui/color-mode.tsx";
 import {LuMoon, LuSun} from "react-icons/lu";
+import {useAuth} from "@/hooks/useAuth.ts";
+import {useNavigate} from "react-router";
 
 /**
- * Props that will be passed to the Forms.
+ * Props for the AuthLayout wrapper.
  */
 interface AuthLayoutProps {
   title: string;
@@ -33,6 +36,12 @@ interface AuthLayoutProps {
  */
 export const AuthLayout = ({ title, children }: AuthLayoutProps) => {
   const { toggleColorMode, colorMode } = useColorMode();
+  const {isAuthenticated} = useAuth();
+  const navigate = useNavigate();
+
+  if (isAuthenticated) {
+    navigate("/");
+  }
 
   const cardBackground = useColorModeValue("white", "gray.900");
 
@@ -51,6 +60,7 @@ export const AuthLayout = ({ title, children }: AuthLayoutProps) => {
         </IconButton>
       </Box>
 
+      {/* Main Content Container */}
       <Stack gap="8" mx="auto" maxW="lg" paddingY="12" paddingX="6">
         <Stack align="center">
           <Heading size="2xl">{title}</Heading>

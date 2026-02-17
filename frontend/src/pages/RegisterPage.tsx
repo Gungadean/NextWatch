@@ -6,14 +6,15 @@
 /**
  * RegisterPage.tsx
  *
- * Page wrapper for register form.
+ * The entry point for new user registration.
+ * It composes the generic `AuthLayout` with the specific `RegisterForm` feature.
  */
 
 import AuthLayout from "../layouts/AuthLayout.tsx";
 import {RegisterForm} from "../features/authentication/components/RegisterForm.tsx";
 
 /**
- * Main registration page with register form wrapped by AuthLayout.
+ * Main Registration Page.
  */
 const RegisterPage = () => {
   return (

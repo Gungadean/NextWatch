@@ -6,7 +6,9 @@
 /**
  * AppLayout.tsx
  *
- * Defines the main application structure.
+ * Defines the main application shell.
+ * It establishes the global grid structure: Sidebar on the left, Header on top,
+ * and the dynamic Page Content in the remaining space.
  */
 
 import { Outlet } from 'react-router';
@@ -16,8 +18,7 @@ import Header from "../components/Header.tsx";
 
 /**
  * Main layout component.
- * Wraps all authenticated app pages with sidebar and header.
- * Renders the active route via the outlet.
+ * Wraps all authenticated app pages with navigation and global actions.
  */
 const AppLayout = () => {
   return (
