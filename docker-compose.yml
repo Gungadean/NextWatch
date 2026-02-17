@@ -1,0 +1,24 @@
+services:
+  api:
+    build: ./backend
+    container_name: nextwatch-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the SQLite database file outside the container
+      - ./data:/app/data
+    environment:
+      # These override your default config.py settings
+      - HOST__HOST=0.0.0.0
+      - HOST__PORT=8000
+    restart: unless-stopped
+
+  # The Frontend Service
+  web:
+    build: ./frontend
+    container_name: nextwatch-web
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
