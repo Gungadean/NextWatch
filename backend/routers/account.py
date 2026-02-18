@@ -61,7 +61,7 @@ async def route_reset_password(
         HTTPException (400): If the update operation fails.
     """
     # Verify current password before proceeding
-    user = get_authenticated_user(user.username, data.current_password)
+    user = get_authenticated_user(user.username, data.current_password, session)
 
     if user is None:
         raise HTTPException(

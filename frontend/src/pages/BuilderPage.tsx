@@ -446,6 +446,7 @@ const BuilderPage = () => {
                 rangeEnd={endDate}
                 rows={timelineRows}
                 items={timelineItems}
+                showConflicts={false}
             />
           )}
         </Box>

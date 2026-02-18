@@ -13,7 +13,7 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {Tooltip} from "@/components/ui/tooltip.tsx";
-import { parseDate } from "@/utils/timeUtils";
+import {parseDate, toSimpleDate} from "@/utils/timeUtils";
 
 /**
  * Represents a single block on the timeline (e.g., a shift or leave request).
@@ -47,6 +47,7 @@ interface TimelineGridProps {
   rangeEnd?: string;
   rows: TimelineRow[];
   items: TimelineItem[];
+  showConflicts: boolean;
 }
 
 /**
@@ -71,7 +72,7 @@ const getDaysArray = (start: Date, end: Date) => {
  * - Dynamic percentage-based positioning for timeline items.
  * - Handles both specific date ranges and full-month views.
  */
-export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items }: TimelineGridProps) => {
+export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, showConflicts }: TimelineGridProps) => {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const headerBg = useColorModeValue("gray.50", "gray.800");
   const stickyBg = useColorModeValue("white", "gray.900");
@@ -150,17 +151,49 @@ return (
           <Flex flex="1">
             {allDays.map((d, i) => {
               const isMonthStart = d.getDate() === 1;
+
+              let dayBackground = isMonthStart ? "blackAlpha.50" : "transparent";
+              let textColor = "gray.500";
+              let fontWeight = "normal";
+
+              if (showConflicts) {
+
+                const currentDateString = toSimpleDate(d);
+
+                let conflictCount: number = 0;
+
+                for (const item of items) {
+                  if (currentDateString >= item.start && currentDateString <= item.end) {
+                    conflictCount++;
+                  }
+                }
+
+                if (conflictCount > 2) {
+                  dayBackground = "yellow.300";
+                  textColor = "yellow.800";
+                  fontWeight = "bold";
+                }
+                // Use a more urgent color for major conflicts
+                if (conflictCount > 4) {
+                  dayBackground = "red.300";
+                  textColor = "red.800";
+                  fontWeight = "bold";
+                }
+            }
+
               return (
                 <Box
                     key={i}
                     flex="1"
                     textAlign="center"
                     fontSize="xs"
-                    color="gray.500"
+                    color={textColor}
+                    fontWeight={fontWeight}
                     py={2}
                     borderLeft={isMonthStart && i !== 0 ? "2px solid" : "1px solid"}
                     borderColor={isMonthStart ? monthLineColor : dayLineColor}
-                    bg={isMonthStart ? "blackAlpha.50" : "transparent"}
+                    bg={dayBackground}
+                    position="relative" // Added to support tooltip positioning if you add one later
                 >
                   {isMonthStart ? (
                       <Text fontWeight="800" color="blue.600">{d.toLocaleString('default', { month: 'short' })}</Text>

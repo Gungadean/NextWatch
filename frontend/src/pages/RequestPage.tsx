@@ -418,6 +418,7 @@ const RequestPage = () => {
                         rangeEnd={timelineRange.end}
                         rows={timelineRows}
                         items={timelineItems}
+                        showConflicts={true}
                     />
                 </Box>
             </VStack>
