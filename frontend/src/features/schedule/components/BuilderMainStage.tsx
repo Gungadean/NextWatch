@@ -122,12 +122,12 @@ const BuilderMainStage = ({
               size="sm"
               variant="ghost"
               colorPalette="red"
-              onClick={() => onDeleteDraft}>Delete Draft</Button>
+              onClick={onDeleteDraft}>Delete Draft</Button>
             <Button
               size="sm"
               colorPalette="green"
               disabled={!selectedDraftId}
-              onClick={() => onPublishDraft}>Publish Selected</Button>
+              onClick={onPublishDraft}>Publish Selected</Button>
           </HStack>
         </Flex>
 
