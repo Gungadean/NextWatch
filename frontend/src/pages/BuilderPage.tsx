@@ -57,6 +57,11 @@ const BuilderPage = () => {
   const [maxSteps, setMaxSteps] = useState<number | string>(10000);
   const [minDaysOff, setMinDaysOff] = useState<number | string>(1);
 
+  const [selectAllPositions, setSelectAllPositions] = useState<boolean>(true);
+  const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
+
+  // Default start date to the first day of next month
+
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
     const nextStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -112,8 +117,10 @@ const BuilderPage = () => {
    * Handle generating a new draft schedule.
    */
   const handleGenerate = async () => {
-    if (positions.length === 0) {
-      toaster.create({ title: "No positions defined. Cannot generate.", type: "error" });
+    const positionIds = selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number);
+
+    if (positionIds.length === 0) {
+      toaster.create({ title: "No positions selected. Cannot generate.", type: "error" });
       return;
     }
 
@@ -125,7 +132,7 @@ const BuilderPage = () => {
       const requestData = {
         start_date: startDate,
         end_date: endDate,
-        position_ids: positions.map(p => p.id),
+        position_ids: positionIds,
         min_days_off: Number(minDaysOff) || 1,
         max_steps: Number(maxSteps) || 10000,
       };
@@ -323,14 +330,19 @@ const BuilderPage = () => {
         borderColor={borderColor}
         minDaysOff={minDaysOff}
         maxSteps={maxSteps}
+        positions={positions}
+        selectAllPositions={selectAllPositions}
+        selectedPositions={selectedPositionIds}
+        onSelectAllPositionsChange={setSelectAllPositions}
+        onSelectedPositionsChange={setSelectedPositionIds}
+        onMaxStepsChange={handleMaxStepsChange}
+        onMinDaysOffChange={handleMinDaysOffChange}
         draftSummaries={draftSummaries}
         selectedDraftId={selectedDraftId}
         startDate={startDate}
         endDate={endDate}
         isGenerating={isGenerating}
         genProgress={genProgress}
-        onMaxStepsChange={handleMaxStepsChange}
-        onMinDaysOffChange={handleMinDaysOffChange}
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
         onGenerate={handleGenerate}

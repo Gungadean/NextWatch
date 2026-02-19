@@ -23,7 +23,8 @@ import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {type DraftSummary} from "@/features/schedule/scheduleApi.ts";
 import {convertToLocalTime} from "@/utils/timeUtils.ts";
 import {LuChevronDown, LuChevronUp, LuSettings2} from "react-icons/lu";
-import {useState} from "react";
+import {useMemo, useState} from "react";
+import type {Position} from "@/features/personnel/personnelApi.ts";
 
 /**
  * BuilderSidebar.tsx
@@ -51,6 +52,14 @@ interface BuilderSidebarProps {
 
   minDaysOff: number | string;
   maxSteps: number | string;
+  positions: Position[];
+  selectAllPositions: boolean;
+  selectedPositions: string[];
+
+  onMaxStepsChange: (rawSteps: string) => void;
+  onMinDaysOffChange: (rawDays: string) => void;
+  onSelectAllPositionsChange: (isSelected: boolean) => void;
+  onSelectedPositionsChange: (position_strings: string[]) => void;
 
   draftSummaries: DraftSummary[];
   selectedDraftId: string | null;
@@ -60,8 +69,7 @@ interface BuilderSidebarProps {
   isGenerating: boolean;
   genProgress: number;
 
-  onMaxStepsChange: (rawSteps: string) => void;
-  onMinDaysOffChange: (rawDays: string) => void;
+
   onStartDateChange: (start: string) => void;
   onEndDateChange: (end: string) => void;
   onGenerate: () => void;
@@ -76,25 +84,34 @@ const BuilderSidebar = ({
   borderColor,
   minDaysOff,
   maxSteps,
+  positions,
+  selectAllPositions,
+  selectedPositions,
+  onSelectAllPositionsChange,
+  onSelectedPositionsChange,
+  onMinDaysOffChange,
+  onMaxStepsChange,
   draftSummaries,
   selectedDraftId,
   startDate,
   endDate,
   isGenerating,
   genProgress,
-  onMinDaysOffChange,
-  onMaxStepsChange,
   onStartDateChange,
   onEndDateChange,
   onGenerate,
   onDraftSelect
 }: BuilderSidebarProps) => {
-    const sidebarBg = useColorModeValue("gray.50", "gray.900");
-    const cardBg = useColorModeValue("white", "gray.700");
-    const activeCardBorder = "blue.500";
+  const sidebarBg = useColorModeValue("gray.50", "gray.900");
+  const cardBg = useColorModeValue("white", "gray.700");
+  const activeCardBorder = "blue.500";
 
-    // State to toggle the advanced configuration menu
-    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  // State to toggle the advanced configuration menu
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
+  const positionCollection = useMemo(() => createListCollection({
+    items: positions.map(p => ({ label: p.name, value: String(p.id) }))
+  }), [positions]);
 
   return (
     <Box w="350px" bg={sidebarBg} borderRight="1px solid" borderColor={borderColor} p={4} overflowY="auto" flexShrink={0}>
@@ -144,6 +161,51 @@ const BuilderSidebar = ({
                 {/* Collapsible Content */}
                 {isAdvancedOpen && (
                   <Stack p={3} gap={3} borderTop="1px solid" borderColor={borderColor}>
+                    <Box>
+                      <Text fontSize="xs" fontWeight="bold" mb={2}>Included Positions</Text>
+                      <VStack align="stretch" gap={2}>
+                        {/* Select All Checkbox */}
+                        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectAllPositions}
+                            onChange={(e) => onSelectAllPositionsChange(e.target.checked)}
+                            style={{ marginRight: '8px', cursor: 'pointer' }}
+                          />
+                          Generate for ALL positions
+                        </label>
+
+                        {/* Multi-Select Dropdown */}
+                        <Select.Root
+                          multiple
+                          size="sm"
+                          collection={positionCollection}
+                          value={selectedPositions}
+                          onValueChange={(e) => onSelectedPositionsChange(e.value)}
+                          disabled={selectAllPositions}
+                          border="2px solid"
+                          borderColor={borderColor}
+                          borderRadius="sm"
+                          opacity={selectAllPositions ? 0.5 : 1} // Visually dim when disabled
+                        >
+                          <Select.Trigger>
+                            <Select.ValueText placeholder="Select specific positions..." />
+                          </Select.Trigger>
+                          <Portal>
+                            <Select.Positioner>
+                              <Select.Content>
+                                {positionCollection.items.map((item) => (
+                                  <Select.Item item={item} key={item.value}>
+                                    {item.label}
+                                  </Select.Item>
+                                ))}
+                              </Select.Content>
+                            </Select.Positioner>
+                          </Portal>
+                        </Select.Root>
+                      </VStack>
+                    </Box>
+
                     <Box>
                       <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500">Min Days Off Between Duty</Text>
                       <Input
