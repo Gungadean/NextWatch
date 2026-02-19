@@ -9,19 +9,22 @@ import {
   Button,
   Flex,
   Heading,
-  HStack, Input, Progress, Separator,
+  HStack,
+  Input,
+  Progress,
+  Separator,
   Stack,
   Text,
   VStack
 } from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
-import {type DraftSummary,} from "@/features/schedule/scheduleApi.ts";
+import {type DraftSummary} from "@/features/schedule/scheduleApi.ts";
 import {convertToLocalTime} from "@/utils/timeUtils.ts";
 
 /**
  * BuilderSidebar.tsx
  *
- *
+ * Configuration sidebar for builder component.
  */
 
 /**
@@ -45,6 +48,9 @@ interface BuilderSidebarProps {
   onDraftSelect: (draftId: string) => void;
 }
 
+/**
+ * Configuration sidebar component for schedule builder page.
+ */
 const BuilderSidebar = ({
   mainBg,
   borderColor,
@@ -120,7 +126,7 @@ const BuilderSidebar = ({
               </Box>
             )}
           </Box>
-        <Separator />
+          <Separator />
 
           {/* History Section */}
           <Box>
