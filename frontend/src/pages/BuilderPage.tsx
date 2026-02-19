@@ -10,16 +10,7 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  Box,
-  Button,
-  Flex,
-  Heading,
-  HStack,
-  Tabs,
-  Text,
-  Spinner
-} from "@chakra-ui/react";
+import {Flex} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
 import {
   type ScheduleResponse,
@@ -35,8 +26,8 @@ import {
   type EmployeeWithTimeOff,
   type Position
 } from "../features/personnel/personnelApi";
-import {type CalendarEvent, CalendarGrid} from "@/components/CalendarGrid.tsx";
-import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
+import {type CalendarEvent} from "@/components/CalendarGrid.tsx";
+import {type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
 import {getPositionList} from "@/features/position/positionApi.ts";
 import ConfirmPublishDraftModal from "@/features/schedule/components/ConfirmPublishDraftModal.tsx";
@@ -44,6 +35,7 @@ import ConfirmDeleteDraftModal from "@/features/schedule/components/ConfirmDelet
 import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
 import BuilderSidebar from "@/features/schedule/components/BuilderSidebar.tsx";
+import BuilderMainStage from "@/features/schedule/components/BuilderMainStage.tsx";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
@@ -83,7 +75,6 @@ const BuilderPage = () => {
 
   const mainBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
-  const buttonBG = useColorModeValue("gray.100", "gray.700");
 
   /**
    * Fetch the data (Personnel, Positions, Draft History) on mount.
@@ -308,91 +299,24 @@ const BuilderPage = () => {
         onDraftSelect={handleDraftSelect}
       />
 
-      {/* Main Stage */}
-      <Flex flex="1" direction="column" bg={mainBg} overflow="hidden">
-        <Flex h="60px" borderBottom="1px solid" borderColor={borderColor} align="center" px={6} justify="space-between">
-          <Tabs.Root value={viewMode} onValueChange={(d) => setViewMode(d.value)} variant="plain">
-             <Tabs.List bg={buttonBG} p={1} borderRadius="md">
-              <Tabs.Trigger
-                value="calendar"
-                px={3}
-                py={1}
-                _selected={{ bg: "white", color: "blue.600", shadow: "sm" }}
-                borderRadius="sm">Calendar</Tabs.Trigger>
-              <Tabs.Trigger
-                value="timeline"
-                px={3}
-                py={1}
-                _selected={{ bg: "white", color: "blue.600", shadow: "sm" }}
-                borderRadius="sm">Timeline</Tabs.Trigger>
-            </Tabs.List>
-          </Tabs.Root>
-
-          {/* Month Navigation (Calendar Mode Only) */}
-          {viewMode === "calendar" && (
-            <HStack>
-              <Button
-                border="1px solid"
-                background={buttonBG}
-                size="xs"
-                variant="ghost"
-                onClick={() => navMonth(-1)}>Prev</Button>
-              <Text fontWeight="bold" w="120px" textAlign="center">
-                  {calendarViewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-              </Text>
-              <Button
-                border="1px solid"
-                background={buttonBG}
-                size="xs"
-                variant="ghost"
-                onClick={() => navMonth(1)}>Next</Button>
-            </HStack>
-          )}
-
-          {/* Action Buttons */}
-          <HStack gap={3}>
-            <Button
-              size="sm"
-              variant="ghost"
-              colorPalette="red"
-              onClick={() => setConfirmDeleteModalOpen(true)}>Delete Draft</Button>
-            <Button
-              size="sm"
-              colorPalette="green"
-              disabled={!selectedDraftId}
-              onClick={() => setConfirmPublishModalOpen(true)}>Publish Selected</Button>
-          </HStack>
-        </Flex>
-
-        {/* Content Area */}
-        <Box flex="1" overflow="auto" p={6}>
-          {isLoadingDraft ? (
-            <Flex h="100%" justify="center" align="center" direction="column">
-              <Spinner size="xl" mb={4} />
-              <Text color="gray.500">Loading Schedule...</Text>
-          </Flex>
-          ) : !currentDraftData && viewMode === 'calendar' ? (
-             <Flex h="100%" justify="center" align="center" direction="column" color="gray.400">
-                <Heading size="md" mb={2}>Ready to Build</Heading>
-                <Text>Select date range and generate.</Text>
-             </Flex>
-          ) : viewMode === "calendar" ? (
-             <CalendarGrid
-                year={calendarViewDate.getFullYear()}
-                month={calendarViewDate.getMonth() + 1}
-                events={builderEvents}
-              />
-          ) : (
-             <TimelineGrid
-                rangeStart={startDate}
-                rangeEnd={endDate}
-                rows={timelineRows}
-                items={timelineItems}
-                showConflicts={false}
-            />
-          )}
-        </Box>
-      </Flex>
+      <BuilderMainStage
+        mainBg={mainBg}
+        borderColor={borderColor}
+        selectedDraftId={selectedDraftId}
+        currentDraftData={currentDraftData}
+        startDate={startDate}
+        endDate={endDate}
+        viewMode={viewMode}
+        isLoadingDraft={isLoadingDraft}
+        builderEvents={builderEvents}
+        timelineRows={timelineRows}
+        timelineItems={timelineItems}
+        calendarViewDate={calendarViewDate}
+        navMonth={navMonth}
+        setViewMode={setViewMode}
+        onDeleteDraft={() => setConfirmDeleteModalOpen(true)}
+        onPublishDraft={() => setConfirmPublishModalOpen(true)}
+      />
 
       {/* Modals */}
       <ConfirmPublishDraftModal
