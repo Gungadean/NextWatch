@@ -76,7 +76,7 @@ def get_authenticated_user(identifier: str, password: str, session: Session) -> 
 def get_current_user(
         token: Optional[str] = Depends(get_current_token),
         session: Session = Depends(get_session)
-) -> Optional[User]:
+) -> User:
     """
     FastAPI Dependency: Retrieve the current user from the request's JWT token.
 
@@ -90,8 +90,12 @@ def get_current_user(
     Raises:
         HTTPException (401): If the token is invalid or the user no longer exists.
     """
-    # If no token data was found, return None.
+    # If no token data was found, raise HTTPException.
     if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
         return None
 
     token_data = get_token_data(token, "access")
