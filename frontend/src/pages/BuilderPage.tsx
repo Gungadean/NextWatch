@@ -54,6 +54,9 @@ const BuilderPage = () => {
 
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
 
+  const [maxSteps, setMaxSteps] = useState<number | string>(10000);
+  const [minDaysOff, setMinDaysOff] = useState<number | string>(1);
+
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
     const nextStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -123,8 +126,8 @@ const BuilderPage = () => {
         start_date: startDate,
         end_date: endDate,
         position_ids: positions.map(p => p.id),
-        min_days_off: 1,
-        max_steps: 5000
+        min_days_off: Number(minDaysOff) || 1,
+        max_steps: Number(maxSteps) || 10000,
       };
 
       await generateScheduleStream(
@@ -218,6 +221,37 @@ const BuilderPage = () => {
     }
   }
 
+  const handleMinDaysOffChange = (rawDays: string) => {
+    if (rawDays === "") {
+      setMinDaysOff("");
+      return;
+    }
+
+    const days = Number(rawDays);
+
+    if (days > 10 || days < 0) {
+      toaster.create({
+          title: "Invalid Input",
+          description: "Min Days off must be between 0 and 10.",
+          type: "error"
+        });
+      return;
+    }
+
+    setMinDaysOff(days);
+  }
+
+  const handleMaxStepsChange = (rawSteps: string) => {
+    if (rawSteps === "") {
+      setMaxSteps("");
+      return;
+    }
+
+    const steps = Number(rawSteps);
+
+    setMaxSteps(steps);
+  }
+
   /**
    * Convert draft data into calendar events for display on CalendarGrid.
    */
@@ -287,12 +321,16 @@ const BuilderPage = () => {
       <BuilderSidebar
         mainBg={mainBg}
         borderColor={borderColor}
+        minDaysOff={minDaysOff}
+        maxSteps={maxSteps}
         draftSummaries={draftSummaries}
         selectedDraftId={selectedDraftId}
         startDate={startDate}
         endDate={endDate}
         isGenerating={isGenerating}
         genProgress={genProgress}
+        onMaxStepsChange={handleMaxStepsChange}
+        onMinDaysOffChange={handleMinDaysOffChange}
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
         onGenerate={handleGenerate}

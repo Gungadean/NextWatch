@@ -7,11 +7,13 @@ import {
   Badge,
   Box,
   Button,
+  createListCollection,
   Flex,
   Heading,
   HStack,
-  Input,
+  Input, Portal,
   Progress,
+  Select,
   Separator,
   Stack,
   Text,
@@ -20,6 +22,8 @@ import {
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {type DraftSummary} from "@/features/schedule/scheduleApi.ts";
 import {convertToLocalTime} from "@/utils/timeUtils.ts";
+import {LuChevronDown, LuChevronUp, LuSettings2} from "react-icons/lu";
+import {useState} from "react";
 
 /**
  * BuilderSidebar.tsx
@@ -28,11 +32,25 @@ import {convertToLocalTime} from "@/utils/timeUtils.ts";
  */
 
 /**
+ *
+ */
+const optimizationEfforts = createListCollection({
+  items: [
+    { label: "Quick Draft (Faster)", value: "10000" },
+    { label: "Standard", value: "50000" },
+    { label: "Deep Search (Better Score)", value: "100000" },
+  ],
+});
+
+/**
  * Props for the Builder Sidebar.
  */
 interface BuilderSidebarProps {
   mainBg: string;
   borderColor: string;
+
+  minDaysOff: number | string;
+  maxSteps: number | string;
 
   draftSummaries: DraftSummary[];
   selectedDraftId: string | null;
@@ -42,6 +60,8 @@ interface BuilderSidebarProps {
   isGenerating: boolean;
   genProgress: number;
 
+  onMaxStepsChange: (rawSteps: string) => void;
+  onMinDaysOffChange: (rawDays: string) => void;
   onStartDateChange: (start: string) => void;
   onEndDateChange: (end: string) => void;
   onGenerate: () => void;
@@ -54,12 +74,16 @@ interface BuilderSidebarProps {
 const BuilderSidebar = ({
   mainBg,
   borderColor,
+  minDaysOff,
+  maxSteps,
   draftSummaries,
   selectedDraftId,
   startDate,
   endDate,
   isGenerating,
   genProgress,
+  onMinDaysOffChange,
+  onMaxStepsChange,
   onStartDateChange,
   onEndDateChange,
   onGenerate,
@@ -68,6 +92,9 @@ const BuilderSidebar = ({
     const sidebarBg = useColorModeValue("gray.50", "gray.900");
     const cardBg = useColorModeValue("white", "gray.700");
     const activeCardBorder = "blue.500";
+
+    // State to toggle the advanced configuration menu
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   return (
     <Box w="350px" bg={sidebarBg} borderRight="1px solid" borderColor={borderColor} p={4} overflowY="auto" flexShrink={0}>
@@ -94,6 +121,74 @@ const BuilderSidebar = ({
                     onChange={(e) => onEndDateChange(e.target.value)}
                     bg={mainBg} />
                 </HStack>
+              </Box>
+
+              {/* Advanced Configuration Accordion Toggle */}
+              <Box border="1px solid" borderColor={borderColor} borderRadius="md" bg={mainBg} overflow="hidden">
+                <Flex
+                  p={2}
+                  cursor="pointer"
+                  align="center"
+                  justify="space-between"
+                  bg={useColorModeValue("gray.100", "gray.800")}
+                  onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                  _hover={{ bg: useColorModeValue("gray.200", "gray.700") }}
+                >
+                  <HStack gap={2}>
+                    <LuSettings2 size="14px" />
+                    <Text fontSize="xs" fontWeight="bold">Advanced Configuration</Text>
+                  </HStack>
+                  {isAdvancedOpen ? <LuChevronUp size="14px" /> : <LuChevronDown size="14px" />}
+                </Flex>
+
+                {/* Collapsible Content */}
+                {isAdvancedOpen && (
+                  <Stack p={3} gap={3} borderTop="1px solid" borderColor={borderColor}>
+                    <Box>
+                      <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500">Min Days Off Between Duty</Text>
+                      <Input
+                        type="number"
+                        size="sm"
+                        min={0}
+                        max={10}
+                        value={minDaysOff}
+                        onChange={(e) => onMinDaysOffChange(e.target.value)}
+                        border="2px solid"
+                        borderColor={borderColor}
+                        borderRadius="sm"
+                      />
+                    </Box>
+                    <Box>
+                      <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500">Optimization Effort</Text>
+                      <Select.Root
+                        size="sm"
+                        collection={optimizationEfforts}
+                        value={[String(maxSteps)]}
+                        onValueChange={(e) => onMaxStepsChange(e.value[0])}
+                        border="2px solid"
+                        borderColor={borderColor}
+                        borderRadius="sm"
+                      >
+                        <Select.Trigger>
+                          <Select.ValueText placeholder="Select effort" />
+                        </Select.Trigger>
+
+                        {/* Create portal to move the DOM node outside the sidebar. */}
+                        <Portal>
+                          <Select.Positioner>
+                            <Select.Content>
+                              {optimizationEfforts.items.map((item) => (
+                                <Select.Item item={item} key={item.value}>
+                                  {item.label}
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select.Positioner>
+                        </Portal>
+                      </Select.Root>
+                    </Box>
+                  </Stack>
+                )}
               </Box>
             </Stack>
           </Box>
