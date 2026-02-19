@@ -16,20 +16,19 @@ import {
   Flex,
   Heading,
   HStack,
-  Input,
-  Progress,
-  Stack,
   Tabs,
   Text,
-  VStack,
-  Badge,
-  Separator, Spinner,
+  Spinner
 } from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
 import {
-  generateScheduleStream,
   type ScheduleResponse,
-  getScheduleDraftSummaries, getScheduleDraftSchedule, type DraftSummary, type ScheduleDraft, type Watchstander
+  getScheduleDraftSummaries,
+  type DraftSummary,
+  type ScheduleDraft,
+  type Watchstander,
+  getScheduleDraftSchedule,
+  generateScheduleStream
 } from "../features/schedule/scheduleApi.ts";
 import {
   getEmployeesWithTimeOff,
@@ -38,17 +37,19 @@ import {
 } from "../features/personnel/personnelApi";
 import {type CalendarEvent, CalendarGrid} from "@/components/CalendarGrid.tsx";
 import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
-import {convertToLocalTime, parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
+import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
 import {getPositionList} from "@/features/position/positionApi.ts";
 import ConfirmPublishDraftModal from "@/features/schedule/components/ConfirmPublishDraftModal.tsx";
 import ConfirmDeleteDraftModal from "@/features/schedule/components/ConfirmDeleteDraftModal.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
+import BuilderSidebar from "@/features/schedule/components/BuilderSidebar.tsx";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
   const [isGenerating, setIsGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
 
   const [isConfirmPublishModalOpen, setConfirmPublishModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
@@ -58,7 +59,7 @@ const BuilderPage = () => {
 
   const [draftSummaries, setDraftSummaries] = useState<DraftSummary[]>([]);
   const [currentDraftData, setCurrentDraftData] = useState<ScheduleResponse | ScheduleDraft | null>();
-  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
 
   const [startDate, setStartDate] = useState(() => {
@@ -80,12 +81,9 @@ const BuilderPage = () => {
     return new Date(today.getFullYear(), today.getMonth() + 1, 1);
   });
 
-  const sidebarBg = useColorModeValue("gray.50", "gray.900");
   const mainBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
-  const cardBg = useColorModeValue("white", "gray.700");
   const buttonBG = useColorModeValue("gray.100", "gray.700");
-  const activeCardBorder = "blue.500";
 
   /**
    * Fetch the data (Personnel, Positions, Draft History) on mount.
@@ -116,6 +114,9 @@ const BuilderPage = () => {
     fetchData();
   }, [startDate]);
 
+  /**
+   * Handle generating a new draft schedule.
+   */
   const handleGenerate = async () => {
     if (positions.length === 0) {
       toaster.create({ title: "No positions defined. Cannot generate.", type: "error" });
@@ -170,7 +171,7 @@ const BuilderPage = () => {
   /**
    * Loads a specific draft from history into the main view.
    */
-  const loadDraftDetails = async (id: string) => {
+  const handleDraftSelect = async (id: string) => {
     if (id === selectedDraftId) return; // Don't reload if already selected
 
     setSelectedDraftId(id);
@@ -205,6 +206,26 @@ const BuilderPage = () => {
         setCalendarViewDate(newDate);
       }
   };
+
+  /**
+   * Handle changing the startDate with safety checking
+   */
+  const handleStartDateChange = (start: string) => {
+    setStartDate(start);
+    if (startDate > endDate) {
+      setEndDate(start);
+    }
+  }
+
+  /**
+   * Handle changing the endDate with
+   */
+  const handleEndDateChange = (end: string) => {
+    setEndDate(end);
+    if (endDate < startDate) {
+      setStartDate(end);
+    }
+  }
 
   /**
    * Convert draft data into calendar events for display on CalendarGrid.
@@ -271,99 +292,21 @@ const BuilderPage = () => {
   return (
     <Flex h="calc(100vh - 64px)" overflow="hidden" borderRadius="md">
       {/* Left Sidebar: Config and History */}
-      <Box w="350px" bg={sidebarBg} borderRight="1px solid" borderColor={borderColor} p={4} overflowY="auto" flexShrink={0}>
-        <VStack gap={6} align="stretch">
 
-          {/* Configuration Section */}
-          <Box>
-            <Heading size="sm" mb={3} textTransform="uppercase" color="gray.500">Configuration</Heading>
-            <Stack gap={3}>
-              <Box>
-                <Text fontSize="xs" fontWeight="bold" mb={1}>Date Range</Text>
-                <HStack>
-                  <Input
-                    type="date"
-                    size="sm"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      if (startDate > endDate) {
-                        setEndDate(e.target.value)
-                      }
-                    }}
-                    bg={mainBg}/>
-                  <Text>-</Text>
-                  <Input
-                    type="date"
-                    size="sm"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
-                      if (endDate < startDate) {
-                        setStartDate(e.target.value)
-                      }
-                    }}
-                    bg={mainBg} />
-                </HStack>
-              </Box>
-            </Stack>
-          </Box>
-
-          <Separator />
-
-          {/* Action Section */}
-          <Box>
-            <Button
-              colorPalette="blue"
-              width="100%"
-              onClick={handleGenerate}
-              loading={isGenerating}
-              loadingText="Annealing..."
-            >
-              Generate New Schedule
-            </Button>
-
-            {isGenerating && (
-              <Box mt={2}>
-                <Flex justify="space-between" mb={1}>
-                  <Text fontSize="xs" color="gray.500">Optimization Progress</Text>
-                  <Text fontSize="xs" fontWeight="bold">{genProgress}%</Text>
-                </Flex>
-                <Progress.Root size="xs" value={genProgress} colorPalette="blue" max={100}>
-                  <Progress.Track>
-                    <Progress.Range />
-                  </Progress.Track>
-                </Progress.Root>
-              </Box>
-            )}
-          </Box>
-        <Separator />
-
-          {/* History Section */}
-          <Box>
-            <Heading size="sm" mb={3} textTransform="uppercase" color="gray.500">Draft History</Heading>
-            <Stack gap={2}>
-              {draftSummaries.map((draft) => (
-                <Box key={draft.public_id}
-                     p={3}
-                     bg={cardBg}
-                     border="1px solid"
-                     borderColor={selectedDraftId === draft.public_id ? activeCardBorder : borderColor}
-                     borderLeftWidth={selectedDraftId === draft.public_id ? "4px" : "1px"}
-                     borderRadius="md" cursor="pointer"
-                     onClick={() => loadDraftDetails(draft.public_id)}
-                     _hover={{ borderColor: "blue.300" }}
-                     shadow="sm">
-                  <Flex justify="space-between" align="center" mb={1}>
-                    <Text fontWeight="bold" fontSize="sm">Draft {convertToLocalTime(draft.created_at)}</Text>
-                    <Badge colorPalette={draft.score < 50 ? "green" : "orange"}>Score: {draft.score}</Badge>
-                  </Flex>
-                </Box>
-              ))}
-            </Stack>
-          </Box>
-        </VStack>
-      </Box>
+      <BuilderSidebar
+        mainBg={mainBg}
+        borderColor={borderColor}
+        draftSummaries={draftSummaries}
+        selectedDraftId={selectedDraftId}
+        startDate={startDate}
+        endDate={endDate}
+        isGenerating={isGenerating}
+        genProgress={genProgress}
+        onStartDateChange={handleStartDateChange}
+        onEndDateChange={handleEndDateChange}
+        onGenerate={handleGenerate}
+        onDraftSelect={handleDraftSelect}
+      />
 
       {/* Main Stage */}
       <Flex flex="1" direction="column" bg={mainBg} overflow="hidden">
@@ -384,7 +327,6 @@ const BuilderPage = () => {
                 borderRadius="sm">Timeline</Tabs.Trigger>
             </Tabs.List>
           </Tabs.Root>
-
 
           {/* Month Navigation (Calendar Mode Only) */}
           {viewMode === "calendar" && (
