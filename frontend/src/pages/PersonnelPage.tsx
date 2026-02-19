@@ -181,7 +181,7 @@ const PersonnelPage = () => {
             <Table.Root size="sm" stickyHeader interactive>
               <Table.Header>
                 <Table.Row bg={rowBg}>
-                  <Table.ColumnHeader w="50px" /> {/* Checkbox Column */}
+                  <Table.ColumnHeader w="50px" />
                   <Table.ColumnHeader>Last Name</Table.ColumnHeader>
                   <Table.ColumnHeader>First Name</Table.ColumnHeader>
                   <Table.ColumnHeader>Middle</Table.ColumnHeader>
