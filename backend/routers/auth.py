@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, status, HTTPException, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
 
-from database.database import get_session, User
+from database.database import get_session
+from database.models import User
 from schemas.auth_schemas import RegisterRequest, Token
 from schemas.generic_schemas import MessageResponse
 from utils.auth.auth_tokens_utils import (

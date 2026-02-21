@@ -11,7 +11,8 @@ This module defines the API router for account management.
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlmodel import Session
 
-from database.database import User, get_session
+from database.database import get_session
+from database.models import User
 from schemas.account_schemas import AccountDataResponse, PasswordResetRequest
 from schemas.generic_schemas import MessageResponse
 from utils.auth.auth_utils import get_password_hash

@@ -20,15 +20,8 @@ import numpy as np
 from datetime import datetime, date, timedelta
 from sqlmodel import Session, select
 
-from database.database import (
-    Employee,
-    Position,
-    EmployeePosition,
-    TimeOffRequest,
-    Shift,
-    User,
-    engine
-)
+from database.database import get_session
+from database.models import Position, Employee, EmployeePosition, TimeOffRequest, Shift, User
 from schemas.schedule_schemas import ScheduleRequest
 from ewatchbill.logic.make_schedule import make_schedule
 from ewatchbill.encoding.from_watchbill_request import from_watchbill_request
@@ -328,7 +321,7 @@ def seed_database():
     Main entry point for the seeding process.
     Ensures an admin user exists, then triggers data generation.
     """
-    with Session(engine) as session:
+    with get_session() as session:
         statement = select(User.id).where(User.username == "admin")
 
         if not session.exec(statement).first():

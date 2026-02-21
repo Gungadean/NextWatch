@@ -8,10 +8,11 @@ This module acts as the Adapter layer between the Database/API and the Schedulin
 """
 
 from datetime import timedelta
-from sqlmodel import Session, select, or_
+from sqlmodel import select, or_
 from sqlalchemy.orm import selectinload
 
-from database.database import Employee, Position, TimeOffRequest, engine, Shift
+from database.database import get_session
+from database.models import Position, Employee, TimeOffRequest, Shift
 from ewatchbill.models import WatchbillParams, Watchstander, Watchstation, Conflict
 from schemas.schedule_schemas import ScheduleRequest
 
@@ -29,7 +30,7 @@ def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
     Returns:
         WatchbillParams: The fully populated configuration object for the generator.
     """
-    with Session(engine) as session:
+    with get_session() as session:
         # Only select positions passed by request
         position_stmt = select(Position).where(Position.id.in_(request_data.position_ids))
         db_positions = session.exec(position_stmt).all()

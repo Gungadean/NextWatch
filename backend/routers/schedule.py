@@ -18,7 +18,8 @@ from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, extract
 
-from database.database import User, engine, Shift, ScheduleDraft, get_session
+from database.database import get_session
+from database.models import ScheduleDraft, User, Shift
 from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest
 from utils.auth.auth_users_utils import get_current_active_user
 from utils.schedule.schedule_builder import build_watchbill_params
@@ -55,7 +56,7 @@ async def sse_generator(generator, params):
             if payload.get("type") == "result":
                 draft_data = payload["payload"]
 
-                with Session(engine) as session:
+                with get_session() as session:
                     # Extract score history to find the final fitness score
                     history = draft_data.get("score_history", [])
                     final_score = history[-1] if history else 0

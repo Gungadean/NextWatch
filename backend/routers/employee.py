@@ -15,7 +15,8 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 from starlette import status
 
-from database.database import User, Employee, get_session
+from database.database import get_session
+from database.models import Employee, User
 from schemas.employee_schemas import EmployeeAddRequest, EmployeeDeleteRequest, EmployeeReadWithTimeOff
 from schemas.generic_schemas import MessageResponse
 from utils.auth.auth_users_utils import get_current_active_user

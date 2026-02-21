@@ -14,7 +14,8 @@ from sqlalchemy import delete
 from sqlmodel import Session, select
 from starlette import status
 
-from database.database import User, get_session, Position
+from database.database import get_session
+from database.models import User, Position
 from schemas.position_schemas import PositionAddRequest, PositionDeleteRequest, \
     PositionQueryResponse
 from utils.auth.auth_users_utils import get_current_active_user
