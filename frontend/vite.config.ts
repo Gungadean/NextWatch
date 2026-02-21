@@ -9,7 +9,7 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 import * as path from "node:path";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, path.resolve(process.cwd(), '../'), '');
+  const env = loadEnv(mode, path.resolve(process.cwd(), '.env'), '');
 
   return {
     plugins: [react(), tsconfigPaths()],
