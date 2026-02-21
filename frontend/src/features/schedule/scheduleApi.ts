@@ -169,7 +169,7 @@ export const generateScheduleStream = async (
               const payload = JSON.parse(jsonStr);
               if (payload.type === "progress") onProgress(payload);
               if (payload.type === "result") onComplete(payload.payload);
-              if (payload.type === "error") onError(payload);
+              if (payload.type === "error") onError({type: "error", message:payload.payload.error });
             } catch (e) {
               console.error("Stream parse error:", e);
             }

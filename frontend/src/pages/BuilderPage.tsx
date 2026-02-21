@@ -10,45 +10,38 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  Box,
-  Button,
-  Flex,
-  Heading,
-  HStack,
-  Input,
-  Progress,
-  Stack,
-  Tabs,
-  Text,
-  VStack,
-  Badge,
-  Separator, Spinner,
-} from "@chakra-ui/react";
+import {Flex} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
 import {
-  generateScheduleStream,
   type ScheduleResponse,
-  getScheduleDraftSummaries, getScheduleDraftSchedule, type DraftSummary, type ScheduleDraft, type Watchstander
+  getScheduleDraftSummaries,
+  type DraftSummary,
+  type ScheduleDraft,
+  type Watchstander,
+  getScheduleDraftSchedule,
+  generateScheduleStream
 } from "../features/schedule/scheduleApi.ts";
 import {
   getEmployeesWithTimeOff,
   type EmployeeWithTimeOff,
   type Position
 } from "../features/personnel/personnelApi";
-import {type CalendarEvent, CalendarGrid} from "@/components/CalendarGrid.tsx";
-import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
-import {convertToLocalTime, parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
+import {type CalendarEvent} from "@/components/CalendarGrid.tsx";
+import {type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
+import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
 import {getPositionList} from "@/features/position/positionApi.ts";
 import ConfirmPublishDraftModal from "@/features/schedule/components/ConfirmPublishDraftModal.tsx";
 import ConfirmDeleteDraftModal from "@/features/schedule/components/ConfirmDeleteDraftModal.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
+import BuilderSidebar from "@/features/schedule/components/BuilderSidebar.tsx";
+import BuilderMainStage from "@/features/schedule/components/BuilderMainStage.tsx";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
   const [isGenerating, setIsGenerating] = useState(false);
   const [genProgress, setGenProgress] = useState(0);
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
 
   const [isConfirmPublishModalOpen, setConfirmPublishModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
@@ -58,8 +51,16 @@ const BuilderPage = () => {
 
   const [draftSummaries, setDraftSummaries] = useState<DraftSummary[]>([]);
   const [currentDraftData, setCurrentDraftData] = useState<ScheduleResponse | ScheduleDraft | null>();
-  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
+
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+
+  const [maxSteps, setMaxSteps] = useState<number | string>(10000);
+  const [minDaysOff, setMinDaysOff] = useState<number | string>(1);
+
+  const [selectAllPositions, setSelectAllPositions] = useState<boolean>(true);
+  const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
+
+  // Default start date to the first day of next month
 
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
@@ -80,12 +81,8 @@ const BuilderPage = () => {
     return new Date(today.getFullYear(), today.getMonth() + 1, 1);
   });
 
-  const sidebarBg = useColorModeValue("gray.50", "gray.900");
   const mainBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
-  const cardBg = useColorModeValue("white", "gray.700");
-  const buttonBG = useColorModeValue("gray.100", "gray.700");
-  const activeCardBorder = "blue.500";
 
   /**
    * Fetch the data (Personnel, Positions, Draft History) on mount.
@@ -116,9 +113,14 @@ const BuilderPage = () => {
     fetchData();
   }, [startDate]);
 
+  /**
+   * Handle generating a new draft schedule.
+   */
   const handleGenerate = async () => {
-    if (positions.length === 0) {
-      toaster.create({ title: "No positions defined. Cannot generate.", type: "error" });
+    const positionIds = selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number);
+
+    if (positionIds.length === 0) {
+      toaster.create({ title: "No positions selected. Cannot generate.", type: "error" });
       return;
     }
 
@@ -130,9 +132,9 @@ const BuilderPage = () => {
       const requestData = {
         start_date: startDate,
         end_date: endDate,
-        position_ids: positions.map(p => p.id),
-        min_days_off: 1,
-        max_steps: 5000
+        position_ids: positionIds,
+        min_days_off: Number(minDaysOff) || 1,
+        max_steps: Number(maxSteps) || 10000,
       };
 
       await generateScheduleStream(
@@ -170,7 +172,7 @@ const BuilderPage = () => {
   /**
    * Loads a specific draft from history into the main view.
    */
-  const loadDraftDetails = async (id: string) => {
+  const handleDraftSelect = async (id: string) => {
     if (id === selectedDraftId) return; // Don't reload if already selected
 
     setSelectedDraftId(id);
@@ -205,6 +207,57 @@ const BuilderPage = () => {
         setCalendarViewDate(newDate);
       }
   };
+
+  /**
+   * Handle changing the startDate with safety checking
+   */
+  const handleStartDateChange = (start: string) => {
+    setStartDate(start);
+    if (startDate > endDate) {
+      setEndDate(start);
+    }
+  }
+
+  /**
+   * Handle changing the endDate with
+   */
+  const handleEndDateChange = (end: string) => {
+    setEndDate(end);
+    if (endDate < startDate) {
+      setStartDate(end);
+    }
+  }
+
+  const handleMinDaysOffChange = (rawDays: string) => {
+    if (rawDays === "") {
+      setMinDaysOff("");
+      return;
+    }
+
+    const days = Number(rawDays);
+
+    if (days > 10 || days < 0) {
+      toaster.create({
+          title: "Invalid Input",
+          description: "Min Days off must be between 0 and 10.",
+          type: "error"
+        });
+      return;
+    }
+
+    setMinDaysOff(days);
+  }
+
+  const handleMaxStepsChange = (rawSteps: string) => {
+    if (rawSteps === "") {
+      setMaxSteps("");
+      return;
+    }
+
+    const steps = Number(rawSteps);
+
+    setMaxSteps(steps);
+  }
 
   /**
    * Convert draft data into calendar events for display on CalendarGrid.
@@ -271,186 +324,49 @@ const BuilderPage = () => {
   return (
     <Flex h="calc(100vh - 64px)" overflow="hidden" borderRadius="md">
       {/* Left Sidebar: Config and History */}
-      <Box w="350px" bg={sidebarBg} borderRight="1px solid" borderColor={borderColor} p={4} overflowY="auto" flexShrink={0}>
-        <VStack gap={6} align="stretch">
 
-          {/* Configuration Section */}
-          <Box>
-            <Heading size="sm" mb={3} textTransform="uppercase" color="gray.500">Configuration</Heading>
-            <Stack gap={3}>
-              <Box>
-                <Text fontSize="xs" fontWeight="bold" mb={1}>Date Range</Text>
-                <HStack>
-                  <Input
-                    type="date"
-                    size="sm"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      if (startDate > endDate) {
-                        setEndDate(e.target.value)
-                      }
-                    }}
-                    bg={mainBg}/>
-                  <Text>-</Text>
-                  <Input
-                    type="date"
-                    size="sm"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
-                      if (endDate < startDate) {
-                        setStartDate(e.target.value)
-                      }
-                    }}
-                    bg={mainBg} />
-                </HStack>
-              </Box>
-            </Stack>
-          </Box>
+      <BuilderSidebar
+        mainBg={mainBg}
+        borderColor={borderColor}
+        minDaysOff={minDaysOff}
+        maxSteps={maxSteps}
+        positions={positions}
+        selectAllPositions={selectAllPositions}
+        selectedPositions={selectedPositionIds}
+        onSelectAllPositionsChange={setSelectAllPositions}
+        onSelectedPositionsChange={setSelectedPositionIds}
+        onMaxStepsChange={handleMaxStepsChange}
+        onMinDaysOffChange={handleMinDaysOffChange}
+        draftSummaries={draftSummaries}
+        selectedDraftId={selectedDraftId}
+        startDate={startDate}
+        endDate={endDate}
+        isGenerating={isGenerating}
+        genProgress={genProgress}
+        onStartDateChange={handleStartDateChange}
+        onEndDateChange={handleEndDateChange}
+        onGenerate={handleGenerate}
+        onDraftSelect={handleDraftSelect}
+      />
 
-          <Separator />
-
-          {/* Action Section */}
-          <Box>
-            <Button
-              colorPalette="blue"
-              width="100%"
-              onClick={handleGenerate}
-              loading={isGenerating}
-              loadingText="Annealing..."
-            >
-              Generate New Schedule
-            </Button>
-
-            {isGenerating && (
-              <Box mt={2}>
-                <Flex justify="space-between" mb={1}>
-                  <Text fontSize="xs" color="gray.500">Optimization Progress</Text>
-                  <Text fontSize="xs" fontWeight="bold">{genProgress}%</Text>
-                </Flex>
-                <Progress.Root size="xs" value={genProgress} colorPalette="blue" max={100}>
-                  <Progress.Track>
-                    <Progress.Range />
-                  </Progress.Track>
-                </Progress.Root>
-              </Box>
-            )}
-          </Box>
-        <Separator />
-
-          {/* History Section */}
-          <Box>
-            <Heading size="sm" mb={3} textTransform="uppercase" color="gray.500">Draft History</Heading>
-            <Stack gap={2}>
-              {draftSummaries.map((draft) => (
-                <Box key={draft.public_id}
-                     p={3}
-                     bg={cardBg}
-                     border="1px solid"
-                     borderColor={selectedDraftId === draft.public_id ? activeCardBorder : borderColor}
-                     borderLeftWidth={selectedDraftId === draft.public_id ? "4px" : "1px"}
-                     borderRadius="md" cursor="pointer"
-                     onClick={() => loadDraftDetails(draft.public_id)}
-                     _hover={{ borderColor: "blue.300" }}
-                     shadow="sm">
-                  <Flex justify="space-between" align="center" mb={1}>
-                    <Text fontWeight="bold" fontSize="sm">Draft {convertToLocalTime(draft.created_at)}</Text>
-                    <Badge colorPalette={draft.score < 50 ? "green" : "orange"}>Score: {draft.score}</Badge>
-                  </Flex>
-                </Box>
-              ))}
-            </Stack>
-          </Box>
-        </VStack>
-      </Box>
-
-      {/* Main Stage */}
-      <Flex flex="1" direction="column" bg={mainBg} overflow="hidden">
-        <Flex h="60px" borderBottom="1px solid" borderColor={borderColor} align="center" px={6} justify="space-between">
-          <Tabs.Root value={viewMode} onValueChange={(d) => setViewMode(d.value)} variant="plain">
-             <Tabs.List bg={buttonBG} p={1} borderRadius="md">
-              <Tabs.Trigger
-                value="calendar"
-                px={3}
-                py={1}
-                _selected={{ bg: "white", color: "blue.600", shadow: "sm" }}
-                borderRadius="sm">Calendar</Tabs.Trigger>
-              <Tabs.Trigger
-                value="timeline"
-                px={3}
-                py={1}
-                _selected={{ bg: "white", color: "blue.600", shadow: "sm" }}
-                borderRadius="sm">Timeline</Tabs.Trigger>
-            </Tabs.List>
-          </Tabs.Root>
-
-
-          {/* Month Navigation (Calendar Mode Only) */}
-          {viewMode === "calendar" && (
-            <HStack>
-              <Button
-                border="1px solid"
-                background={buttonBG}
-                size="xs"
-                variant="ghost"
-                onClick={() => navMonth(-1)}>Prev</Button>
-              <Text fontWeight="bold" w="120px" textAlign="center">
-                  {calendarViewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-              </Text>
-              <Button
-                border="1px solid"
-                background={buttonBG}
-                size="xs"
-                variant="ghost"
-                onClick={() => navMonth(1)}>Next</Button>
-            </HStack>
-          )}
-
-          {/* Action Buttons */}
-          <HStack gap={3}>
-            <Button
-              size="sm"
-              variant="ghost"
-              colorPalette="red"
-              onClick={() => setConfirmDeleteModalOpen(true)}>Delete Draft</Button>
-            <Button
-              size="sm"
-              colorPalette="green"
-              disabled={!selectedDraftId}
-              onClick={() => setConfirmPublishModalOpen(true)}>Publish Selected</Button>
-          </HStack>
-        </Flex>
-
-        {/* Content Area */}
-        <Box flex="1" overflow="auto" p={6}>
-          {isLoadingDraft ? (
-            <Flex h="100%" justify="center" align="center" direction="column">
-              <Spinner size="xl" mb={4} />
-              <Text color="gray.500">Loading Schedule...</Text>
-          </Flex>
-          ) : !currentDraftData && viewMode === 'calendar' ? (
-             <Flex h="100%" justify="center" align="center" direction="column" color="gray.400">
-                <Heading size="md" mb={2}>Ready to Build</Heading>
-                <Text>Select date range and generate.</Text>
-             </Flex>
-          ) : viewMode === "calendar" ? (
-             <CalendarGrid
-                year={calendarViewDate.getFullYear()}
-                month={calendarViewDate.getMonth() + 1}
-                events={builderEvents}
-              />
-          ) : (
-             <TimelineGrid
-                rangeStart={startDate}
-                rangeEnd={endDate}
-                rows={timelineRows}
-                items={timelineItems}
-                showConflicts={false}
-            />
-          )}
-        </Box>
-      </Flex>
+      <BuilderMainStage
+        mainBg={mainBg}
+        borderColor={borderColor}
+        selectedDraftId={selectedDraftId}
+        currentDraftData={currentDraftData}
+        startDate={startDate}
+        endDate={endDate}
+        viewMode={viewMode}
+        isLoadingDraft={isLoadingDraft}
+        builderEvents={builderEvents}
+        timelineRows={timelineRows}
+        timelineItems={timelineItems}
+        calendarViewDate={calendarViewDate}
+        navMonth={navMonth}
+        setViewMode={setViewMode}
+        onDeleteDraft={() => setConfirmDeleteModalOpen(true)}
+        onPublishDraft={() => setConfirmPublishModalOpen(true)}
+      />
 
       {/* Modals */}
       <ConfirmPublishDraftModal

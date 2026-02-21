@@ -12,7 +12,7 @@ from fastapi import Request
 from .encoding.from_watchbill_request import from_watchbill_request
 from .encoding.to_watchbill_response import to_watchbill_response
 from .logic.make_schedule import make_schedule
-from .logic.exceptions import IllegalScheduleException
+from .logic.exceptions.IllegalScheduleException import IllegalScheduleException
 from .models import WatchbillParams, WatchbillResponse
 
 
