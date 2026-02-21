@@ -8,7 +8,7 @@ from datetime import timedelta
 
 import numpy as np
 
-from backend.ewatchbill.models import Assignment, WatchbillParams, WatchbillResponse
+from ewatchbill.models import Assignment, WatchbillParams, WatchbillResponse
 
 
 def to_watchbill_response(

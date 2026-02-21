@@ -6,7 +6,7 @@
 
 import numpy as np
 
-from backend.ewatchbill.models import WatchbillParams
+from ewatchbill.models import WatchbillParams
 
 
 def from_watchbill_request(params: WatchbillParams):

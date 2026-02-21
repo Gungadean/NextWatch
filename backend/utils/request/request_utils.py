@@ -8,7 +8,7 @@ This module provides utility functions for processing Time Off Requests.
 """
 
 from sqlmodel import Session
-from backend.database.database import TimeOffRequest, User
+from database.database import TimeOffRequest, User
 
 
 def sanitize_request(request: TimeOffRequest, user: User, session: Session) -> TimeOffRequest:

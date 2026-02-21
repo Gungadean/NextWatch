@@ -11,7 +11,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from backend.schemas.schedule_schemas import EmployeePublic
+from schemas.schedule_schemas import EmployeePublic
 
 
 class TimeOffAddRequest(BaseModel):

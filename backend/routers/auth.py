@@ -13,16 +13,16 @@ from fastapi import APIRouter, Depends, status, HTTPException, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
 
-from backend.database.database import get_session, User
-from backend.schemas.auth_schemas import RegisterRequest, Token
-from backend.schemas.generic_schemas import MessageResponse
-from backend.utils.auth.auth_tokens_utils import (
+from database.database import get_session, User
+from schemas.auth_schemas import RegisterRequest, Token
+from schemas.generic_schemas import MessageResponse
+from utils.auth.auth_tokens_utils import (
     create_tokens,
     get_current_token,
     create_access_token,
     get_token_data
 )
-from backend.utils.auth.auth_users_utils import (
+from utils.auth.auth_users_utils import (
     get_authenticated_user,
     get_user
 )

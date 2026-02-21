@@ -20,7 +20,7 @@ import numpy as np
 from datetime import datetime, date, timedelta
 from sqlmodel import Session, select
 
-from backend.database.database import (
+from database.database import (
     Employee,
     Position,
     EmployeePosition,
@@ -29,11 +29,11 @@ from backend.database.database import (
     User,
     engine
 )
-from backend.schemas.schedule_schemas import ScheduleRequest
-from backend.ewatchbill.logic.make_schedule import make_schedule
-from backend.ewatchbill.encoding.from_watchbill_request import from_watchbill_request
-from backend.utils.auth.auth_utils import get_password_hash
-from backend.utils.schedule.schedule_builder import build_watchbill_params
+from schemas.schedule_schemas import ScheduleRequest
+from ewatchbill.logic.make_schedule import make_schedule
+from ewatchbill.encoding.from_watchbill_request import from_watchbill_request
+from utils.auth.auth_utils import get_password_hash
+from utils.schedule.schedule_builder import build_watchbill_params
 
 CURRENT_YEAR = datetime.now().year
 CURRENT_MONTH = datetime.now().month

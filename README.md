@@ -20,19 +20,33 @@ git clone [https://github.com/gungadean/nextwatch.git](https://github.com/gungad
 cd nextwatch
 ```
 
-**2. Configure Environment Variables**
+**3. Generate Secret Keys**
+To ensure your authentication system is secure, you must generate unique, random keys for the SECRET_ACCESS and SECRET_REFRESH variables in your .env file.
+
+You can generate secure 64-cahracter hex strings on Linux or macOS using openssl. Run the following command in your terminal twice (once for each key):
+```bash
+openssl rand -hex 32
+```
+
+If you're on Windows or do not have openssl installed, you can use Docker to generate the keys using the following command:
+```bash
+docker run --rm alpine/openssl rand -hex 32
+```
+
+**4. Configure Environment Variables**
 NextWatch comes with a template configuration file. Create your local production config by copying the example:
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
-*Optional: Edit `.env` to customize your ports or database settings.*
 
-**3. Start the application**
+
+
+**5. Start the application**
 ```bash
 docker-compose up -d
 ```
 
-**4. Access the App**
+**6. Access the App**
 - **Frontend (App):** http://localhost
 - **Backend (API Docs):** http://localhost:8000/docs
 
@@ -45,11 +59,15 @@ If you prefer to run the services without Docker, follow these steps.
    ```bash
    cd backend
    ```
-2. Install dependencies:
+2. Set up your environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-3. Run the server:
+4. Run the server:
    ```bash
    uvicorn main:app --reload
    ```
@@ -69,7 +87,7 @@ If you prefer to run the services without Docker, follow these steps.
    ```
 
 ## Configuration
-The application uses a generated `config.ini` in the root folder upon first run. There are variables to be configured in the `.env` file created in the Quick Start guide.
+All application configuration is securely handled via the backend/.env file. This file controls your database connection string, JWT security tokens, CORS settings, and host configuration. See backend/.env.example for all available options.
 
 ## License
 Distributed under the GNU General Public License v3.0. See `LICENSE` for more information.

@@ -14,9 +14,9 @@ from typing import Optional, Annotated
 from fastapi import Depends, status, HTTPException
 from sqlmodel import Session, select
 
-from backend.database.database import User, get_session
-from backend.utils.auth.auth_utils import verify_password
-from backend.utils.auth.auth_tokens_utils import get_current_token, get_token_data
+from database.database import User, get_session
+from utils.auth.auth_utils import verify_password
+from utils.auth.auth_tokens_utils import get_current_token, get_token_data
 
 
 def get_user(identifier: str, session: Session) -> Optional[User]:

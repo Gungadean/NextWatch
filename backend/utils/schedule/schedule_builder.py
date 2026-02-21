@@ -11,9 +11,9 @@ from datetime import timedelta
 from sqlmodel import Session, select, or_
 from sqlalchemy.orm import selectinload
 
-from backend.database.database import Employee, Position, TimeOffRequest, engine, Shift
-from backend.ewatchbill.models import WatchbillParams, Watchstander, Watchstation, Conflict
-from backend.schemas.schedule_schemas import ScheduleRequest
+from database.database import Employee, Position, TimeOffRequest, engine, Shift
+from ewatchbill.models import WatchbillParams, Watchstander, Watchstation, Conflict
+from schemas.schedule_schemas import ScheduleRequest
 
 
 def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:

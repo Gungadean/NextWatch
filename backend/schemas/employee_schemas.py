@@ -11,8 +11,8 @@ from typing import List
 
 from pydantic import BaseModel
 
-from backend.schemas.request_schemas import TimeOffResponsePublic
-from backend.schemas.schedule_schemas import PositionPublic
+from schemas.request_schemas import TimeOffResponsePublic
+from schemas.schedule_schemas import PositionPublic
 
 
 class EmployeeAddRequest(BaseModel):

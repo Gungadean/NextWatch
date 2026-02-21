@@ -10,14 +10,14 @@ This module provides low-level authentication utilities.
 import bcrypt
 from fastapi.security import OAuth2PasswordBearer
 
-from ...config.config import get_config
+from config.config import settings
 
 # Define the security parameters for the application.
-SECRET_ACCESS = get_config().get("AUTH", "secret_access")
-SECRET_REFRESH = get_config().get("AUTH", "secret_refresh")
-ALGORITHM = get_config().get("AUTH", "algorithm")
-TOKEN_ACCESS_EXPIRATION = int(get_config().get("AUTH", "access_token_expire_minutes"))
-TOKEN_REFRESH_EXPIRATION = int(get_config().get("AUTH", "refresh_token_expire_days"))
+SECRET_ACCESS = settings.secret_access
+SECRET_REFRESH = settings.secret_refresh
+ALGORITHM = settings.algorithm
+TOKEN_ACCESS_EXPIRATION = settings.access_token_expire_minutes
+TOKEN_REFRESH_EXPIRATION = settings.refresh_token_expire_days
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 

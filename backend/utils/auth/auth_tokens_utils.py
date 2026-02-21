@@ -13,8 +13,8 @@ import jwt
 from fastapi import Response, Request, HTTPException, status
 from jwt import InvalidTokenError
 
-from backend.schemas.auth_schemas import TokenData
-from backend.utils.auth.auth_utils import (
+from schemas.auth_schemas import TokenData
+from utils.auth.auth_utils import (
     ALGORITHM,
     SECRET_ACCESS,
     TOKEN_ACCESS_EXPIRATION,

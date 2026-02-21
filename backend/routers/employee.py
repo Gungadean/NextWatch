@@ -15,10 +15,10 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 from starlette import status
 
-from backend.database.database import User, Employee, get_session
-from backend.schemas.employee_schemas import EmployeeAddRequest, EmployeeDeleteRequest, EmployeeReadWithTimeOff
-from backend.schemas.generic_schemas import MessageResponse
-from backend.utils.auth.auth_users_utils import get_current_active_user
+from database.database import User, Employee, get_session
+from schemas.employee_schemas import EmployeeAddRequest, EmployeeDeleteRequest, EmployeeReadWithTimeOff
+from schemas.generic_schemas import MessageResponse
+from utils.auth.auth_users_utils import get_current_active_user
 
 router = APIRouter()
 

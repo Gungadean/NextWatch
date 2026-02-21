@@ -15,11 +15,11 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 from starlette import status
 
-from backend.schemas.generic_schemas import MessageResponse
-from backend.schemas.request_schemas import TimeOffAddRequest, TimeOffResponsePublic
-from backend.utils.auth.auth_users_utils import get_current_active_user
-from backend.database.database import get_session, User, TimeOffRequest
-from backend.utils.request.request_utils import sanitize_request
+from schemas.generic_schemas import MessageResponse
+from schemas.request_schemas import TimeOffAddRequest, TimeOffResponsePublic
+from utils.auth.auth_users_utils import get_current_active_user
+from database.database import get_session, User, TimeOffRequest
+from utils.request.request_utils import sanitize_request
 
 router = APIRouter()
 
