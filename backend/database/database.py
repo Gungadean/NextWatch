@@ -6,22 +6,38 @@ database.py
 
 Defines the SQLModel database schema and initialization logic.
 """
-
+import logging
 import uuid
 from datetime import datetime, date
 from typing import List, Optional
 
 from sqlalchemy import Column, JSON
+from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlmodel import SQLModel, create_engine, Field, Relationship, Session
 
-# TODO: Move to async SQLAlchemy
+
+# Create engine from database location and create all SQLModel tables. Only SQLite for now.
+# check_same_thread=False is needed for SQLite when used with FastAPI/multi-threading.
+engine = create_engine("sqlite:///database.db", connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
 def get_session():
     """
     Dependency generator for database sessions.
     Yields a session context for use in API endpoints.
     """
     with Session(engine) as session:
-        yield session
+        try:
+            yield session
+        except Exception as e:
+            logging.error(f"Database error occurred, rolling back transaction: {e}")
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
 
 
 class User(SQLModel, table=True):
@@ -165,7 +181,4 @@ class Employee(SQLModel, table=True):
     time_off_requests: List["TimeOffRequest"] = Relationship(back_populates="employee")
 
 
-# Create engine from database location and create all SQLModel tables. Only SQLite for now.
-# check_same_thread=False is needed for SQLite when used with FastAPI/multi-threading.
-engine = create_engine("sqlite:///database.db", connect_args={"check_same_thread": False})
 SQLModel.metadata.create_all(engine)
