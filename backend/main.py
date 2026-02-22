@@ -9,14 +9,17 @@ The entry point for the FastAPI backend application.
 @author: Ryan Huston
 @email: ryanjhuston@comcast.net
 """
+
+import logging
 import os
 import sys
+import time
 from contextlib import asynccontextmanager
 
 from alembic.config import Config
 
 from alembic import command
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
 
@@ -26,10 +29,17 @@ from routers import auth, account, position, employee, schedule, request
 from config.config import settings
 from utils.tests.seed_data import seed_database, create_default_admin
 
+logger_config = logging.basicConfig(
+    level=logging.DEBUG if settings.debug else logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+app_logger = logging.getLogger("nextwatch")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Starting up NextWatch...")
+    app_logger.info("Starting up NextWatch...")
 
     # Connect to the database and see if the tables exist
     inspector = inspect(engine)
@@ -37,26 +47,26 @@ async def lifespan(app: FastAPI):
     is_first_run = len(existing_tables) == 0
 
     if is_first_run:
-        print("No tables found in the database. Initializing...")
+        app_logger.info("No tables found in the database. Initializing...")
 
-    print("Verifying database schema...")
+    app_logger.info("Verifying database schema...")
     current_dir = os.path.dirname(os.path.abspath(__file__))
     alembic_ini_path = os.path.join(current_dir, "alembic.ini")
 
     alembic_cfg = Config(alembic_ini_path)
     command.upgrade(alembic_cfg, "head")
-    print("Database schema is up to date!")
+    app_logger.info("Database schema is up to date!")
 
     if os.getenv("TEST_SEED", "").lower() == "true":
-        print("TEST_SEED flag detected. Seeding database with test data...")
+        app_logger.info("TEST_SEED flag detected. Seeding database with test data...")
         seed_database()
     elif is_first_run:
-        print("Fresh install detected! Creating default Admin account...")
+        app_logger.info("Fresh install detected! Creating default Admin account...")
         create_default_admin(is_test_seed=False)
 
     yield
 
-    print("Shutting down NextWatch...")
+    app_logger.info("Shutting down NextWatch...")
 
 # Initialize the main application
 app = FastAPI(
@@ -101,5 +111,6 @@ if __name__ == "__main__":
         host=settings.host,
         port=settings.port,
         reload=settings.debug,
-        access_log=settings.debug
+        access_log=settings.debug,
+        log_config=logger_config
     )

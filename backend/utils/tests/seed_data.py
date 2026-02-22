@@ -22,6 +22,7 @@ import numpy as np
 from datetime import datetime, date, timedelta
 from sqlmodel import Session, select
 
+from main import app_logger
 from database.database import engine
 from database.models import Position, Employee, EmployeePosition, TimeOffRequest, Shift, User
 from schemas.schedule_schemas import ScheduleRequest
@@ -202,8 +203,7 @@ def seed_leave_requests(session: Session, employees):
                     start_date=start_date,
                     end_date=end_date,
                     request_type=r_type,
-                    status=r_status,
-                    created_at=datetime.now()
+                    status=r_status
                 )
                 session.add(lr)
                 count += 1
@@ -282,7 +282,7 @@ def generate_month_schedule(session: Session):
         print("   Failed to generate a schedule.")
         return
 
-    print(f"  Schedule Generated! Final Score: {best_score}")
+    app_logger.info(f"  Schedule Generated! Final Score: {best_score}")
 
     shifts_created = 0
 
