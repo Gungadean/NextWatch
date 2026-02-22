@@ -24,6 +24,5 @@ dist-ssr
 *.sln
 *.sw?
 .env
-/database.db
-/config.ini
 __pycache__
+/backend/database.db

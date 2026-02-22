@@ -16,11 +16,13 @@ This script populates the database with initial demo data, including:
 
 import random
 import calendar
+import secrets
+
 import numpy as np
 from datetime import datetime, date, timedelta
 from sqlmodel import Session, select
 
-from database.database import get_session
+from database.database import engine
 from database.models import Position, Employee, EmployeePosition, TimeOffRequest, Shift, User
 from schemas.schedule_schemas import ScheduleRequest
 from ewatchbill.logic.make_schedule import make_schedule
@@ -316,22 +318,53 @@ def generate_month_schedule(session: Session):
     print(f"   Saved {shifts_created} shifts to database.")
 
 
+def create_default_admin(is_test_seed: bool = False):
+    """
+    Creates the initial admin user.
+    Uses a hardcoded password for testing, or a secure random one for production.
+    """
+    with Session(engine) as session:
+        # Check if an admin already exists to prevent duplicates
+        existing_admin = session.exec(select(User).where(User.username == "admin")).first()
+        if existing_admin:
+            return
+
+        # Determine the password based on the environment
+        if is_test_seed:
+            raw_password = "password"
+            print("--- TEST ENVIRONMENT ---")
+        else:
+            # Generate a secure 16-character random password for production
+            raw_password = secrets.token_urlsafe(12)
+            print("Default Admin Password. Save this password:")
+
+        # Create the Admin User
+        admin_user = User(
+            username="admin",
+            email="admin@nextwatch.local",
+            password_hashed=get_password_hash(raw_password),
+            role="admin",
+            is_active=True
+        )
+
+        session.add(admin_user)
+        session.commit()
+
+        print(f"Admin Account Created:")
+        print(f"Username: admin")
+        print(f"Password: {raw_password}")
+        print("-------------------------------------")
+
+
 def seed_database():
     """
     Main entry point for the seeding process.
     Ensures an admin user exists, then triggers data generation.
     """
-    with get_session() as session:
-        statement = select(User.id).where(User.username == "admin")
+    with Session(engine) as session:
 
-        if not session.exec(statement).first():
-            session.add(User(
-                username="admin",
-                email="admin@example.com",
-                role="admin",
-                password_hashed=get_password_hash("password")
-            ))
-            session.commit()
+        # Check for admin and create test admin/password
+        create_default_admin(is_test_seed=True)
 
         employees, _ = seed_employees_and_positions(session)
         seed_leave_requests(session, employees)
