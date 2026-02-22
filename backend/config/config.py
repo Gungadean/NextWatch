@@ -7,8 +7,6 @@ config.py
 Handles the application configuration management.
 """
 
-from secrets import token_hex
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
