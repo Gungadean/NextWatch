@@ -7,6 +7,7 @@ database.py
 Defines the SQLModel database schema and initialization logic.
 """
 import logging
+from http.client import HTTPException
 
 from sqlmodel import create_engine, Session
 
@@ -27,6 +28,11 @@ def get_session():
     with Session(engine) as session:
         try:
             yield session
+        except HTTPException as http_exception:
+            # Roll back any potential database changes during an API error but do not log them.
+            # More often than not it's just a 401, 403, or 404 error.
+            session.rollback()
+            raise http_exception
         except Exception as e:
             logging.error(f"Database error occurred, rolling back transaction: {e}")
             session.rollback()
