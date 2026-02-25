@@ -52,6 +52,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (data: AuthRequest) => {
     // Call api with AuthRequest model and set authenticated to true.
     await loginUser(data);
+
+    const userData = await fetchUserProfile();
+
+    setUser(userData);
     setIsAuthenticated(true);
   }
 

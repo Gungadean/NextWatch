@@ -8,12 +8,13 @@ This module acts as the Adapter layer between the Database/API and the Schedulin
 """
 
 from datetime import timedelta
-from sqlmodel import Session, select, or_
+from sqlmodel import select, or_, Session
 from sqlalchemy.orm import selectinload
 
-from backend.database.database import Employee, Position, TimeOffRequest, engine, Shift
-from backend.ewatchbill.models import WatchbillParams, Watchstander, Watchstation, Conflict
-from backend.schemas.schedule_schemas import ScheduleRequest
+from database.database import get_session, engine
+from database.models import Position, Employee, TimeOffRequest, Shift
+from ewatchbill.models import WatchbillParams, Watchstander, Watchstation, Conflict
+from schemas.schedule_schemas import ScheduleRequest
 
 
 def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:

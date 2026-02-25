@@ -7,62 +7,41 @@ config.py
 Handles the application configuration management.
 """
 
-# TODO: Migrate to pydantic configuration
-
-import os
-import configparser
-
-from secrets import token_hex
-
-# Initialize the global configuration parser instance
-config = configparser.ConfigParser()
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def initialize_config():
+class Settings(BaseSettings):
     """
-    Initialize the configuration settings.
+    Application settings initializer.
     """
-    if not os.path.exists('config.ini'):
-        # API Host settings: defines where the backend service is running
-        config['HOST'] = {
-            'scheme': 'http',
-            'host': 'localhost',
-            'port': '8000',
-            'path': '/api'
-        }
+    # Host
+    scheme: str = "http"
+    host: str = "localhost"
+    port: int = 8000
+    api_prefix: str = "/api/v1"
 
-        # Authentication settings: Includes JWT secrets and expiration times.
-        # token_hex(32) generates a secure 64-character hex string.
-        config['AUTH'] = {
-            "secret_access": token_hex(32),
-            "secret_refresh": token_hex(32),
-            "algorithm": "HS256",
-            "access_token_expire_minutes": 15,
-            "refresh_token_expire_days": 30
-        }
+    # Auth
+    secret_access: str
+    secret_refresh: str
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
 
-        # CORS (Cross-Origin Resource Sharing) settings for frontend integration
-        config['CORS'] = {
-            'allow_origins': ['http://localhost:5173'],
-            'allow_credentials': True,
-            'allow_methods': ['*'],
-            'allow_headers': ['*']
-        }
+    # CORS
+    allow_origins: list[str] = ["http://localhost:5173"]
+    allow_credentials: bool = True
+    allow_methods: list[str] = ["*"]
+    allow_headers: list[str] = ["*"]
 
-        with open('config.ini', 'w') as configfile:
-            config.write(configfile)
-    else:
-        config.read('config.ini')
+    # Database
+    database_url: str = "sqlite:///./database.db"
+
+    # Dev
+    debug: bool = False
+    version: str = "0.1.0"
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
-def get_config():
-    """
-    Retrieve the active configuration object.
-
-    Returns:
-        configparser.ConfigParser: The populated configuration instance.
-    """
-    return config
-
-
-initialize_config()
+# Instantiate settings for importing
+settings = Settings()

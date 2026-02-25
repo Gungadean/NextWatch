@@ -18,12 +18,13 @@ from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, extract
 
-from backend.database.database import User, engine, Shift, ScheduleDraft, get_session
-from backend.schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest
-from backend.utils.auth.auth_users_utils import get_current_active_user
-from backend.utils.schedule.schedule_builder import build_watchbill_params
-from backend.ewatchbill.schedule_message_generator import schedule_message_generator
-from backend.ewatchbill.models import WatchbillResponse
+from database.database import get_session, engine
+from database.models import ScheduleDraft, User, Shift
+from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest
+from utils.auth.auth_users_utils import get_current_active_user
+from utils.schedule.schedule_builder import build_watchbill_params
+from ewatchbill.schedule_message_generator import schedule_message_generator
+from ewatchbill.models import WatchbillResponse
 
 router = APIRouter()
 

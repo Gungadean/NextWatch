@@ -9,58 +9,74 @@ The entry point for the FastAPI backend application.
 @author: Ryan Huston
 @email: ryanjhuston@comcast.net
 """
+
+import logging
 import os
 import sys
-from pathlib import Path
+from contextlib import asynccontextmanager
 
-import uvicorn
+from alembic.config import Config
+
+from alembic import command
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect
 
-from backend.routers import auth, account, position, employee, schedule, request
+from database.database import engine
+from routers import auth, account, position, employee, schedule, request
 
-from backend.config.config import get_config
-from backend.utils.tests.seed_data import seed_database
+from config.config import settings
+from utils.tests.seed_data import seed_database, create_default_admin
 
+logger_config = logging.basicConfig(
+    level=logging.DEBUG if settings.debug else logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
-env_path = Path(__file__).resolve().parent.parent / ".env"
+app_logger = logging.getLogger("nextwatch")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app_logger.info("Starting up NextWatch...")
 
-# Parse root .env file
-def load_env_file(filepath):
-    if not filepath.exists():
-        return
+    # Connect to the database and see if the tables exist
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+    is_first_run = len(existing_tables) == 0
 
-    with open(filepath, "r") as f:
-        for line in f:
-            # Strip whitespace and ignore comments
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
+    if is_first_run:
+        app_logger.info("No tables found in the database. Initializing...")
 
-            # Split on the first '=' only
-            if "=" in line:
-                key, value = line.split("=", 1)
-                # Clean up quotes if present
-                key = key.strip()
-                value = value.strip().strip("'").strip('"')
+    app_logger.info("Verifying database schema...")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    alembic_ini_path = os.path.join(current_dir, "alembic.ini")
 
-                # Set the environment variable
-                os.environ[key] = value
+    alembic_cfg = Config(alembic_ini_path)
+    command.upgrade(alembic_cfg, "head")
+    app_logger.info("Database schema is up to date!")
 
-load_env_file(env_path)
+    if os.getenv("TEST_SEED", "").lower() == "true":
+        app_logger.info("TEST_SEED flag detected. Seeding database with test data...")
+        seed_database()
+    elif is_first_run:
+        app_logger.info("Fresh install detected! Creating default Admin account...")
+        create_default_admin(is_test_seed=False)
 
-version = os.environ.get("VITE_APP_VERSION", "0.0.0")
+    yield
+
+    app_logger.info("Shutting down NextWatch...")
 
 # Initialize the main application
 app = FastAPI(
+    lifespan=lifespan,
     title="NextWatch API",
-    version=version,
+    version=settings.version,
     description="API for the NextWatch scheduling system."
 )
 
 # Retrieve the global API prefix (e.g., "/api") from configuration
-prefix = get_config().get('HOST', 'path')
+prefix = settings.api_prefix
 
 # Add all router endpoints to app and apply prefix from config.
 app.include_router(auth.router, prefix=prefix)
@@ -72,27 +88,28 @@ app.include_router(request.router, prefix=prefix)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_config().get('CORS', 'allow_origins'),
-    allow_credentials=get_config().get('CORS', 'allow_credentials'),
-    allow_methods=get_config().get('CORS', 'allow_methods'),
-    allow_headers=get_config().get('CORS', 'allow_headers'),
+    allow_origins=settings.allow_origins,
+    allow_credentials=settings.allow_credentials,
+    allow_methods=settings.allow_methods,
+    allow_headers=settings.allow_headers,
 )
 
 
 if __name__ == "__main__":
     """
     Application Entry Point.
-
-    Checks for command-line arguments before starting the server.
-
-    Usage:
-        python main.py             -> Starts the server normally.
-        python main.py --test-seed -> Populates the DB with dummy data, then starts.
     """
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
+    import uvicorn
 
-        if arg == "--test-seed":
-            seed_database()
+    if "--test-seed" in sys.argv:
+        os.environ["TEST_SEED"] = "True"
+        sys.argv.remove("--test-seed")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app="main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
+        access_log=settings.debug,
+        log_config=logger_config
+    )

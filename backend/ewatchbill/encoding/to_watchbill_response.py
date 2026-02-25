@@ -2,13 +2,12 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
-#  Modified by Ryan Huston. 2026
 
 from datetime import timedelta
 
 import numpy as np
 
-from backend.ewatchbill.models import Assignment, WatchbillParams, WatchbillResponse
+from ewatchbill.models import Assignment, WatchbillParams, WatchbillResponse
 
 
 def to_watchbill_response(

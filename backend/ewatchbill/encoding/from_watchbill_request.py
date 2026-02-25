@@ -2,11 +2,10 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
-#  Modified by Ryan Huston. 2026
 
 import numpy as np
 
-from backend.ewatchbill.models import WatchbillParams
+from ewatchbill.models import WatchbillParams
 
 
 def from_watchbill_request(params: WatchbillParams):

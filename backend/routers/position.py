@@ -14,10 +14,11 @@ from sqlalchemy import delete
 from sqlmodel import Session, select
 from starlette import status
 
-from backend.database.database import User, get_session, Position
-from backend.schemas.position_schemas import PositionAddRequest, PositionDeleteRequest, \
+from database.database import get_session
+from database.models import User, Position
+from schemas.position_schemas import PositionAddRequest, PositionDeleteRequest, \
     PositionQueryResponse
-from backend.utils.auth.auth_users_utils import get_current_active_user
+from utils.auth.auth_users_utils import get_current_active_user
 
 router = APIRouter()
 
