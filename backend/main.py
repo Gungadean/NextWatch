@@ -13,13 +13,12 @@ The entry point for the FastAPI backend application.
 import logging
 import os
 import sys
-import time
 from contextlib import asynccontextmanager
 
 from alembic.config import Config
 
 from alembic import command
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
 
