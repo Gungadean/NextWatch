@@ -1,5 +1,6 @@
 #  SPDX-License-Identifier: GPL-3.0-or-later
 #  Copyright (c) 2026. Ryan Huston
+
 from datetime import datetime, date
 from typing import Optional
 
@@ -13,7 +14,7 @@ class TimeOffRequest(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     employee_id: Optional[int] = Field(foreign_key="employee.id", ondelete="CASCADE")
 
-    creation_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now)
     start_date: date
     end_date: date
 
