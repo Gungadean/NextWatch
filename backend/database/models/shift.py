@@ -22,5 +22,5 @@ class Shift(SQLModel, table=True):
     start_time: Optional[datetime]
     end_time: Optional[datetime]
 
-    employee: "Employee" = Relationship(back_populates="shifts")
-    position: "Position" = Relationship(back_populates="shifts")
+    employee: "Employee" = Relationship(back_populates="shifts") # noqa: F821
+    position: "Position" = Relationship(back_populates="shifts") # noqa: F821

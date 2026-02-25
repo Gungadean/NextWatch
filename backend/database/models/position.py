@@ -20,8 +20,8 @@ class Position(SQLModel, table=True):
     color: str = Field(default="#000080", max_length=7)
 
     # Many-to-Many relationship to Employee through EmployeePosition table
-    employees: Optional[List["Employee"]] = Relationship(
+    employees: Optional[List["Employee"]] = Relationship( # noqa: F821
         back_populates="positions",
         link_model=EmployeePosition)
 
-    shifts: List["Shift"] = Relationship(back_populates="position")
+    shifts: List["Shift"] = Relationship(back_populates="position") # noqa: F821

@@ -24,4 +24,4 @@ class User(SQLModel, table=True):
     last_login: datetime = Field(default_factory=datetime.now)
 
     # One-to-One relationship with Employee
-    employee: Optional["Employee"] = Relationship(back_populates="user")
+    employee: Optional["Employee"] = Relationship(back_populates="user") # noqa: F821

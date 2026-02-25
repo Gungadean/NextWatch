@@ -21,4 +21,4 @@ class TimeOffRequest(SQLModel, table=True):
     request_type: Optional[str] = Field(default="Vacation")  # Enum: Vacation, Sick, Personal, etc.
     status: Optional[str] = Field(default="Pending")  # Enum: Pending, Approved, Denied
 
-    employee: Optional["Employee"] = Relationship(back_populates="time_off_requests")
+    employee: Optional["Employee"] = Relationship(back_populates="time_off_requests") # noqa: F821

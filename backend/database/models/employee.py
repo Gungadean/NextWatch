@@ -38,12 +38,12 @@ class Employee(SQLModel, table=True):
     user_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
     # Link to auth user (optional, as an employee might exist without a login)
-    user: Optional["User"] = Relationship(back_populates="employee")
+    user: Optional["User"] = Relationship(back_populates="employee") # noqa: F821
 
     # Many-to-Many relationship to Position
-    positions: Optional[List["Position"]] = Relationship(
+    positions: Optional[List["Position"]] = Relationship( # noqa: F821
         back_populates="employees",
         link_model=EmployeePosition)
 
-    shifts: List["Shift"] = Relationship(back_populates="employee")
-    time_off_requests: List["TimeOffRequest"] = Relationship(back_populates="employee")
+    shifts: List["Shift"] = Relationship(back_populates="employee") # noqa: F821
+    time_off_requests: List["TimeOffRequest"] = Relationship(back_populates="employee") # noqa: F821
