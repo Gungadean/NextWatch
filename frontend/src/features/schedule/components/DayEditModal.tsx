@@ -26,6 +26,8 @@ import type { ScheduleResponse, ScheduleDraft, Assignment } from "@/features/sch
 import type { EmployeeWithTimeOff, Position } from "@/features/personnel/personnelApi";
 import {useMemo} from "react";
 import {toSimpleDate} from "@/utils/timeUtils.ts";
+import {toaster} from "@/components/ui/toaster.tsx";
+import {LuShuffle} from "react-icons/lu";
 
 /**
  * Props for the DayEditModal component.
@@ -170,6 +172,76 @@ export default function DayEditModal({
     setDayAssignments([...dayAssignments, newShift]);
   };
 
+  // Handle automatically finding the fairest, valid employee for a shift
+  const handleAutoAssign = (index: number, positionId: number) => {
+    if (!currentDraftData) return;
+
+    // Get all employees qualified for this role
+    let validCandidates = employees.filter(emp =>
+      emp.positions.map(p => p.id).includes(positionId)
+    );
+
+    // Filter out constraints (Double Booking, Leave, Min Days Off)
+    validCandidates = validCandidates.filter(emp => {
+      // Check if they're already working today
+      const workingToday = dayAssignments.some(shift => shift.watchstander.id === emp.id);
+      if (workingToday) return false;
+
+      // Check if they have a time off request
+      const onLeave = emp.time_off_requests?.some(req =>
+        req.status !== "Denied" && req.start_date <= selectedDate! && req.end_date >= selectedDate!
+      );
+
+      if (onLeave) return false;
+
+      // Check to see if the minDaysOff constraint isn't violated.
+      const parts = selectedDate!.split("-").map(Number);
+      const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+      const forbiddenDates: string[] = [];
+
+      for (let i = 1; i <= minDaysOff; i++) {
+        const past = new Date(dateObj); past.setDate(past.getDate() - i);
+        const future = new Date(dateObj); future.setDate(future.getDate() + i);
+        forbiddenDates.push(toSimpleDate(past), toSimpleDate(future));
+      }
+
+      const workingInWindow = currentDraftData.assignments.some(
+        a => a.watchstander.id === emp.id && forbiddenDates.includes(a.date)
+      );
+
+      return !workingInWindow;
+    });
+
+    if (validCandidates.length === 0) {
+      toaster.create({
+          title: "No valid candidates found",
+          description: "No employees can be found that would not violate the schedule constraints.",
+          type: "error"
+        });
+      return;
+    }
+
+    // Check the fairness of adding this person against all shifts
+    const shiftCounts: Record<number, number> = {};
+    validCandidates.forEach(emp => shiftCounts[emp.id] = 0);
+
+    currentDraftData.assignments.forEach(shift => {
+      if (shiftCounts[shift.watchstander.id] !== undefined) {
+        shiftCounts[shift.watchstander.id]++;
+      }
+    });
+
+    // Sort by the candidate with the lowest fairness score (lower is better)
+    validCandidates.sort((a, b) => shiftCounts[a.id] - shiftCounts[b.id]);
+
+    const winner = validCandidates[0];
+
+    // Add them to the schedule
+    const updated = [...dayAssignments];
+    updated[index].watchstander = { id: winner.id, name: `${winner.last_name}, ${winner.first_name}` };
+    setDayAssignments(updated);
+  };
+
   // Handle removing a shift from the specified day.
   const handleRemoveShift = (index: number) => {
     const updated = dayAssignments.filter((_, i) => i !== index);
@@ -254,6 +326,16 @@ export default function DayEditModal({
                       </NativeSelectField>
                     </NativeSelectRoot>
                   </Box>
+
+                  {/* Auto assign button. Finds the fairest person for the shift. */}
+                  <Button
+                    colorPalette="purple"
+                    variant="surface"
+                    onClick={() => handleAutoAssign(index, shift.watchstation.id)}
+                    title="Auto-assign fairest available member"
+                  >
+                    <LuShuffle />
+                  </Button>
 
                   <Button colorPalette="red" variant="outline" onClick={() => handleRemoveShift(index)}>
                     Remove
