@@ -62,14 +62,13 @@ const BuilderPage = () => {
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
 
   // Default start date to the first day of next month
-
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
     const nextStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     return toSimpleDate(nextStart);
   });
 
-  // Default start date to the first day of next month
+  // Default start date to the last day of next month
   const [endDate, setEndDate] = useState(() => {
     const today = new Date();
     const nextEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
