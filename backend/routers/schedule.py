@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
@@ -198,9 +199,6 @@ async def route_publish_draft(uuid_str: str,
         user (User): The currently authenticated user.
         session (Session): Database session dependency.
 
-    Returns:
-        dict: A message indicating success and the count of created shifts.
-
     Raises:
         HTTPException (404): If the draft is not found.
     """
@@ -251,6 +249,39 @@ async def route_publish_draft(uuid_str: str,
     session.exec(statement)
 
     session.commit()
+    return None
+
+
+@router.post("/schedule/drafts/{uuid_str}/update")
+async def route_update_draft(uuid_str: str,
+                              data: List[dict],
+                              user: User = Depends(get_current_active_user),
+                              session: Session = Depends(get_session)):
+    """
+    Updates a draft based on changes made in the frontend builder.
+
+    Args:
+        uuid_str (str): The UUID of the draft to publish.
+        data (ScheduleDraft): The updated draft data.
+        user (User): The currently authenticated user.
+        session (Session): Database session dependency.
+
+    Raises:
+        HTTPException (404): If the draft is not found.
+    """
+    statement = select(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(uuid_str))
+
+    draft = session.exec(statement).one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    draft.assignments = jsonable_encoder(data)
+
+    session.add(draft)
+    session.commit()
+    session.refresh(draft)
+
+    return draft
 
 
 @router.delete("/schedule/drafts/{uuid_str}/delete")

@@ -19,7 +19,8 @@ import {
   type ScheduleDraft,
   type Watchstander,
   getScheduleDraftSchedule,
-  generateScheduleStream
+  generateScheduleStream,
+  updateDraft
 } from "../features/schedule/scheduleApi.ts";
 import {
   getEmployeesWithTimeOff,
@@ -194,6 +195,31 @@ const BuilderPage = () => {
   }
 
   /**
+   * Intercepts edits from the DayEditModal, updates the UI,
+   * and saves the changes to the backend database.
+   */
+  const handleDraftEditUpdate = async (updatedDraft: ScheduleResponse | ScheduleDraft | null | undefined) => {
+    if (!updatedDraft || !selectedDraftId) return;
+
+    const previousData = currentDraftData;
+
+    setCurrentDraftData(updatedDraft);
+
+    try {
+      await updateDraft(selectedDraftId, updatedDraft.assignments);
+
+    } catch {
+      toaster.create({
+        title: "Failed to save draft changes",
+        description: "Your changes couldn't be saved to the database.",
+        type: "error"
+      });
+
+      setCurrentDraftData(previousData);
+    }
+  };
+
+  /**
    * Navigates the Calendar view by month.
    */
   const navMonth = (dir: number) => {
@@ -268,7 +294,8 @@ const BuilderPage = () => {
         date: a.date,
         label: a.watchstation.name.substring(0,3),
         text: (a.watchstander as Watchstander).name || "Unknown",
-        color: a.watchstation.color
+        color: a.watchstation.color,
+        rawAssignment: a
     }));
   }, [currentDraftData]);
 
@@ -352,6 +379,9 @@ const BuilderPage = () => {
       <BuilderMainStage
         mainBg={mainBg}
         borderColor={borderColor}
+        employees={employees}
+        positions={positions}
+        minDaysOff={Number(minDaysOff) || 1}
         selectedDraftId={selectedDraftId}
         currentDraftData={currentDraftData}
         startDate={startDate}
@@ -366,6 +396,7 @@ const BuilderPage = () => {
         setViewMode={setViewMode}
         onDeleteDraft={() => setConfirmDeleteModalOpen(true)}
         onPublishDraft={() => setConfirmPublishModalOpen(true)}
+        onCurrentDraftData={handleDraftEditUpdate}
       />
 
       {/* Modals */}

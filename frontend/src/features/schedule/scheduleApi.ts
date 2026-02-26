@@ -216,13 +216,26 @@ export const getScheduleDraftSchedule = async (uuid: string): Promise<ScheduleDr
  * Promotes a draft to the official schedule.
  * WARNING: This will overwrite any existing shifts for the given date range and positions.
  */
-export const publishDraft = async (uuid: string): Promise<ScheduleResponse> => {
+export const publishDraft = async (uuid: string) => {
   try {
     const response = await axiosInstance.post(`/schedule/drafts/${uuid}/publish`);
 
     return response.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Draft Publishing Failed"));
+  }
+}
+
+/**
+ * Updates draft based on changes from the frontend.
+ */
+export const updateDraft = async (uuid: string, data: Assignment[]): Promise<ScheduleDraft> => {
+  try {
+    const response = await axiosInstance.post(`/schedule/drafts/${uuid}/update`, data);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Update Draft Request Failed"));
   }
 }
 

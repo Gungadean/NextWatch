@@ -30,6 +30,7 @@ export interface TimeOffRequest {
 export interface Position {
   id: number;
   name: string;
+  color: string;
 }
 
 /**
@@ -65,6 +66,7 @@ export interface EmployeeWithTimeOff {
     last_name: string;
     middle_name: string;
     time_off_requests: TimeOffRequest[];
+    positions: Position[];
 }
 
 /**

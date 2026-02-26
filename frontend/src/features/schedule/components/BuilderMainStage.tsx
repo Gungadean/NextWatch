@@ -14,9 +14,16 @@ import {
   Text,
 } from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
-import {type ScheduleDraft, type ScheduleResponse,} from "@/features/schedule/scheduleApi.ts";
+import {
+  type Assignment,
+  type ScheduleDraft,
+  type ScheduleResponse,
+} from "@/features/schedule/scheduleApi.ts";
 import {type CalendarEvent, CalendarGrid} from "@/components/CalendarGrid.tsx";
 import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
+import type {EmployeeWithTimeOff, Position} from "@/features/personnel/personnelApi.ts";
+import {useState} from "react";
+import DayEditModal from "@/features/schedule/components/DayEditModal.tsx";
 
 /**
  * BuilderMainStage.tsx
@@ -30,6 +37,10 @@ import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/Ti
 interface BuilderMainStageProps {
   mainBg: string;
   borderColor: string;
+
+  employees: EmployeeWithTimeOff[];
+  positions: Position[];
+  minDaysOff: number;
 
   selectedDraftId: string | null;
   currentDraftData: ScheduleResponse | ScheduleDraft | null | undefined;
@@ -49,6 +60,7 @@ interface BuilderMainStageProps {
 
   onDeleteDraft: () => void;
   onPublishDraft: () => void;
+  onCurrentDraftData: (data: ScheduleResponse | ScheduleDraft | null | undefined) => void;
 }
 
 /**
@@ -57,6 +69,9 @@ interface BuilderMainStageProps {
 const BuilderMainStage = ({
   mainBg,
   borderColor,
+  employees,
+  positions,
+  minDaysOff,
   selectedDraftId,
   currentDraftData,
   startDate,
@@ -71,9 +86,43 @@ const BuilderMainStage = ({
   setViewMode,
   onDeleteDraft,
   onPublishDraft,
+  onCurrentDraftData
 }: BuilderMainStageProps) => {
 
   const buttonBG = useColorModeValue("gray.100", "gray.700");
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dayAssignments, setDayAssignments] = useState<Assignment[]>([]);
+
+  const [selectedRegenDates, setSelectedRegenDates] = useState<string[]>([]);
+
+  /**
+   * Handle toggle button for selecting days to regenerate
+   */
+  const handleToggleRegenDate = (dateStr: string) => {
+    setSelectedRegenDates(prev =>
+      prev.includes(dateStr)
+        ? prev.filter(d => d !== dateStr) // Uncheck
+        : [...prev, dateStr]              // Check
+    );
+  };
+
+  /**
+   * Handle selecting and opening the DayEditModal when calendar day is clicked.
+   */
+  const handleDayClick = (dateStr: string) => {
+    setSelectedDate(dateStr);
+
+    if (currentDraftData) {
+      const shiftsForDay = currentDraftData.assignments.filter(a => a.date === dateStr);
+      setDayAssignments(shiftsForDay);
+    } else {
+      setDayAssignments([]);
+    }
+
+    setIsModalOpen(true);
+  }
 
   return (
       <Flex flex="1" direction="column" bg={mainBg} overflow="hidden">
@@ -118,6 +167,12 @@ const BuilderMainStage = ({
 
           {/* Action Buttons */}
           <HStack gap={3}>
+            {selectedRegenDates.length > 0 && (
+              <Button size="sm" colorPalette="blue" variant="surface">
+                Regenerate {selectedRegenDates.length} Days
+              </Button>
+            )}
+
             <Button
               size="sm"
               variant="ghost"
@@ -148,6 +203,9 @@ const BuilderMainStage = ({
                 year={calendarViewDate.getFullYear()}
                 month={calendarViewDate.getMonth() + 1}
                 events={builderEvents}
+                onDayClick={handleDayClick}
+                selectedRegenDates={selectedRegenDates}
+                onToggleRegenDate={handleToggleRegenDate}
               />
           ) : (
              <TimelineGrid
@@ -159,6 +217,20 @@ const BuilderMainStage = ({
             />
           )}
         </Box>
+
+        {/* Modal for editing shifts for a day */}
+        <DayEditModal
+            open={isModalOpen}
+            onOpenChange={(details) => setIsModalOpen(details.open)}
+            selectedDate={selectedDate}
+            dayAssignments={dayAssignments}
+            setDayAssignments={setDayAssignments}
+            currentDraftData={currentDraftData}
+            onCurrentDraftData={onCurrentDraftData}
+            employees={employees}
+            positions={positions}
+            minDaysOff={minDaysOff}
+        />
       </Flex>
   );
 };

@@ -9,9 +9,11 @@
  * Renders a calendar month layout for displaying events.
  */
 
-import { Box, Grid, Text, Stack, Badge } from "@chakra-ui/react";
+import {Box, Grid, Text, Stack, Badge, Flex} from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {parseISODate} from "@/utils/timeUtils.ts";
+import type {Assignment} from "@/features/schedule/scheduleApi.ts";
+import {Checkbox} from "@/components/ui/checkbox.tsx";
 
 /**
  * Represents a single item to be displayed on the calendar.
@@ -22,6 +24,7 @@ export interface CalendarEvent {
   label: string;
   text: string;
   color?: string;
+  rawAssignment?: Assignment;
 }
 
 /**
@@ -31,6 +34,10 @@ interface CalendarGridProps {
   year: number;
   month: number; // 1-12
   events: CalendarEvent[];
+  onDayClick?: (dateStr: string) => void;
+
+  selectedRegenDates?: string[];
+  onToggleRegenDate?: (dateStr: string) => void;
 }
 
 /**
@@ -39,7 +46,7 @@ interface CalendarGridProps {
  * Renders a standard 7-column month view, automatically handling
  * padding days for the start of the month.
  */
-export const CalendarGrid = ({ year, month, events }: CalendarGridProps) => {
+export const CalendarGrid = ({ year, month, events, onDayClick, selectedRegenDates = [], onToggleRegenDate }: CalendarGridProps) => {
   // Dynamic colors for light/dark mode
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const cellBg = useColorModeValue("white", "gray.900");
@@ -72,9 +79,9 @@ export const CalendarGrid = ({ year, month, events }: CalendarGridProps) => {
 
   return (
     <Grid
-      templateColumns="repeat(7, 1fr)" // 7 columns for days of the week
-      templateRows="auto" // Header row autosizes to content
-      autoRows="minmax(120px, auto)" // Day rows are min 120px tall, grow if content overflows
+      templateColumns="repeat(7, 1fr)"
+      templateRows="auto"
+      autoRows="minmax(120px, auto)"
       border="1px solid"
       borderColor={borderColor}
       borderRadius="md"
@@ -107,44 +114,55 @@ export const CalendarGrid = ({ year, month, events }: CalendarGridProps) => {
       ))}
 
       {/* Actual Day Cells */}
-      {days.map((day) => (
-        <Box
-          key={day}
-          minH="120px"
-          h="100%"
-          borderRight="1px solid"
-          borderBottom="1px solid"
-          borderColor={borderColor}
-          p={2}
-          _hover={{ bg: hoverBg }}
-        >
-          {/* Day Number */}
-          <Text fontSize="sm" color="gray.500" mb={1} fontWeight="bold">
-            {day}
-          </Text>
+      {days.map((day) => {
+        const dateStr = `${year}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+        const isSelected = selectedRegenDates.includes(dateStr);
 
-          {/* Event List Stack */}
-          <Stack gap={1}>
-            {eventsByDay[day]?.map((evt, i) => (
-              <Badge
-                key={`${day}-${i}`}
-                bg={evt.color}
-                variant="subtle"
-                w="100%"
-                p={1}
-                borderRadius="md"
-                whiteSpace="normal"
-                textAlign="left"
-              >
-                <Text as="span" fontWeight="800" mr={1}>
-                  {evt.label}:
-                </Text>
-                {evt.text}
-              </Badge>
-            ))}
-          </Stack>
-        </Box>
-      ))}
+        return (
+          <Box
+            key={day}
+            minH="120px"
+            h="100%"
+            border="1px solid"
+            borderColor={isSelected ? "blue.500" : borderColor}
+            bg={isSelected ? "blue.50" : cellBg}
+            _dark={{ bg: isSelected ? "blue.900" : cellBg }}
+            p={2}
+            cursor={onDayClick ? "pointer" : "default"}
+            onClick={() => onDayClick && onDayClick(dateStr)}
+            _hover={{ bg: isSelected ? "blue.100" : hoverBg }}
+          >
+            <Flex justify="space-between" align="start" mb={1}>
+              {/* Day Number */}
+              <Text fontSize="sm" color="gray.500" fontWeight="bold">
+                {day}
+              </Text>
+
+              {onToggleRegenDate && (
+                <Box
+                  onClick={(e) => e.stopPropagation()} // Stops the modal from opening when clicking the checkbox itself
+                >
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleRegenDate(dateStr)}
+                    colorPalette="blue"
+                  />
+                </Box>
+              )}
+            </Flex>
+
+            {/* Event List Stack */}
+            <Stack gap={1}>
+              {eventsByDay[day]?.map((evt, i) => (
+                <Badge key={`${day}-${i}`} bg={evt.color} variant="subtle" w="100%" p={1} borderRadius="md" whiteSpace="normal" textAlign="left">
+                  <Text as="span" fontWeight="800" mr={1}>{evt.label}:</Text>
+                  {evt.text}
+                </Badge>
+              ))}
+            </Stack>
+          </Box>
+        );
+      })}
     </Grid>
   );
 };
