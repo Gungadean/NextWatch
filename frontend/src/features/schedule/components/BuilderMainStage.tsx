@@ -215,6 +215,8 @@ const BuilderMainStage = ({
                 items={timelineItems}
                 showConflicts={false}
                 onDayClick={handleDayClick}
+                enableEmployeeModal={true}
+                enableHighlight={true}
             />
           )}
         </Box>

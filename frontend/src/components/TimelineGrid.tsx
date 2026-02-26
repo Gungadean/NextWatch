@@ -15,6 +15,7 @@ import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {Tooltip} from "@/components/ui/tooltip.tsx";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils";
 import React, {useMemo, useState} from "react";
+import EmployeeTimelineModal from "@/components/EmployeeTimelineModal.tsx";
 
 /**
  * Represents a single block on the timeline (e.g., a shift or leave request).
@@ -50,6 +51,8 @@ interface TimelineGridProps {
   items: TimelineItem[];
   showConflicts: boolean;
   onDayClick?: (dateStr: string) => void;
+  enableEmployeeModal?: boolean;
+  enableHighlight?: boolean;
 }
 
 /**
@@ -74,7 +77,18 @@ const getDaysArray = (start: Date, end: Date) => {
  * - Dynamic percentage-based positioning for timeline items.
  * - Handles both specific date ranges and full-month views.
  */
-export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, showConflicts, onDayClick }: TimelineGridProps) => {
+export const TimelineGrid = ({
+  year,
+  month,
+  rangeStart,
+  rangeEnd,
+  rows,
+  items,
+  showConflicts,
+  onDayClick,
+  enableEmployeeModal = false,
+  enableHighlight = false
+}: TimelineGridProps) => {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const headerBg = useColorModeValue("gray.50", "gray.800");
   const stickyBg = useColorModeValue("white", "gray.900");
@@ -82,7 +96,10 @@ export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, s
   const dayLineColor = useColorModeValue("gray.100", "gray.700");
   const monthLineColor = useColorModeValue("gray.300", "gray.600");
 
-  const [highlight, setHighlightedList] = useState<number[]>([]);
+  const [isEmployeeModalOpen, setEmployeeModalOpen] = useState<boolean>(false);
+  const [modalEmployee, setModalEmployee] = useState<number | null>(null);
+
+  const [highlight, setHighlightedList] = useState<string[]>([]);
 
   let startDate: Date, endDate: Date;
 
@@ -196,19 +213,31 @@ export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, s
   /**
    * Toggle the highlighting for an employees row.
    */
-  const setHighlighted = (empId: number) => {
-    if (isHighlighted(empId)) {
-      setHighlightedList(prev => prev.filter(id => id !== empId));
+  const setEmployeeModalView = (empId: number) => {
+    if (!enableEmployeeModal) return;
+
+    setModalEmployee(empId);
+    setEmployeeModalOpen(true);
+  }
+
+  /**
+   * Set if day is highlighted.
+   */
+  const setHighlight = (currentDate: string) => {
+    if (!enableHighlight) return;
+
+    if(isHighlighted(currentDate)) {
+      setHighlightedList(prev => prev.filter(d => d !== currentDate));
     } else {
-      setHighlightedList(prev => [...prev, empId]);
+      setHighlightedList(prev => [...prev, currentDate]);
     }
   }
 
   /**
    * Check if an employee's row is highlighted.
    */
-  const isHighlighted = (empId: number) => {
-    return highlight.includes(empId);
+  const isHighlighted = (currentDate: string) => {
+    return highlight.includes(currentDate);
   }
 
 return (
@@ -245,6 +274,8 @@ return (
 
               const currentDateString = toSimpleDate(d);
 
+              const isHi = isHighlighted(currentDateString);
+
               if (showConflicts) {
                 const conflictCount: number = dailyItemCounts[currentDateString] || 0;
 
@@ -270,11 +301,16 @@ return (
                     fontWeight={fontWeight}
                     py={2}
                     borderLeft={isMonthStart && i !== 0 ? "2px solid" : "1px solid"}
-                    borderColor={isMonthStart ? monthLineColor : dayLineColor}
-                    bg={dayBackground}
+                    borderLeftColor={isHi ? "blue.500" : borderColor}
+                    borderRight="1px solid"
+                    borderRightColor={isHi ? "blue.500" : "transparent"}
+                    borderTop="2px solid"
+                    borderTopColor={isHi ? "blue.500" : "transparent"}
+                    bg={isHi ? "blue.50" : dayBackground}
+                    _dark={{ bg: isHi ? "blue.900" : dayBackground }}
                     position="relative"
-                    cursor={onDayClick ? "pointer" : "default"}
-                    onClick={() => onDayClick && onDayClick(currentDateString)}
+                    cursor={enableHighlight ? "pointer" : "default"}
+                    onClick={enableHighlight ? () => setHighlight(currentDateString) : undefined}
                 >
                   {isMonthStart ? (
                       <Text fontWeight="800" color="blue.600">{d.toLocaleString('default', { month: 'short' })}</Text>
@@ -286,14 +322,10 @@ return (
         </Flex>
 
         {/* Data Rows */}
-        {rows.map((row) => (
+        {rows.map((row, index) => (
           <Flex
             key={row.id}
             borderBottom="1px solid"
-            outline={isHighlighted(Number(row.id)) ? "2px solid" : "none"}
-            outlineColor={isHighlighted(Number(row.id)) ? "blue.500" : "transparent"}
-            outlineOffset="-1px" // Pulls the outline inside so it doesn't get clipped
-            zIndex={isHighlighted(Number(row.id)) ? 5 : 1} // Pop it above other rows
             borderColor={borderColor}
             align="stretch"
             _hover={{ bg: "blackAlpha.50" }}
@@ -313,9 +345,9 @@ return (
               display="flex"
               flexDirection="column"
               justifyContent="center"
-              cursor={onDayClick ? "pointer" : "default"}
+              cursor={enableEmployeeModal ? "pointer" : "default"}
               _hover={{ bg: "gray.100", _dark: { bg: "gray.800" } }}
-              onClick={() => setHighlighted(Number(row.id))}
+              onClick={enableEmployeeModal ? () => setEmployeeModalView(Number(row.id)) : undefined}
             >
                 <Box
                   fontWeight="bold"
@@ -330,17 +362,30 @@ return (
 
                {/* Background Grid Lines (matches header columns) */}
                <Flex h="100%" position="absolute" top={0} left={0} w="100%" zIndex={0}>
-                {allDays.map((d, i) => (
+                {allDays.map((d, i) => {
+                  const isHi = isHighlighted(toSimpleDate(d));
+                  const isMonthStart = d.getDate() === 1;
+
+                  return (
                     <Box
                       key={i}
                       flex="1"
-                      borderLeft={d.getDate() === 1 && i !== 0 ? "2px solid" : "1px solid"}
-                      borderColor={d.getDate() === 1 ? monthLineColor : dayLineColor}
-                      bg={d.getDate() === 1 ? "blackAlpha.50" : "transparent"}
+                      borderLeft={isMonthStart && i !== 0 ? "2px solid" : "1px solid"}
+                      borderLeftColor={isHi ? "blue.500" : (isMonthStart ? monthLineColor : dayLineColor)}
+
+                      borderRight="1px solid"
+                      borderRightColor={isHi ? "blue.500" : "transparent"}
+
+                      borderBottom="1px solid"
+                      borderBottomColor={isHi && index === rows.length - 1 ? "blue.500" : "transparent"}
+                      bg={isHi ? "blue.50" : (isMonthStart ? "blackAlpha.50" : "transparent")}
+                      _dark={{ bg: isHi ? "blue.900" : (isMonthStart ? "whiteAlpha.100" : "transparent") }}
+                      zIndex={isHi ? 5 : 1}
+
                       cursor={onDayClick ? "pointer" : "default"}
                       onClick={() => onDayClick && onDayClick(toSimpleDate(d))}
                     />
-                ))}
+                )})}
               </Flex>
 
               {/* Render Items (Bars) for this Row */}
@@ -374,6 +419,18 @@ return (
           </Flex>
         ))}
       </Box>
+
+      <EmployeeTimelineModal
+        open={isEmployeeModalOpen}
+        onOpenChange={details => (setEmployeeModalOpen(details.open))}
+        employee={modalEmployee}
+        timelineItems={items}
+        timelineRows={rows}
+        year={year}
+        month={month}
+        rangeStart={rangeStart}
+        rangeEnd={rangeEnd}
+      />
     </Box>
   );
 };
