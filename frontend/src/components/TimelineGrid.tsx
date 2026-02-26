@@ -14,6 +14,7 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {Tooltip} from "@/components/ui/tooltip.tsx";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils";
+import React, {useMemo, useState} from "react";
 
 /**
  * Represents a single block on the timeline (e.g., a shift or leave request).
@@ -48,6 +49,7 @@ interface TimelineGridProps {
   rows: TimelineRow[];
   items: TimelineItem[];
   showConflicts: boolean;
+  onDayClick?: (dateStr: string) => void;
 }
 
 /**
@@ -72,7 +74,7 @@ const getDaysArray = (start: Date, end: Date) => {
  * - Dynamic percentage-based positioning for timeline items.
  * - Handles both specific date ranges and full-month views.
  */
-export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, showConflicts }: TimelineGridProps) => {
+export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, showConflicts, onDayClick }: TimelineGridProps) => {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const headerBg = useColorModeValue("gray.50", "gray.800");
   const stickyBg = useColorModeValue("white", "gray.900");
@@ -80,7 +82,42 @@ export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, s
   const dayLineColor = useColorModeValue("gray.100", "gray.700");
   const monthLineColor = useColorModeValue("gray.300", "gray.600");
 
+  const [highlight, setHighlightedList] = useState<number[]>([]);
+
   let startDate: Date, endDate: Date;
+
+  /**
+   * Calculate conflict count on initial load to prevent unnecessary
+   * operations in the tsx.
+   */
+  const dailyItemCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (showConflicts) {
+      items.forEach(item => {
+        const current = parseDate(item.start);
+        const end = parseDate(item.end);
+
+        while (current <= end) {
+          const dStr = toSimpleDate(current);
+          counts[dStr] = (counts[dStr] || 0) + 1;
+          current.setDate(current.getDate() + 1);
+        }
+      });
+    }
+    return counts;
+  }, [items, showConflicts]);
+
+  /**
+   * Group items by row ID for more performant lookups during rendering.
+   */
+  const itemsByRow = useMemo(() => {
+    const grouped: Record<string | number, TimelineItem[]> = {};
+    items.forEach(item => {
+      if (!grouped[item.rowId]) grouped[item.rowId] = [];
+      grouped[item.rowId].push(item);
+    });
+    return grouped;
+  }, [items]);
 
   // Determine grid boundaries based on props
   if (rangeStart && rangeEnd) {
@@ -111,6 +148,38 @@ export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, s
   };
 
   /**
+   * Calculates the exact day clicked inside a multi-day timeline bar based on mouse position.
+   */
+  const handleBarClick = (e: React.MouseEvent<HTMLDivElement>, itemStart: string, itemEnd: string) => {
+    // Stop the click from passing through
+    e.stopPropagation();
+
+    // Calculate bounds of the date range.
+    const visibleStart = parseDate(itemStart) < startDate ? startDate : parseDate(itemStart);
+    const visibleEnd = parseDate(itemEnd) > endDate ? endDate : parseDate(itemEnd);
+
+    // Get the physical width
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width; // e.g., 0.5 means they clicked exactly in the middle
+
+    // Determine how many days the bar represents
+    const diffTime = visibleEnd.getTime() - visibleStart.getTime();
+    const visibleDaysSpanned = Math.round(diffTime / (1000 * 3600 * 24)) + 1;
+
+    // Use the percentage of each day to determine index of clicked day
+    const dayOffset = Math.floor(percentage * visibleDaysSpanned);
+
+    // Get the starting day, add the index and open the modal for the clicked day.
+    const clickedDate = new Date(visibleStart);
+    clickedDate.setDate(clickedDate.getDate() + dayOffset);
+
+    if (onDayClick) {
+      onDayClick(toSimpleDate(clickedDate));
+    }
+  };
+
+  /**
    * Calculates the WIDTH (%) for a duration.
    */
   const getWidth = (startStr: string, endStr: string) => {
@@ -123,6 +192,24 @@ export const TimelineGrid = ({ year, month, rangeStart, rangeEnd, rows, items, s
       const diffDays = (diffTime / (1000 * 3600 * 24)) + 1; // +1 to include the last day
       return (diffDays / totalDays) * 100;
   };
+
+  /**
+   * Toggle the highlighting for an employees row.
+   */
+  const setHighlighted = (empId: number) => {
+    if (isHighlighted(empId)) {
+      setHighlightedList(prev => prev.filter(id => id !== empId));
+    } else {
+      setHighlightedList(prev => [...prev, empId]);
+    }
+  }
+
+  /**
+   * Check if an employee's row is highlighted.
+   */
+  const isHighlighted = (empId: number) => {
+    return highlight.includes(empId);
+  }
 
 return (
     <Box overflowX="auto" border="1px solid" borderColor={borderColor} borderRadius="md" shadow="sm">
@@ -139,7 +226,7 @@ return (
             position="sticky"
             left={0}
             bg={headerBg}
-            zIndex={20}
+            zIndex={30}
             borderRight="1px solid"
             borderColor={borderColor}
             shadow="sm"
@@ -156,24 +243,16 @@ return (
               let textColor = "gray.500";
               let fontWeight = "normal";
 
+              const currentDateString = toSimpleDate(d);
+
               if (showConflicts) {
-
-                const currentDateString = toSimpleDate(d);
-
-                let conflictCount: number = 0;
-
-                for (const item of items) {
-                  if (currentDateString >= item.start && currentDateString <= item.end) {
-                    conflictCount++;
-                  }
-                }
+                const conflictCount: number = dailyItemCounts[currentDateString] || 0;
 
                 if (conflictCount > 2) {
                   dayBackground = "yellow.300";
                   textColor = "yellow.800";
                   fontWeight = "bold";
                 }
-                // Use a more urgent color for major conflicts
                 if (conflictCount > 4) {
                   dayBackground = "red.300";
                   textColor = "red.800";
@@ -193,7 +272,9 @@ return (
                     borderLeft={isMonthStart && i !== 0 ? "2px solid" : "1px solid"}
                     borderColor={isMonthStart ? monthLineColor : dayLineColor}
                     bg={dayBackground}
-                    position="relative" // Added to support tooltip positioning if you add one later
+                    position="relative"
+                    cursor={onDayClick ? "pointer" : "default"}
+                    onClick={() => onDayClick && onDayClick(currentDateString)}
                 >
                   {isMonthStart ? (
                       <Text fontWeight="800" color="blue.600">{d.toLocaleString('default', { month: 'short' })}</Text>
@@ -209,6 +290,10 @@ return (
           <Flex
             key={row.id}
             borderBottom="1px solid"
+            outline={isHighlighted(Number(row.id)) ? "2px solid" : "none"}
+            outlineColor={isHighlighted(Number(row.id)) ? "blue.500" : "transparent"}
+            outlineOffset="-1px" // Pulls the outline inside so it doesn't get clipped
+            zIndex={isHighlighted(Number(row.id)) ? 5 : 1} // Pop it above other rows
             borderColor={borderColor}
             align="stretch"
             _hover={{ bg: "blackAlpha.50" }}
@@ -228,8 +313,15 @@ return (
               display="flex"
               flexDirection="column"
               justifyContent="center"
+              cursor={onDayClick ? "pointer" : "default"}
+              _hover={{ bg: "gray.100", _dark: { bg: "gray.800" } }}
+              onClick={() => setHighlighted(Number(row.id))}
             >
-                <Box fontWeight="bold" fontSize="sm" truncate>{row.label}</Box>
+                <Box
+                  fontWeight="bold"
+                  fontSize="sm"
+                  truncate
+                >{row.label}</Box>
                 {row.subLabel && <Box fontSize="xs" color="gray.500">{row.subLabel}</Box>}
             </Box>
 
@@ -245,12 +337,14 @@ return (
                       borderLeft={d.getDate() === 1 && i !== 0 ? "2px solid" : "1px solid"}
                       borderColor={d.getDate() === 1 ? monthLineColor : dayLineColor}
                       bg={d.getDate() === 1 ? "blackAlpha.50" : "transparent"}
+                      cursor={onDayClick ? "pointer" : "default"}
+                      onClick={() => onDayClick && onDayClick(toSimpleDate(d))}
                     />
                 ))}
               </Flex>
 
               {/* Render Items (Bars) for this Row */}
-              {items.filter(item => item.rowId === row.id).map((item, i) => {
+              {(itemsByRow[row.id] || []).map((item, i) => {
                 const left = getPosition(item.start);
                 const width = getWidth(item.start, item.end);
 
@@ -271,6 +365,7 @@ return (
                       cursor="pointer"
                       border="1px solid white"
                       _hover={{ filter: "brightness(0.9)", zIndex: 2 }}
+                      onClick={(e) => handleBarClick(e, item.start, item.end)}
                     />
                   </Tooltip>
                 );
