@@ -193,7 +193,7 @@ const BuilderMainStage = ({
               <Spinner size="xl" mb={4} />
               <Text color="gray.500">Loading Schedule...</Text>
           </Flex>
-          ) : !currentDraftData && viewMode === 'calendar' ? (
+          ) : !currentDraftData ? (
              <Flex h="100%" justify="center" align="center" direction="column" color="gray.400">
                 <Heading size="md" mb={2}>Ready to Build</Heading>
                 <Text>Select date range and generate.</Text>
@@ -214,6 +214,7 @@ const BuilderMainStage = ({
                 rows={timelineRows}
                 items={timelineItems}
                 showConflicts={false}
+                onDayClick={handleDayClick}
             />
           )}
         </Box>
