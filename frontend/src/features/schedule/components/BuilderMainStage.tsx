@@ -11,7 +11,7 @@ import {
   HStack,
   Spinner,
   Tabs,
-  Text,
+  Text
 } from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {
@@ -96,6 +96,14 @@ const BuilderMainStage = ({
   const [dayAssignments, setDayAssignments] = useState<Assignment[]>([]);
 
   const [selectedRegenDates, setSelectedRegenDates] = useState<string[]>([]);
+
+  const [prevDraftId, setPrevDraftId] = useState(selectedDraftId);
+
+  // Check if the draft id has changed and reset the selected regen dates.
+  if (selectedDraftId !== prevDraftId) {
+    setPrevDraftId(selectedDraftId);
+    setSelectedRegenDates([]);
+  }
 
   /**
    * Handle toggle button for selecting days to regenerate
