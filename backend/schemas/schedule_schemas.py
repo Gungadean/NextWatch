@@ -32,6 +32,7 @@ class ScheduleRequest(BaseModel):
     # Manual overrides or specific constraint injections
     manual_conflicts: List[Dict[str, Any]] = []
     holidays: List[date] = []
+    frozen_assignments: List[Dict[str, Any]] = []
 
 
 class ScheduleDraftSummaryRequest(BaseModel):

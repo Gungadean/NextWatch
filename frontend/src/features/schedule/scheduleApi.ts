@@ -106,6 +106,7 @@ export interface ScheduleRequest {
   max_steps?: number;
   manual_conflicts?: Array<Record<string, unknown>>;
   holidays?: string[];
+  frozen_assignments?: Array<Record<string, unknown>>;
 }
 
 /**

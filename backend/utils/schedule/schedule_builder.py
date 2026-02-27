@@ -132,5 +132,6 @@ def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
             conflicts=conflicts,
             holidays=request_data.holidays,
             min_days_off_between_duty=request_data.min_days_off,
-            max_iteration_steps=request_data.max_steps
+            max_iteration_steps=request_data.max_steps,
+            frozen_assignments=request_data.frozen_assignments
         )

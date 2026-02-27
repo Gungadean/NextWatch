@@ -2,6 +2,8 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+#
+#  Modified by Ryan Huston 2026
 
 import logging
 import json
@@ -27,6 +29,7 @@ async def schedule_message_generator(
         holiday_mask,
         offset_matrix,
         min_days_off_between_duty,
+        frozen_assignments_matrix
     ) = from_watchbill_request(watchbill_params)
     scores = []
     best_schedule = None
@@ -46,6 +49,7 @@ async def schedule_message_generator(
                     conflict_matrix=conflict_matrix,
                     holiday_mask=holiday_mask,
                     offset_matrix=offset_matrix,
+                    frozen_assignments_matrix=frozen_assignments_matrix
                 )
         ):
             scores.append(schedule_score)

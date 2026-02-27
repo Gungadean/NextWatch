@@ -2,6 +2,8 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+#
+#  Modified by Ryan Huston 2026
 
 from datetime import date
 from typing import List
@@ -36,6 +38,7 @@ class WatchbillParams(BaseModel):
     holidays: List[date]
     min_days_off_between_duty: int = Field(gt=-1)
     max_iteration_steps: int = Field(gt=0, le=100000)
+    frozen_assignments: List[dict] = Field(default_factory=list)
 
 
 class Assignment(BaseModel):

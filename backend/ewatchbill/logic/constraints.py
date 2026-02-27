@@ -13,10 +13,16 @@ def is_legal(
     min_days_off_between_duty: int,
     qualification_matrix: np.ndarray,
     conflict_matrix: np.ndarray,
+    frozen_assignments_matrix: list[tuple[int, int, int]] = None,
 ) -> bool:
     # these should never be violated, so raise if they are
+    if not frozen_assignments_matrix:
+        frozen_assignments_matrix = []
+
     one_shift_per_day_constraint(schedule)
     no_two_watchstations_at_same_time_constraint(schedule)
+    frozen_assignments_constraint(schedule, frozen_assignments_matrix)
+
     # these might be, but should be penalized
     try:
         min_days_off_between_duty_constraint(
@@ -149,3 +155,20 @@ def no_duty_on_conflicts_constraint(
             f"Person {person} is assigned duty on day {day} "
             "but has a conflict"
         )
+
+def frozen_assignments_constraint(
+    schedule: np.ndarray,
+    frozen_coordinates: list[tuple[int, int, int]]
+):
+    """
+    Ensures that any shift locked in by the user remains assigned
+    to the exact same person, day, and station.
+    """
+    for w, d, s in frozen_coordinates:
+        # If the schedule matrix at this exact 3D coordinate is 0,
+        # the mutator algorithm illegally moved the shift!
+        if schedule[w, d, s] == 0:
+            raise IllegalScheduleException(
+                f"Frozen assignment violated: Person {w} was removed "
+                f"from Station {s} on Day {d}"
+            )

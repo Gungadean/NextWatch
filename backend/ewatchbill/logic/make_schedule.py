@@ -2,6 +2,10 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+#
+#  Modified by Ryan Huston 2026
+
+from typing import List, Tuple
 
 import numpy as np
 
@@ -21,6 +25,7 @@ def make_schedule(
     conflict_matrix: np.ndarray,
     holiday_mask: np.ndarray,
     offset_matrix: np.ndarray,
+    frozen_assignments_matrix: List[Tuple[int, int, int]]
 ):
     initial_schedule = OrOptimizer(
         num_days=num_days,
@@ -29,6 +34,7 @@ def make_schedule(
         num_watchstations=num_watchstations,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
+        frozen_shifts=frozen_assignments_matrix
     ).get_initial_schedule()
 
     def is_legal_local(schedule: np.ndarray):
@@ -57,6 +63,7 @@ def make_schedule(
         is_legal=is_legal_local,
         objective_function=objective_function_local,
         max_steps=max_steps,
+        frozen_coordinates=frozen_assignments_matrix
     )
 
     yield from optimizer.optimize()

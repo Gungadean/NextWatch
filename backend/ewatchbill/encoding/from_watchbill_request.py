@@ -3,6 +3,8 @@
 #
 #  Copyright (c). Carl Kolon
 
+from datetime import datetime
+
 import numpy as np
 
 from ewatchbill.models import WatchbillParams
@@ -56,10 +58,43 @@ def from_watchbill_request(params: WatchbillParams):
     for i, watchstander in enumerate(params.watchstanders):
         offset_matrix[i] = watchstander.offset
 
+    frozen_assignments_matrix = []
+
+    if hasattr(params, 'frozen_assignments') and params.frozen_assignments:
+        for assignment in params.frozen_assignments:
+            # Find the watchstander index
+            emp_id = assignment.get("watchstander", {}).get("id")
+            w_index = next(
+                (i for i, ws in enumerate(params.watchstanders) if ws.id == emp_id),
+                None
+            )
+
+            # Find the watchstation index
+            pos_id = assignment.get("watchstation", {}).get("id")
+            s_index = next(
+                (j for j, ws in enumerate(params.watchstations) if ws.id == pos_id),
+                None,
+            )
+
+            # Find the day index
+            date_str = assignment.get("date")
+            if date_str:
+                # Convert the YYYY-MM-DD string back into a Python date object
+                shift_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                d_index = (shift_date - start_date).days
+            else:
+                d_index = None
+
+            # Frozen assignment found, append to the matrix
+            if w_index is not None and s_index is not None and d_index is not None:
+                if 0 <= d_index < num_days:
+                    frozen_assignments_matrix.append((w_index, d_index, s_index))
+
     return (
         qualification_matrix,
         conflict_matrix,
         holiday_mask,
         offset_matrix,
         params.min_days_off_between_duty,
+        frozen_assignments_matrix
     )

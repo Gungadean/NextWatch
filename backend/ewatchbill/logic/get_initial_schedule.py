@@ -2,6 +2,8 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+#
+#  Modified by Ryan Huston 2026
 
 from dataclasses import dataclass, field
 
@@ -19,6 +21,9 @@ class OrOptimizer:
     qualification_matrix: np.ndarray
     # people x days - 1 conflict, 0 no conflict
     conflict_matrix: np.ndarray
+
+    frozen_shifts: list = field(default_factory=list)
+
     model: cp_model.CpModel = field(init=False)
     schedule_vars: dict = field(init=False)
 
@@ -38,6 +43,7 @@ class OrOptimizer:
         self.min_days_off_between_duty_constraint()
         self.watchstander_qualified_constraint()
         self.no_duty_on_conflicts_constraint()
+        self.frozen_assignments_constraint()
 
         solver = cp_model.CpSolver()
         solver.Solve(self.model)
@@ -139,3 +145,15 @@ class OrOptimizer:
                         )
                         == 0
                     )
+
+
+    def frozen_assignments_constraint(
+            self,
+    ):
+        """
+        Do not overwrite the provided "frozen" assignments
+        """
+        for w, d, s in self.frozen_shifts:
+            # Check the bounds to make sure their good
+            if w < self.num_people and d < self.num_days and s < self.num_watchstations:
+                self.model.Add(self.schedule_vars[(w, d, s)] == 1)
