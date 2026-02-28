@@ -76,12 +76,12 @@ async def schedule_message_generator(
                 }
                 yield {"data": json.dumps(progress_data)}
 
-    except IllegalScheduleException:
+    except IllegalScheduleException as e:
         response = WatchbillResponse(
             score_history=[],
             assignments=[],
             complete=True,
-            error="Unable to generate a schedule that meets the constraints.",
+            error=str(e),
         )
         yield {"data": json.dumps({"type": "error", "payload": response.model_dump()})}
         return
