@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from ortools.sat.python import cp_model
 
+from ewatchbill.logic.exceptions.IllegalScheduleException import IllegalScheduleException
+
 
 @dataclass
 class OrOptimizer:
@@ -40,21 +42,34 @@ class OrOptimizer:
     def get_initial_schedule(self) -> np.ndarray:
         self.one_shift_per_day_constraint()
         self.no_two_watchstations_at_same_time_constraint()
-        self.min_days_off_between_duty_constraint()
+
+        # TODO: Add setting to respect this constraint or not
+        if len(self.frozen_shifts) == 0:
+            self.min_days_off_between_duty_constraint()
+
         self.watchstander_qualified_constraint()
         self.no_duty_on_conflicts_constraint()
         self.frozen_assignments_constraint()
 
         solver = cp_model.CpSolver()
-        solver.Solve(self.model)
+        status = solver.Solve(self.model)
+
+        if status == cp_model.INFEASIBLE:
+            raise IllegalScheduleException(
+                "Unable to meet constraints. Try adjusting constraint requirements or adjust the dates."
+            )
+
         schedule = np.zeros(
             (self.num_people, self.num_days, self.num_watchstations), dtype=int
         )
-        for w in range(self.num_people):
-            for d in range(self.num_days):
-                for s in range(self.num_watchstations):
-                    if solver.Value(self.schedule_vars[(w, d, s)]) == 1:
-                        schedule[w, d, s] = 1
+
+        if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+            for w in range(self.num_people):
+                for d in range(self.num_days):
+                    for s in range(self.num_watchstations):
+                        if solver.Value(self.schedule_vars[(w, d, s)]) == 1:
+                            schedule[w, d, s] = 1
+
         return schedule
 
     def one_shift_per_day_constraint(
@@ -148,7 +163,7 @@ class OrOptimizer:
 
 
     def frozen_assignments_constraint(
-            self,
+        self,
     ):
         """
         Do not overwrite the provided "frozen" assignments
