@@ -72,7 +72,7 @@ interface BuilderSidebarProps {
 
   onStartDateChange: (start: string) => void;
   onEndDateChange: (end: string) => void;
-  onGenerate: () => void;
+  onGenerate: (isRegen?: boolean, regenDates?: string[]) => void;
   onDraftSelect: (draftId: string) => void;
 }
 
@@ -262,7 +262,7 @@ const BuilderSidebar = ({
             <Button
               colorPalette="blue"
               width="100%"
-              onClick={onGenerate}
+              onClick={() => onGenerate(false)}
               loading={isGenerating}
               loadingText="Annealing..."
             >

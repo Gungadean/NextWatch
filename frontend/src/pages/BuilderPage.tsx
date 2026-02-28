@@ -20,7 +20,12 @@ import {
   type Watchstander,
   getScheduleDraftSchedule,
   generateScheduleStream,
-  updateDraft
+  updateDraft,
+  type Assignment,
+  generateRegenStream,
+  type ScheduleRequest,
+  type GenerationProgress,
+  type StreamError
 } from "../features/schedule/scheduleApi.ts";
 import {
   getEmployeesWithTimeOff,
@@ -116,7 +121,7 @@ const BuilderPage = () => {
   /**
    * Handle generating a new draft schedule.
    */
-  const handleGenerate = async () => {
+  const handleGenerate = async (isRegen: boolean = false, regenDates: string[] = []) => {
     const positionIds = selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number);
 
     if (positionIds.length === 0) {
@@ -124,20 +129,48 @@ const BuilderPage = () => {
       return;
     }
 
+    // If regenerating, ensure we actually have a draft and dates to work with
+    if (isRegen && (!currentDraftData || regenDates.length === 0)) {
+      toaster.create({ title: "Cannot regenerate without a valid draft and selected dates.", type: "error" });
+      return;
+    }
+
     setIsGenerating(true);
     setGenProgress(0);
-    setCurrentDraftData(null);
+
+    // Only clear the current data if it's a brand new generation
+    if (!isRegen) {
+      setCurrentDraftData(null);
+    }
 
     try {
+      // Build the frozen assignments array
+      let frozenAssignments: Assignment[] = [];
+      if (isRegen && currentDraftData) {
+        // Keep every assignment except the selected regen dates.
+        frozenAssignments = currentDraftData.assignments.filter(
+          (assignment) => !regenDates.includes(assignment.date)
+        );
+      }
+
       const requestData = {
         start_date: startDate,
         end_date: endDate,
         position_ids: positionIds,
         min_days_off: Number(minDaysOff) || 1,
         max_steps: Number(maxSteps) || 10000,
+        frozen_assignments: frozenAssignments
       };
 
-      await generateScheduleStream(
+      const streamFunction = (requestData: ScheduleRequest,
+        onProgress: (data: GenerationProgress) => void,
+        onResult: (data: ScheduleResponse) => void,
+        onError: (err: StreamError) => void
+      ) => isRegen
+            ? generateRegenStream(selectedDraftId!, requestData, onProgress, onResult, onError)
+            : generateScheduleStream(requestData, onProgress, onResult, onError);
+
+      await streamFunction(
         requestData,
         (progress) => setGenProgress(progress.percent),
         (result) => {
@@ -151,12 +184,20 @@ const BuilderPage = () => {
               score: result.final_score || -1
           };
 
-          setDraftSummaries(prev => [newSummary, ...prev]);
-          setSelectedDraftId(newSummary.public_id);
-          setIsGenerating(false);
+          // Update draft summaries based on if it's a new draft or a regen
+          if (isRegen) {
+            // If the backend overwrites the existing draft, just update the summary in the list
+            setDraftSummaries(prev => prev.map(draft => draft.public_id === result.draft_id ? newSummary : draft));
+          } else {
+            // If it's a brand new generation, add it to the top of the list
+            setDraftSummaries(prev => [newSummary, ...prev]);
+          }
 
+          setSelectedDraftId(newSummary.public_id);
+
+          setIsGenerating(false);
           setCalendarViewDate(parseDate(startDate));
-          toaster.create({ title: "Schedule Generated!", type: "success" });
+          toaster.create({ title: isRegen ? "Schedule Regenerated!" : "Schedule Generated!", type: "success" });
         },
         (error) => {
           setIsGenerating(false);
@@ -396,6 +437,7 @@ const BuilderPage = () => {
         onDeleteDraft={() => setConfirmDeleteModalOpen(true)}
         onPublishDraft={() => setConfirmPublishModalOpen(true)}
         onCurrentDraftData={handleDraftEditUpdate}
+        regenerateSchedule={handleGenerate}
       />
 
       {/* Modals */}
