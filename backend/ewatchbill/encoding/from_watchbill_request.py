@@ -61,27 +61,26 @@ def from_watchbill_request(params: WatchbillParams):
     frozen_assignments_matrix = []
 
     if hasattr(params, 'frozen_assignments') and params.frozen_assignments:
+
         for assignment in params.frozen_assignments:
             # Find the watchstander index
-            emp_id = assignment.get("watchstander", {}).get("id")
+            emp_id = assignment.watchstander.id
             w_index = next(
                 (i for i, ws in enumerate(params.watchstanders) if ws.id == emp_id),
                 None
             )
 
             # Find the watchstation index
-            pos_id = assignment.get("watchstation", {}).get("id")
+            pos_id = assignment.watchstation.id
             s_index = next(
                 (j for j, ws in enumerate(params.watchstations) if ws.id == pos_id),
                 None,
             )
 
             # Find the day index
-            date_str = assignment.get("date")
-            if date_str:
-                # Convert the YYYY-MM-DD string back into a Python date object
-                shift_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                d_index = (shift_date - start_date).days
+            date = assignment.date
+            if date:
+                d_index = (assignment.date - start_date).days
             else:
                 d_index = None
 

@@ -11,10 +11,10 @@ from datetime import timedelta
 from sqlmodel import select, or_, Session
 from sqlalchemy.orm import selectinload
 
-from database.database import get_session, engine
+from database.database import engine
 from database.models import Position, Employee, TimeOffRequest, Shift
-from ewatchbill.models import WatchbillParams, Watchstander, Watchstation, Conflict
-from schemas.schedule_schemas import ScheduleRequest
+from ewatchbill.models import WatchbillParams, Watchstation, Conflict
+from schemas.schedule_schemas import ScheduleRequest, DraftWatchstander
 
 
 def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
@@ -58,7 +58,7 @@ def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
             # Only add the person if they are qualified for at least one thing being scheduled
             if valid_positions:
                 watchstanders.append(
-                    Watchstander(
+                    DraftWatchstander(
                         id=employee.id,
                         name=f"{employee.last_name}, {employee.first_name}",
                         watchstations=valid_positions,
@@ -133,5 +133,5 @@ def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
             holidays=request_data.holidays,
             min_days_off_between_duty=request_data.min_days_off,
             max_iteration_steps=request_data.max_steps,
-            frozen_assignments=request_data.frozen_assignments
+            frozen_assignments=[a.model_dump() for a in request_data.frozen_assignments]
         )
