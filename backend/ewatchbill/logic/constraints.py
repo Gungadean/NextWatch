@@ -2,6 +2,7 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -14,7 +15,7 @@ def is_legal(
     qualification_matrix: np.ndarray,
     conflict_matrix: np.ndarray,
     frozen_assignments_matrix: list[tuple[int, int, int]] = None,
-) -> bool:
+) -> Tuple[bool, Optional[str]]:
     # these should never be violated, so raise if they are
     if not frozen_assignments_matrix:
         frozen_assignments_matrix = []
@@ -25,9 +26,12 @@ def is_legal(
 
     # these might be, but should be penalized
     try:
-        min_days_off_between_duty_constraint(
-            schedule, min_days_off_between_duty=min_days_off_between_duty
-        )
+        # TODO: Replace with option to toggle skipping this constraint
+        if len(frozen_assignments_matrix) == 0:
+            min_days_off_between_duty_constraint(
+                schedule, min_days_off_between_duty=min_days_off_between_duty
+            )
+
         watchstander_qualified_constraint(
             schedule,
             qualification_matrix=qualification_matrix,
@@ -36,9 +40,9 @@ def is_legal(
             schedule,
             conflict_matrix=conflict_matrix,
         )
-    except IllegalScheduleException:
-        return False
-    return True
+    except IllegalScheduleException as e:
+        return False, str(e)
+    return True, None
 
 
 def one_shift_per_day_constraint(
@@ -169,6 +173,6 @@ def frozen_assignments_constraint(
         # the mutator algorithm illegally moved the shift!
         if schedule[w, d, s] == 0:
             raise IllegalScheduleException(
-                f"Frozen assignment violated: Person {w} was removed "
-                f"from Station {s} on Day {d}"
+                f"Person {w} was removed "
+                f"from Station {s} on Day {d} which is frozen."
             )
