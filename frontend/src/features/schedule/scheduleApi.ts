@@ -40,6 +40,8 @@ export interface Shift {
 export interface Watchstander {
   id: number;
   name: string;
+  watchstations: number[];
+  offset: number;
 }
 
 /**
@@ -106,7 +108,7 @@ export interface ScheduleRequest {
   max_steps?: number;
   manual_conflicts?: Array<Record<string, unknown>>;
   holidays?: string[];
-  frozen_assignments?: Array<Record<string, unknown>>;
+  frozen_assignments?: Assignment[];
 }
 
 /**
@@ -148,6 +150,64 @@ export const generateScheduleStream = async (
 
   try {
     await axiosInstance.post('/schedule/drafts/generate', requestData, {
+      onDownloadProgress: (progressEvent) => {
+        const xhr = progressEvent.event?.target;
+        const response = xhr?.response || "";
+
+        // Extract only the new part of the response
+        const newChunk = response.substring(seenBytes);
+        seenBytes = response.length;
+
+        buffer += newChunk;
+
+        // SSE messages are separated by double newlines
+        const parts = buffer.split("\n\n");
+
+        // Loop through all parts except the last one (which might be incomplete)
+        for (let i = 0; i < parts.length - 1; i++) {
+          const line = parts[i];
+          if (line.startsWith("data: ")) {
+            const jsonStr = line.replace("data: ", "");
+            try {
+              const payload = JSON.parse(jsonStr);
+              if (payload.type === "progress") onProgress(payload);
+              if (payload.type === "result") onComplete(payload.payload);
+              if (payload.type === "error") onError({type: "error", message:payload.payload.error });
+            } catch (e) {
+              console.error("Stream parse error:", e);
+            }
+          }
+        }
+
+        // Keep the last part in the buffer for the next chunk
+        buffer = parts[parts.length - 1];
+      }
+    });
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error, "Schedule Generation Failed");
+    onError({ type: "error", message: errorMessage });
+  }
+};
+
+/**
+ * Manages the streaming generation of a schedule via Server-Sent Events (SSE).
+ *
+ *
+ * Uses an Axios `onDownloadProgress` handler to parse a stream of data chunks.
+ * This allows the UI to show real-time progress to the user.
+ */
+export const generateRegenStream = async (
+  uuid: string,
+  requestData: ScheduleRequest,
+  onProgress: (data: GenerationProgress) => void,
+  onComplete: (data: ScheduleResponse) => void,
+  onError: (err: StreamError) => void
+) => {
+  let seenBytes = 0;
+  let buffer = "";
+
+  try {
+    await axiosInstance.post(`/schedule/drafts/${uuid}/regen`, requestData, {
       onDownloadProgress: (progressEvent) => {
         const xhr = progressEvent.event?.target;
         const response = xhr?.response || "";
