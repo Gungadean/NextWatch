@@ -97,6 +97,7 @@ class AnnealingOptimizer:
         indices = np.argwhere(schedule[person, :, :] == 1)
         if len(indices) == 0:
             return schedule
+
         day, watchstation = indices[np.random.randint(0, len(indices))]
 
         # Return the schedule if this specific assignment is frozen
@@ -132,16 +133,18 @@ class AnnealingOptimizer:
         indices = np.argwhere(schedule[person, :, :] == 1)
         if len(indices) == 0:
             return schedule
+
         day, watchstation = indices[np.random.randint(0, len(indices))]
         # choose another watchstation
         other_watchstation = np.random.randint(0, self.num_watchstations)
         # get the person on the other watchstation
         other_person = np.argwhere(schedule[:, day, other_watchstation] == 1)
+
         assert len(other_person) == 1, (
             "Not exactly one person on watchstation"
             f"{other_watchstation} on day {day}"
         )
-        other_person = other_person[0]
+        other_person = other_person[0][0]
 
         # Return the schedule if either of these assignments are frozen
         if (self.frozen_mask[person, day, watchstation] == 1 or
@@ -164,9 +167,12 @@ class AnnealingOptimizer:
         day_2 = np.random.randint(0, self.num_days)
         if day_1 == day_2:
             return schedule
+
         watchstation = np.random.randint(0, self.num_watchstations)
-        person_1 = np.argwhere(schedule[:, day_1, watchstation] == 1)[0]
-        person_2 = np.argwhere(schedule[:, day_2, watchstation] == 1)[0]
+
+        person_1 = np.argwhere(schedule[:, day_1, watchstation] == 1)[0][0]
+        person_2 = np.argwhere(schedule[:, day_2, watchstation] == 1)[0][0]
+
         if person_1 == person_2:
             # same person, no swap needed
             return schedule
@@ -176,6 +182,11 @@ class AnnealingOptimizer:
         if np.sum(schedule[person_2, day_1, :]) > 0:
             # person_2 is already assigned on day_1
             return schedule
+
+        if (self.frozen_mask[person_1, day_1, watchstation] == 1 or
+                self.frozen_mask[person_2, day_2, watchstation] == 1):
+            return schedule
+
         schedule[person_1, day_1, watchstation] = 0
         schedule[person_2, day_2, watchstation] = 0
         schedule[person_1, day_2, watchstation] = 1
@@ -192,8 +203,10 @@ class AnnealingOptimizer:
 
         day = np.random.randint(0, self.num_days)
         new_position = np.random.randint(0, self.num_days)
+
         if new_position == day:
             return schedule
+
         day_data = schedule[:, day, :]
         schedule = np.delete(schedule, day, axis=1)
         schedule = np.insert(schedule, new_position, day_data, axis=1)
