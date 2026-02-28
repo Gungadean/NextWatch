@@ -10,6 +10,7 @@ from typing import List, Tuple
 import numpy as np
 
 from .constraints import is_legal
+from .exceptions.IllegalScheduleException import IllegalScheduleException
 from .get_initial_schedule import OrOptimizer
 from .objectives import badness_standard_deviation_objective
 from .simulated_annealing import AnnealingOptimizer
@@ -25,8 +26,11 @@ def make_schedule(
     conflict_matrix: np.ndarray,
     holiday_mask: np.ndarray,
     offset_matrix: np.ndarray,
-    frozen_assignments_matrix: List[Tuple[int, int, int]]
+    frozen_assignments_matrix: list = None
 ):
+    if frozen_assignments_matrix is None:
+        frozen_assignments_matrix = []
+
     initial_schedule = OrOptimizer(
         num_days=num_days,
         num_people=num_people,
@@ -38,12 +42,15 @@ def make_schedule(
     ).get_initial_schedule()
 
     def is_legal_local(schedule: np.ndarray):
-        return is_legal(
+        is_legal_bool, _ = is_legal(
             schedule,
             min_days_off_between_duty=min_days_off_between_duty,
             qualification_matrix=qualification_matrix,
             conflict_matrix=conflict_matrix,
+            frozen_assignments_matrix=frozen_assignments_matrix
         )
+        return is_legal_bool
+
 
     def objective_function_local(schedule: np.ndarray):
         return badness_standard_deviation_objective(
@@ -53,7 +60,17 @@ def make_schedule(
             offset_matrix=offset_matrix,
         )
 
-    assert is_legal_local(initial_schedule), "Initial schedule is not legal"
+
+    initial_is_legal, error_message = is_legal(
+        initial_schedule,
+        min_days_off_between_duty=min_days_off_between_duty,
+        qualification_matrix=qualification_matrix,
+        conflict_matrix=conflict_matrix,
+        frozen_assignments_matrix=frozen_assignments_matrix
+    )
+
+    if not initial_is_legal:
+        raise IllegalScheduleException(f"Constraint failure: {error_message}")
 
     optimizer = AnnealingOptimizer(
         num_days=num_days,
@@ -63,7 +80,7 @@ def make_schedule(
         is_legal=is_legal_local,
         objective_function=objective_function_local,
         max_steps=max_steps,
-        frozen_coordinates=frozen_assignments_matrix
+        frozen_coordinates=frozen_assignments_matrix,
     )
 
     yield from optimizer.optimize()
