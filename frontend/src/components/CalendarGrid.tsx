@@ -129,7 +129,8 @@ export const CalendarGrid = ({ year, month, events, onDayClick, selectedRegenDat
             _dark={{ bg: isSelected ? "blue.900" : cellBg }}
             p={2}
             cursor={onDayClick ? "pointer" : "default"}
-            onClick={() => onDayClick && onDayClick(dateStr)}
+            onClick={(e) => e.ctrlKey ?
+              (onToggleRegenDate && onToggleRegenDate(dateStr)) : (onDayClick && onDayClick(dateStr))}
             _hover={{ bg: isSelected ? "blue.100" : hoverBg }}
           >
             <Flex justify="space-between" align="start" mb={1}>

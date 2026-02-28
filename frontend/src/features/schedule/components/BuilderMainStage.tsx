@@ -61,6 +61,7 @@ interface BuilderMainStageProps {
   onDeleteDraft: () => void;
   onPublishDraft: () => void;
   onCurrentDraftData: (data: ScheduleResponse | ScheduleDraft | null | undefined) => void;
+  regenerateSchedule: (isRegen: boolean, regenDates: string[]) => void;
 }
 
 /**
@@ -86,7 +87,8 @@ const BuilderMainStage = ({
   setViewMode,
   onDeleteDraft,
   onPublishDraft,
-  onCurrentDraftData
+  onCurrentDraftData,
+  regenerateSchedule
 }: BuilderMainStageProps) => {
 
   const buttonBG = useColorModeValue("gray.100", "gray.700");
@@ -176,7 +178,15 @@ const BuilderMainStage = ({
           {/* Action Buttons */}
           <HStack gap={3}>
             {selectedRegenDates.length > 0 && (
-              <Button size="sm" colorPalette="blue" variant="surface">
+              <Button
+                size="sm"
+                colorPalette="blue"
+                variant="surface"
+                onClick={() => {
+                  regenerateSchedule(true, selectedRegenDates);
+                  setSelectedRegenDates([])
+                }}
+              >
                 Regenerate {selectedRegenDates.length} Days
               </Button>
             )}
