@@ -13,19 +13,9 @@ import { useState, useEffect, useMemo } from "react";
 import {Flex} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
 import {
-  type ScheduleResponse,
   getScheduleDraftSummaries,
   type DraftSummary,
-  type ScheduleDraft,
-  type Watchstander,
-  getScheduleDraftSchedule,
-  generateScheduleStream,
-  updateDraft,
-  type Assignment,
-  generateRegenStream,
-  type ScheduleRequest,
-  type GenerationProgress,
-  type StreamError
+  type Watchstander
 } from "../features/schedule/scheduleApi.ts";
 import {
   getEmployeesWithTimeOff,
@@ -42,12 +32,10 @@ import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
 import BuilderSidebar from "@/features/schedule/components/BuilderSidebar.tsx";
 import BuilderMainStage from "@/features/schedule/components/BuilderMainStage.tsx";
+import {useScheduleGenerator} from "@/features/schedule/hooks/useScheduleGenerator.ts";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [genProgress, setGenProgress] = useState(0);
-  const [isLoadingDraft, setIsLoadingDraft] = useState(false);
 
   const [isConfirmPublishModalOpen, setConfirmPublishModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
@@ -56,15 +44,14 @@ const BuilderPage = () => {
   const [positions, setPositions] = useState<Position[]>([]);
 
   const [draftSummaries, setDraftSummaries] = useState<DraftSummary[]>([]);
-  const [currentDraftData, setCurrentDraftData] = useState<ScheduleResponse | ScheduleDraft | null>();
-
-  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
 
   const [maxSteps, setMaxSteps] = useState<number | string>(10000);
   const [minDaysOff, setMinDaysOff] = useState<number | string>(1);
 
   const [selectAllPositions, setSelectAllPositions] = useState<boolean>(true);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
+
+
 
   // Default start date to the first day of next month
   const [startDate, setStartDate] = useState(() => {
@@ -85,6 +72,19 @@ const BuilderPage = () => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth() + 1, 1);
   });
+
+  const {
+    isGenerating,
+    genProgress,
+    isLoadingDraft,
+    currentDraftData,
+    setCurrentDraftData,
+    selectedDraftId,
+    setSelectedDraftId,
+    generateSchedule,
+    selectDraft,
+    updateCurrentDraft
+  } = useScheduleGenerator(setDraftSummaries, setCalendarViewDate, setStartDate, setEndDate);
 
   const mainBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -119,145 +119,19 @@ const BuilderPage = () => {
   }, [startDate]);
 
   /**
-   * Handle generating a new draft schedule.
+   * Wrap the hook's generate function to grab from the current form state.
    */
-  const handleGenerate = async (isRegen: boolean = false, regenDates: string[] = []) => {
+  const handleGenerate = (isRegen: boolean = false, regenDates: string[] = []) => {
     const positionIds = selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number);
 
-    if (positionIds.length === 0) {
-      toaster.create({ title: "No positions selected. Cannot generate.", type: "error" });
-      return;
-    }
-
-    // If regenerating, ensure we actually have a draft and dates to work with
-    if (isRegen && (!currentDraftData || regenDates.length === 0)) {
-      toaster.create({ title: "Cannot regenerate without a valid draft and selected dates.", type: "error" });
-      return;
-    }
-
-    setIsGenerating(true);
-    setGenProgress(0);
-
-    // Only clear the current data if it's a brand new generation
-    if (!isRegen) {
-      setCurrentDraftData(null);
-    }
-
-    try {
-      // Build the frozen assignments array
-      let frozenAssignments: Assignment[] = [];
-      if (isRegen && currentDraftData) {
-        // Keep every assignment except the selected regen dates.
-        frozenAssignments = currentDraftData.assignments.filter(
-          (assignment) => !regenDates.includes(assignment.date)
-        );
-      }
-
-      const requestData = {
-        start_date: startDate,
-        end_date: endDate,
-        position_ids: positionIds,
-        min_days_off: Number(minDaysOff) || 1,
-        max_steps: Number(maxSteps) || 10000,
-        frozen_assignments: frozenAssignments
-      };
-
-      const streamFunction = (requestData: ScheduleRequest,
-        onProgress: (data: GenerationProgress) => void,
-        onResult: (data: ScheduleResponse) => void,
-        onError: (err: StreamError) => void
-      ) => isRegen
-            ? generateRegenStream(selectedDraftId!, requestData, onProgress, onResult, onError)
-            : generateScheduleStream(requestData, onProgress, onResult, onError);
-
-      await streamFunction(
-        requestData,
-        (progress) => setGenProgress(progress.percent),
-        (result) => {
-          setCurrentDraftData(result);
-
-          const newSummary: DraftSummary = {
-              public_id: result.draft_id || "Undefined",
-              created_at: result.created_at || new Date().toISOString(),
-              start_date: startDate,
-              end_date: endDate,
-              score: result.final_score || -1
-          };
-
-          // Update draft summaries based on if it's a new draft or a regen
-          if (isRegen) {
-            // If the backend overwrites the existing draft, just update the summary in the list
-            setDraftSummaries(prev => prev.map(draft => draft.public_id === result.draft_id ? newSummary : draft));
-          } else {
-            // If it's a brand new generation, add it to the top of the list
-            setDraftSummaries(prev => [newSummary, ...prev]);
-          }
-
-          setSelectedDraftId(newSummary.public_id);
-
-          setIsGenerating(false);
-          setCalendarViewDate(parseDate(startDate));
-          toaster.create({ title: isRegen ? "Schedule Regenerated!" : "Schedule Generated!", type: "success" });
-        },
-        (error) => {
-          setIsGenerating(false);
-          toaster.create({ title: "Generation Error", description: error.message, type: "error" });
-        }
-      );
-    } catch (e) {
-      console.error(e);
-      setIsGenerating(false);
-    }
-  };
-
-  /**
-   * Loads a specific draft from history into the main view.
-   */
-  const handleDraftSelect = async (id: string) => {
-    if (id === selectedDraftId) return; // Don't reload if already selected
-
-    setSelectedDraftId(id);
-    setIsLoadingDraft(true);
-    setCurrentDraftData(null);
-
-    try {
-      const draft_data = await getScheduleDraftSchedule(id);
-      setCurrentDraftData(draft_data);
-
-      setStartDate(draft_data.start_date);
-      setEndDate(draft_data.end_date);
-      setCalendarViewDate(parseDate(draft_data.start_date));
-    } catch {
-      toaster.create({ title: "Could not load draft details", type: "error" });
-    } finally {
-      setIsLoadingDraft(false);
-    }
+    generateSchedule({
+      startDate,
+      endDate,
+      positionIds,
+      minDaysOff: Number(minDaysOff) || 1,
+      maxSteps: Number(maxSteps) || 10000
+    }, isRegen, regenDates);
   }
-
-  /**
-   * Intercepts edits from the DayEditModal, updates the UI,
-   * and saves the changes to the backend database.
-   */
-  const handleDraftEditUpdate = async (updatedDraft: ScheduleResponse | ScheduleDraft | null | undefined) => {
-    if (!updatedDraft || !selectedDraftId) return;
-
-    const previousData = currentDraftData;
-
-    setCurrentDraftData(updatedDraft);
-
-    try {
-      await updateDraft(selectedDraftId, updatedDraft.assignments);
-
-    } catch {
-      toaster.create({
-        title: "Failed to save draft changes",
-        description: "Your changes couldn't be saved to the database.",
-        type: "error"
-      });
-
-      setCurrentDraftData(previousData);
-    }
-  };
 
   /**
    * Navigates the Calendar view by month.
@@ -413,7 +287,7 @@ const BuilderPage = () => {
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
         onGenerate={handleGenerate}
-        onDraftSelect={handleDraftSelect}
+        onDraftSelect={selectDraft}
       />
 
       <BuilderMainStage
@@ -436,7 +310,7 @@ const BuilderPage = () => {
         setViewMode={setViewMode}
         onDeleteDraft={() => setConfirmDeleteModalOpen(true)}
         onPublishDraft={() => setConfirmPublishModalOpen(true)}
-        onCurrentDraftData={handleDraftEditUpdate}
+        onCurrentDraftData={updateCurrentDraft}
         regenerateSchedule={handleGenerate}
       />
 
