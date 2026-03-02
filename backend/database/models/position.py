@@ -1,11 +1,24 @@
 #  SPDX-License-Identifier: GPL-3.0-or-later
 #  Copyright (c) 2026. Ryan Huston
-from datetime import datetime
+
+from datetime import datetime, time
 from typing import Optional, List
 
 from sqlmodel import SQLModel, Field, Relationship
 
 from database.models import EmployeePosition
+
+
+class ShiftTemplate(SQLModel, table=True):
+    """
+    Maps a specific block of time to a position requirement.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(..., max_length=50)
+    start_time: time
+    end_time: time
+
+    requirements: List["PositionRequirement"] = Relationship(back_populates="shift_template")
 
 
 class Position(SQLModel, table=True):
@@ -25,3 +38,21 @@ class Position(SQLModel, table=True):
         link_model=EmployeePosition)
 
     shifts: List["Shift"] = Relationship(back_populates="position") # noqa: F821
+    requirements: List["PositionRequirement"] = Relationship(back_populates="position")
+
+
+class PositionRequirement(SQLModel, table=True):
+    """
+    Maps a Position to a ShiftTemplate, defining exactly how many people
+    are needed for that specific slot every day.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    position_id: int = Field(foreign_key="position.id")
+    shift_template_id: int = Field(foreign_key="shifttemplate.id")
+
+    # Set the number of people to fill this slot
+    count: int = Field(default=1)
+
+    position: Optional[Position] = Relationship(back_populates="requirements")
+    shift_template: Optional[ShiftTemplate] = Relationship(back_populates="requirements")
