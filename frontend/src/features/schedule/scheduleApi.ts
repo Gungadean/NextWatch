@@ -40,8 +40,8 @@ export interface Shift {
 export interface Watchstander {
   id: number;
   name: string;
-  watchstations: number[];
-  offset: number;
+  watchstations?: number[];
+  offset?: number;
 }
 
 /**
