@@ -9,30 +9,20 @@
  * Page for building schedules.
  */
 
-import { useState, useEffect, useMemo } from "react";
-import {Flex} from "@chakra-ui/react";
+import { useState, useMemo } from "react";
+import {Center, Flex, Spinner, Text, VStack} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
-import {
-  getScheduleDraftSummaries,
-  type DraftSummary,
-  type Watchstander
-} from "../features/schedule/scheduleApi.ts";
-import {
-  getEmployeesWithTimeOff,
-  type EmployeeWithTimeOff,
-  type Position
-} from "../features/personnel/personnelApi";
+import {type Watchstander} from "../features/schedule/scheduleApi.ts";
 import {type CalendarEvent} from "@/components/CalendarGrid.tsx";
 import {type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
-import {getPositionList} from "@/features/position/positionApi.ts";
 import ConfirmPublishDraftModal from "@/features/schedule/components/ConfirmPublishDraftModal.tsx";
 import ConfirmDeleteDraftModal from "@/features/schedule/components/ConfirmDeleteDraftModal.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
 import BuilderSidebar from "@/features/schedule/components/BuilderSidebar.tsx";
 import BuilderMainStage from "@/features/schedule/components/BuilderMainStage.tsx";
 import {useScheduleGenerator} from "@/features/schedule/hooks/useScheduleGenerator.ts";
+import {useBuilderData} from "@/features/schedule/hooks/useBuilderData.ts";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
@@ -40,18 +30,11 @@ const BuilderPage = () => {
   const [isConfirmPublishModalOpen, setConfirmPublishModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
 
-  const [employees, setEmployees] = useState<EmployeeWithTimeOff[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
-
-  const [draftSummaries, setDraftSummaries] = useState<DraftSummary[]>([]);
-
   const [maxSteps, setMaxSteps] = useState<number | string>(10000);
   const [minDaysOff, setMinDaysOff] = useState<number | string>(1);
 
   const [selectAllPositions, setSelectAllPositions] = useState<boolean>(true);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
-
-
 
   // Default start date to the first day of next month
   const [startDate, setStartDate] = useState(() => {
@@ -74,6 +57,14 @@ const BuilderPage = () => {
   });
 
   const {
+    employees,
+    positions,
+    draftSummaries,
+    setDraftSummaries,
+    isLoading
+  } = useBuilderData(startDate, setCalendarViewDate);
+
+  const {
     isGenerating,
     genProgress,
     isLoadingDraft,
@@ -88,35 +79,6 @@ const BuilderPage = () => {
 
   const mainBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
-
-  /**
-   * Fetch the data (Personnel, Positions, Draft History) on mount.
-   */
-  useEffect(() => {
-    const parts = startDate.split('-').map(Number);
-    setCalendarViewDate(new Date(parts[0], parts[1] - 1, 1));
-
-    const fetchData = async () => {
-      try {
-        const [employeeData, draftData, positionData] = await Promise.all([
-          getEmployeesWithTimeOff(),
-          getScheduleDraftSummaries(),
-          getPositionList()
-        ]);
-        setEmployees(employeeData);
-        setDraftSummaries(draftData);
-        setPositions(positionData);
-      } catch (error: unknown) {
-        toaster.create({
-          title: "Fetching Page Data Failed",
-          description: getErrorMessage(error, "Unable to fetch data from backend."),
-          type: "error"
-        });
-      }
-    }
-
-    fetchData();
-  }, [startDate]);
 
   /**
    * Wrap the hook's generate function to grab from the current form state.
@@ -261,6 +223,17 @@ const BuilderPage = () => {
 
     return items;
   }, [employees, currentDraftData]);
+
+  if (isLoading) {
+    return (
+      <Center h="100vh" bg={mainBg}>
+        <VStack>
+          <Spinner size="xl" color="blue.500"/>
+          <Text color="gray.500">Loading Requests...</Text>
+        </VStack>
+      </Center>
+    );
+  }
 
   return (
     <Flex h="calc(100vh - 64px)" overflow="hidden" borderRadius="md">
