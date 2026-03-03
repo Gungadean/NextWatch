@@ -54,5 +54,8 @@ class PositionRequirement(SQLModel, table=True):
     # Set the number of people to fill this slot
     count: int = Field(default=1)
 
+    applies_weekdays: bool = Field(default=True)
+    applies_weekends: bool = Field(default=True)
+
     position: Optional[Position] = Relationship(back_populates="requirements")
     shift_template: Optional[ShiftTemplate] = Relationship(back_populates="requirements")
