@@ -23,7 +23,7 @@ import {
   type PositionWithRequirementsRead
 } from "@/features/position/positionApi.ts";
 import {
-  createShiftTemplate,
+  createShiftTemplate, deleteShiftTemplate,
   getShiftTemplates,
   type ShiftTemplateCreate,
   type ShiftTemplateRead
@@ -191,6 +191,32 @@ export default function TemplateBuilderPage() {
   }
 
   /**
+   * Handle deleting a time block.
+   */
+  const handleDeleteTemplate = async (temId: number) => {
+    if (positions.some(pos => pos.requirements.some(req => req.shift_template_id === temId))) {
+      toaster.create({
+        title: "Delete Template",
+        description: "You cannot delete a template that is in use.",
+        type: "error"
+      })
+      return;
+    }
+
+    try {
+      await deleteShiftTemplate(temId);
+
+      setTemplates(templates.filter(tem => tem.id !== temId));
+    } catch (error) {
+      toaster.create({
+        title: "Delete Failed",
+        description: getErrorMessage(error, ""),
+        type: "error"
+      })
+    }
+  };
+
+  /**
    * Determine correct badge to render based on the type of the requirement.
    */
   const renderDayBadge = (req: PositionRequirementRead) => {
@@ -208,14 +234,14 @@ export default function TemplateBuilderPage() {
     <Box h="100%" w="100%" p={6} overflowY="auto" bg={background}>
 
       {/* Grid layout for two columns */}
-      <Grid templateColumns={{ base: "1fr", lg: "350px 1fr" }} gap={8} h="100%" maxW="1600px" mx="auto">
+      <Grid templateColumns={{ base: "1fr", lg: "350px 1fr" }} gap={8} alignItems="start" h="100%" maxW="1600px" mx="auto">
 
         {/* Shift Time Blocks Library */}
-        <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" p={6} bg={cardBg} shadow="sm" h="fit-content" position="sticky" top="0">
+        <Box borderWidth="1px" borderColor={borderColor} borderRadius="md" p={6} bg={cardBg} shadow="sm" h="fit-content" position="sticky" top="6">
           <Flex justify="space-between" align="center" mb={4} wrap="wrap" gap={2}>
             <Box>
               <Text fontSize="xl" fontWeight="bold" color={textColor}>Time Blocks</Text>
-              <Text color={mutedText} fontSize="sm">Standard watchbill periods.</Text>
+              <Text color={mutedText} fontSize="sm">Standard schedule periods.</Text>
             </Box>
             <Button colorPalette="blue" size="sm" onClick={() => setTimeBlockModalOpen(true)}>
               + New Block
@@ -230,6 +256,7 @@ export default function TemplateBuilderPage() {
                   <Text fontWeight="semibold" color={textColor}>{tpl.name}</Text>
                   <Text color={subText} fontSize="sm">{tpl.start_time} - {tpl.end_time}</Text>
                 </Box>
+                <Button colorPalette="red" size="sm" onClick={() => handleDeleteTemplate(tpl.id)}>X</Button>
               </Flex>
             ))}
           </Flex>
@@ -240,7 +267,7 @@ export default function TemplateBuilderPage() {
           <Flex justify="space-between" align="center" mb={6}>
             <Box>
               <Text fontSize="xl" fontWeight="bold" color={textColor}>Position Requirements</Text>
-              <Text color={mutedText} fontSize="sm">Map your time blocks to specific watchstations to build the shift skeleton.</Text>
+              <Text color={mutedText} fontSize="sm">Map your time blocks to specific positions to build the shift skeleton.</Text>
             </Box>
           </Flex>
 
@@ -312,6 +339,7 @@ export default function TemplateBuilderPage() {
           </Flex>
         </Box>
       </Grid>
+
       {/* Time Block Modal */}
       {isTimeBlockModalOpen && (
         <Box position="fixed" top="0" left="0" w="100vw" h="100vh" bg="blackAlpha.600" zIndex="1000" display="flex" alignItems="center" justifyContent="center">

@@ -365,3 +365,16 @@ export const createShiftTemplate = async (data: ShiftTemplateCreate): Promise<Sh
     throw new Error(getErrorMessage(error, "Schedule Request Failed"));
   }
 }
+
+/**
+ * Send a request to delete a shift template
+ */
+export const deleteShiftTemplate = async (id: number) => {
+  try {
+    const response = await axiosInstance.delete(`/templates/${id}/delete`);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Schedule Request Failed"));
+  }
+}

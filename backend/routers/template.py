@@ -4,6 +4,7 @@
 
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import delete
 from sqlmodel import Session, select
 
 from database.database import get_session
@@ -32,3 +33,13 @@ def create_shift_template(template_in: ShiftTemplateCreate, session: Session = D
     session.commit()
     session.refresh(db_template)
     return db_template
+
+
+@router.delete("/templates/{template_id}/delete")
+def delete_shift_template(template_id: int, session: Session = Depends(get_session)):
+    """
+    Delete a reusable time block.
+    """
+    statement = delete(ShiftTemplate).where(ShiftTemplate.id == template_id)
+    session.exec(statement)
+    session.commit()

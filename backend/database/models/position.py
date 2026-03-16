@@ -18,7 +18,10 @@ class ShiftTemplate(SQLModel, table=True):
     start_time: time
     end_time: time
 
-    requirements: List["PositionRequirement"] = Relationship(back_populates="shift_template")
+    requirements: List["PositionRequirement"] = Relationship(
+        back_populates="shift_template",
+        cascade_delete=True
+    )
 
 
 class Position(SQLModel, table=True):
@@ -49,7 +52,10 @@ class PositionRequirement(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     position_id: int = Field(foreign_key="position.id")
-    shift_template_id: int = Field(foreign_key="shifttemplate.id")
+    shift_template_id: int = Field(
+        foreign_key="shifttemplate.id",
+        ondelete="CASCADE"
+    )
 
     # Set the number of people to fill this slot
     count: int = Field(default=1)
