@@ -35,6 +35,8 @@ class Assignment(BaseModel):
     watchstander: DraftWatchstander
     watchstation: Watchstation
     date: date
+    start_time: str | None = None
+    end_time: str | None = None
 
 
 class WatchbillParams(BaseModel):
@@ -47,6 +49,7 @@ class WatchbillParams(BaseModel):
     min_days_off_between_duty: int = Field(gt=-1)
     max_iteration_steps: int = Field(gt=0, le=100000)
     frozen_assignments: List[Assignment] = Field(default_factory=list)
+    skeleton: List[Assignment] = Field(default_factory=list)
 
 
 class WatchbillResponse(BaseModel):

@@ -40,6 +40,8 @@ class DraftAssignment(BaseModel):
     date: date
     watchstander: DraftWatchstander
     watchstation: DraftWatchstation
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
 
 class ScheduleRequest(BaseModel):
     """
@@ -61,6 +63,7 @@ class ScheduleRequest(BaseModel):
     manual_conflicts: List[Dict[str, Any]] = []
     holidays: List[date] = []
     frozen_assignments: List[DraftAssignment] = []
+    skeleton: List[DraftAssignment] = []
 
 
 class ScheduleDraftSummaryRequest(BaseModel):

@@ -30,7 +30,14 @@ import {Footer} from "@/components/Footer.tsx";
  */
 const LINK_ITEMS = [
   { name: 'Dashboard', icon: LuHouse, path: '/' },
-  { name: 'Schedule Builder', icon: LuCalendar, path: '/builder' },
+  {
+    name: 'Schedule Tools',
+    icon: LuCalendar,
+    subItems: [
+      { name: 'Schedule Generator', path: '/builder' },
+      { name: 'Template Settings', path: '/templates' }
+    ]
+  },
   { name: 'Leave Requests', icon: LuClock, path: '/requests' },
   { name: 'Personnel', icon: LuUsers, path: '/personnel' },
   { name: 'Positions', icon: LuAward, path: '/positions' },
@@ -87,7 +94,9 @@ const Sidebar = () => {
               key={link.name}
               icon={link.icon}
               to={link.path}
+              subItems={link.subItems}
               isCollapsed={isCollapsed}
+              onExpandSidebar={() => setIsCollapsed(false)}
             >
               {link.name}
             </SidebarItem>

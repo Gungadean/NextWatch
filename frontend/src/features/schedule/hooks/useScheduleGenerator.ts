@@ -11,7 +11,7 @@
 
 import React, { useState } from "react";
 import { toaster } from "@/components/ui/toaster.tsx";
-import { parseDate } from "@/utils/timeUtils.ts";
+import {parseDate} from "@/utils/timeUtils.ts";
 import {
   type ScheduleResponse,
   type ScheduleDraft,
@@ -23,6 +23,7 @@ import {
   getScheduleDraftSchedule,
   updateDraft, type GenerationProgress, type StreamError
 } from "../scheduleApi.ts";
+import type {PositionWithRequirementsRead} from "@/features/position/positionApi.ts";
 
 
 export interface GenerateConfig {
@@ -86,9 +87,10 @@ export const useScheduleGenerator = (
         start_date: config.startDate,
         end_date: config.endDate,
         position_ids: config.positionIds,
-        min_days_off: config.minDaysOff || 1,
-        max_steps: config.maxSteps || 10000,
-        frozen_assignments: frozenAssignments
+        min_days_off: config.minDaysOff,
+        max_steps: config.maxSteps,
+        frozen_assignments: frozenAssignments,
+        skeleton: currentDraftData ? currentDraftData.assignments : []
       };
 
       const streamFunction = (requestData: ScheduleRequest,
@@ -167,22 +169,119 @@ export const useScheduleGenerator = (
    * and saves the changes to the backend database.
    */
   const updateCurrentDraft = async (updatedDraft: ScheduleResponse | ScheduleDraft | null | undefined) => {
-    if (!updatedDraft || !selectedDraftId) return;
+    if (!updatedDraft) return;
 
     const previousData = currentDraftData;
 
     setCurrentDraftData(updatedDraft);
 
-    try {
-      await updateDraft(selectedDraftId, updatedDraft.assignments);
-    } catch {
-      toaster.create({
-        title: "Failed to save draft changes",
-        description: "Your changes couldn't be saved to the database.",
-        type: "error"
-      });
-      setCurrentDraftData(previousData);
+    if (selectedDraftId) {
+      try {
+        await updateDraft(selectedDraftId, updatedDraft.assignments);
+      } catch {
+        toaster.create({
+          title: "Failed to save draft changes",
+          description: "Your changes couldn't be saved to the database.",
+          type: "error"
+        });
+        setCurrentDraftData(previousData);
+      }
     }
+  };
+
+  /**
+   * Generates a structural skeleton of empty shifts based on the date range.
+   * (Currently mocked in frontend - will be moved to FastAPI backend later)
+   */
+  const buildSkeleton = (config: GenerateConfig, positions: PositionWithRequirementsRead[]) => {
+    setIsGenerating(true);
+    setCurrentDraftData(null);
+
+    const emptyAssignments: Assignment[] = [];
+
+    const [startYear, startMonth, startDay] = config.startDate.split('-').map(Number);
+    const [endYear, endMonth, endDay] = config.endDate.split('-').map(Number);
+
+    const currentDate = new Date(startYear, startMonth - 1, startDay);
+    const endDateObj = new Date(endYear, endMonth - 1, endDay);
+
+    const activePositions = positions.filter(p => config.positionIds.includes(p.id));
+
+    // Loop through every single day in the range
+    while (currentDate <= endDateObj) {
+      const y = currentDate.getFullYear();
+      const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const d = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+
+      const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+
+      activePositions.forEach(pos => {
+        // Check if the position has templates assigned to it
+        if (pos.requirements && pos.requirements.length > 0) {
+
+          // Loop through all the rules for this specific position
+          pos.requirements.forEach(req => {
+            const template = req.shift_template;
+
+            // Rule Check: Does this specific shift apply today?
+            if ((isWeekend && req.applies_weekends) || (!isWeekend && req.applies_weekdays)) {
+
+              // Create an empty assignment block for every single required headcount!
+              for(let i = 0; i < req.count; i++) {
+                 emptyAssignments.push({
+                    date: dateStr,
+                    // Notice we map the template times directly into the Assignment!
+                    start_time: template?.start_time,
+                    end_time: template?.end_time,
+
+                    watchstander: {
+                      id: 0,
+                      name: "Unassigned",
+                      offset: 0,
+                      watchstations: []
+                    },
+                    watchstation: {
+                      id: pos.id,
+                      // Append the shift name so the user knows exactly what block this is
+                      name: template ? `${pos.name} (${template.name})` : pos.name,
+                      color: pos.color
+                    }
+                 });
+              }
+            }
+          });
+
+        }
+      });
+
+      // Move to the next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Set it to state so the calendar instantly renders the blocks
+    setCurrentDraftData({
+      // We purposefully DO NOT pass a public_id here.
+      // That is how the UI knows this is just a Skeleton and not a saved Draft!
+      start_date: config.startDate,
+      end_date: config.endDate,
+      created_at: new Date().toISOString(),
+      assignments: emptyAssignments,
+      final_score: 0,
+      score_history: []
+    } as ScheduleResponse);
+
+    setIsGenerating(false);
+    setCalendarViewDate(new Date(startYear, startMonth - 1, startDay));
+
+    // Deselect any previously active draft in the sidebar
+    setSelectedDraftId(null);
+
+    toaster.create({
+      title: "Skeleton Built!",
+      description: "Review the shift blocks, then click Auto-Assign Names.",
+      type: "success"
+    });
   };
 
   return {
@@ -195,6 +294,7 @@ export const useScheduleGenerator = (
     setSelectedDraftId,
     generateSchedule,
     selectDraft,
-    updateCurrentDraft
+    updateCurrentDraft,
+    buildSkeleton
   };
 };

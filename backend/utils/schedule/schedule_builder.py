@@ -133,5 +133,6 @@ def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
             holidays=request_data.holidays,
             min_days_off_between_duty=request_data.min_days_off,
             max_iteration_steps=request_data.max_steps,
-            frozen_assignments=[a.model_dump() for a in request_data.frozen_assignments]
+            frozen_assignments=[a.model_dump() for a in request_data.frozen_assignments],
+            skeleton = [a.model_dump() for a in request_data.skeleton]
         )

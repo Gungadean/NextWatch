@@ -11,13 +11,15 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 from starlette import status
 
 from database.database import get_session
 from database.models import User, Position
+from database.models.position import PositionRequirement
 from schemas.position_schemas import PositionAddRequest, PositionDeleteRequest, \
-    PositionQueryResponse
+    PositionQueryResponse, PositionRequirementRead, PositionRequirementCreate, PositionWithRequirementsRead
 from utils.auth.auth_users_utils import get_current_active_user
 
 router = APIRouter()
@@ -27,7 +29,7 @@ router = APIRouter()
 async def route_list_positions(
         user: User = Depends(get_current_active_user),
         session: Session = Depends(get_session)
-) -> List[PositionQueryResponse]:
+) -> List[PositionWithRequirementsRead]:
     """
     Retrieve a list of all available job positions.
 
@@ -38,16 +40,31 @@ async def route_list_positions(
     Returns:
         List[PositionQueryResponse]: A list of position objects.
     """
-    statement = select(
-        Position.id,
-        Position.name,
-        Position.color,
-        Position.description,
-        Position.created_at,
-        User.username.label("created_by")
-    ).join(User, Position.created_by == User.id)
+    statement = (
+        select(Position, User.username)
+        .join(User, Position.created_by == User.id, isouter=True)
+        .options(
+            selectinload(Position.requirements).selectinload(PositionRequirement.shift_template)
+        )
+    )
 
-    return session.exec(statement).all()
+    results = session.exec(statement).all()
+
+    positions_with_names = []
+    for position, username in results:
+        positions_with_names.append(
+            PositionWithRequirementsRead(
+                id=position.id,
+                name=position.name,
+                description=position.description,
+                color=position.color,
+                created_at=position.created_at,
+                created_by=username,
+                requirements=position.requirements
+            )
+        )
+
+    return positions_with_names
 
 
 @router.get('/positions/{position_id}')
@@ -136,7 +153,7 @@ async def route_add_position(
 
 
 
-@router.delete('/positions/delete')
+@router.post('/positions/delete')
 async def route_delete_position(
         data: List[PositionDeleteRequest],
         user: User = Depends(get_current_active_user),
@@ -154,3 +171,37 @@ async def route_delete_position(
         statement = delete(Position).where(Position.id == position_id.id)
         session.exec(statement)
     session.commit()
+
+
+@router.post("/positions/{position_id}/requirements", response_model=PositionRequirementRead)
+def create_position_requirement(
+        position_id: int,
+        req_in: PositionRequirementCreate,
+        session: Session = Depends(get_session)
+):
+    """Map a time block to a position with specific rules."""
+    # Verify position exists
+    position = session.get(Position, position_id)
+    if not position:
+        raise HTTPException(status_code=404, detail="Position not found")
+
+    db_req = PositionRequirement(position_id=position_id, **req_in.model_dump())
+    session.add(db_req)
+    session.commit()
+    session.refresh(db_req)
+
+    # Eager load the relationship for the return payload
+    session.refresh(db_req, ["shift_template"])
+    return db_req
+
+
+@router.delete("/positions/{position_id}/requirements/{req_id}")
+def delete_position_requirement(position_id: int, req_id: int, session: Session = Depends(get_session)):
+    """Remove a shift mapping from a position."""
+    db_req = session.get(PositionRequirement, req_id)
+    if not db_req or db_req.position_id != position_id:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+
+    session.delete(db_req)
+    session.commit()
+    return {"message": "Requirement deleted successfully"}

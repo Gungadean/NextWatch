@@ -10,18 +10,24 @@
  */
 
 import React, {useEffect, useState} from "react";
-import {type DraftSummary, getScheduleDraftSummaries} from "@/features/schedule/scheduleApi.ts";
-import {type EmployeeWithTimeOff, getEmployeesWithTimeOff, type Position} from "@/features/personnel/personnelApi.ts";
+import {
+  type DraftSummary,
+  getScheduleDraftSummaries,
+  getShiftTemplates,
+  type ShiftTemplateRead
+} from "@/features/schedule/scheduleApi.ts";
+import {type EmployeeWithTimeOff, getEmployeesWithTimeOff} from "@/features/personnel/personnelApi.ts";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
 import {toaster} from "@/components/ui/toaster.tsx";
-import {getPositionList} from "@/features/position/positionApi.ts";
+import {getPositionList, type PositionWithRequirementsRead} from "@/features/position/positionApi.ts";
 
 export const useBuilderData = (
   startDate: string,
   setCalendarViewDate: React.Dispatch<React.SetStateAction<Date>>
 ) => {
   const [employees, setEmployees] = useState<EmployeeWithTimeOff[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
+  const [positions, setPositions] = useState<PositionWithRequirementsRead[]>([]);
+  const [templates, setTemplates] = useState<ShiftTemplateRead[]>([]);
   const [draftSummaries, setDraftSummaries] = useState<DraftSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -36,14 +42,16 @@ export const useBuilderData = (
       setIsLoading(true);
 
       try {
-        const [employeeData, draftData, positionData] = await Promise.all([
+        const [employeeData, draftData, positionData, templates] = await Promise.all([
           getEmployeesWithTimeOff(),
           getScheduleDraftSummaries(),
-          getPositionList()
+          getPositionList(),
+          getShiftTemplates()
         ]);
         setEmployees(employeeData);
         setDraftSummaries(draftData);
         setPositions(positionData);
+        setTemplates(templates);
       } catch (error: unknown) {
         toaster.create({
           title: "Fetching Page Data Failed",
@@ -61,6 +69,7 @@ export const useBuilderData = (
   return {
     employees,
     positions,
+    templates,
     draftSummaries,
     setDraftSummaries,
     isLoading

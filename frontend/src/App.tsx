@@ -31,6 +31,7 @@ import RequestPage from './pages/RequestPage.tsx';
 import PersonnelPage from './pages/PersonnelPage.tsx';
 import PositionsPage from "./pages/PositionsPage.tsx"; // Standardized naming
 import SettingsPage from './pages/SettingsPage.tsx';
+import TemplateBuilder from "@/features/schedule/components/TemplateBuilder.tsx";
 
 /**
  * Main Application Component.
@@ -51,6 +52,7 @@ const App = () => {
             <Route element={<AppLayout />}>
               <Route index element={<CalendarPage />} />
               <Route path="builder" element={<BuilderPage />} />
+              <Route path="templates" element={<TemplateBuilder />} />
               <Route path="requests" element={<RequestPage />} />
               <Route path="personnel" element={<PersonnelPage />} />
               <Route path="positions" element={<PositionsPage />} />

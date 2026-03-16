@@ -1,0 +1,34 @@
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#  Copyright (c) 2026. Ryan Huston
+
+
+
+from fastapi import APIRouter, Depends
+from sqlmodel import Session, select
+
+from database.database import get_session
+from database.models.position import ShiftTemplate
+from schemas.template_schemas import ShiftTemplateRead, ShiftTemplateCreate
+
+router = APIRouter()
+
+
+@router.get("/templates", response_model=list[ShiftTemplateRead])
+def get_shift_templates(session: Session = Depends(get_session)):
+    """
+    Fetch all reusable time blocks.
+    """
+    templates = session.exec(select(ShiftTemplate)).all()
+    return templates
+
+
+@router.post("/templates/add", response_model=ShiftTemplateRead)
+def create_shift_template(template_in: ShiftTemplateCreate, session: Session = Depends(get_session)):
+    """
+    Create a new reusable time block.
+    """
+    db_template = ShiftTemplate(**template_in.model_dump())
+    session.add(db_template)
+    session.commit()
+    session.refresh(db_template)
+    return db_template

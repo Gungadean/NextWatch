@@ -9,7 +9,7 @@ This module defines the API router for Schedule Generation and Management.
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 from typing import List
 
 from fastapi import APIRouter, Request, HTTPException, Depends
@@ -239,10 +239,17 @@ async def route_publish_draft(uuid_str: str,
         date = datetime.fromisoformat(assignment['date'])
 
         # Attempt to extract start/end time if exists. Otherwise, default to 8-16
-        start_time = datetime.fromisoformat(assignment['start_time'])\
-            if "start_time" in assignment else date.replace(hour=8)
-        end_time = datetime.fromisoformat(assignment['start_time'])\
-            if "start_time" in assignment else date.replace(hour=16)
+        if "start_time" in assignment and assignment['start_time']:
+            parsed_start = time.fromisoformat(assignment['start_time'])
+            start_time = datetime.combine(date.date(), parsed_start)
+        else:
+            start_time = date.replace(hour=8)
+
+        if "end_time" in assignment and assignment['end_time']:
+            parsed_end = time.fromisoformat(assignment['end_time'])
+            end_time = datetime.combine(date.date(), parsed_end)
+        else:
+            end_time = date.replace(hour=16)
 
         new_shifts.append(Shift(
             employee_id=assignment['watchstander']['id'],

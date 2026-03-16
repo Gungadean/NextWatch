@@ -22,12 +22,13 @@ import {
 } from "@/components/ui/dialog";
 import { NativeSelectField, NativeSelectRoot } from "@/components/ui/native-select";
 
-import type { ScheduleResponse, ScheduleDraft, Assignment } from "@/features/schedule/scheduleApi";
-import type { EmployeeWithTimeOff, Position } from "@/features/personnel/personnelApi";
+import type { ScheduleResponse, ScheduleDraft, Assignment, ShiftTemplateRead } from "@/features/schedule/scheduleApi";
+import type { EmployeeWithTimeOff } from "@/features/personnel/personnelApi";
 import {useMemo} from "react";
 import {toSimpleDate} from "@/utils/timeUtils.ts";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {LuShuffle} from "react-icons/lu";
+import type { PositionWithRequirementsRead } from "@/features/position/positionApi";
 
 /**
  * Props for the DayEditModal component.
@@ -41,8 +42,10 @@ export interface DayEditModalProps {
   currentDraftData: ScheduleResponse | ScheduleDraft | null | undefined;
   onCurrentDraftData: (data: ScheduleResponse | ScheduleDraft | null | undefined) => void;
   employees: EmployeeWithTimeOff[];
-  positions: Position[];
+  positions: PositionWithRequirementsRead[];
+  templates: ShiftTemplateRead[];
   minDaysOff: number;
+  isSkeletonView: boolean;
 }
 
 /**
@@ -59,9 +62,15 @@ export default function DayEditModal({
   onCurrentDraftData,
   employees,
   positions,
-  minDaysOff
+  templates,
+  minDaysOff,
+  isSkeletonView = false
 }: DayEditModalProps) {
 
+  /**
+   * Perform checks on the proposed change to see if it violates any
+   * constraints and create warning messages
+   */
   const warnings = useMemo(() => {
     const newWarnings: string[] = [];
 
@@ -82,10 +91,10 @@ export default function DayEditModal({
       forbiddenDates.push(toSimpleDate(futureDate));
     }
 
-    // Grab ALL shifts in the global schedule that fall on those forbidden dates
+    // Grab all shifts in the global schedule that fall on those forbidden dates
     const windowShifts = currentDraftData.assignments.filter(a => forbiddenDates.includes(a.date));
 
-    // Track how many times each employee is working TODAY (for double booking)
+    // Track how many times each employee is working today (for double booking)
     const employeeCounts: Record<string, number> = {};
     dayAssignments.forEach(shift => {
       const empId = shift.watchstander.id.toString();
@@ -128,7 +137,9 @@ export default function DayEditModal({
       return newWarnings;
   }, [dayAssignments, selectedDate, currentDraftData, employees, minDaysOff]);
 
-  // Handle replacing an employee for the specified shift
+  /**
+   * Handle replacing an employee for the specified shift
+   */
   const handleEmployeeChange = (index: number, employeeId: string) => {
     const emp = employees.find(e => e.id.toString() === employeeId);
     if (!emp) return;
@@ -138,7 +149,9 @@ export default function DayEditModal({
     setDayAssignments(updated);
   };
 
-  // Handle replacing the position for a specified employee
+  /**
+   * Handle replacing the position for a specified employee
+   */
   const handlePositionChange = (index: number, positionId: string) => {
     const pos = positions.find(p => p.id.toString() === positionId);
     if (!pos) return;
@@ -148,9 +161,27 @@ export default function DayEditModal({
     setDayAssignments(updated);
   };
 
+  /**
+   * Handle changing the template for the specified shift
+   */
+  const handleTemplateChange = (index: number, templateId: string, positionId: string) => {
+    const pos = positions.find(p => p.id.toString() === positionId);
+    const tem = templates.find(t => t.id.toString() === templateId);
+
+    if (!pos || !tem) return;
+
+    const updated = [...dayAssignments];
+    updated[index].watchstation = {id: pos.id, name: `${pos.name} (${tem.name})`, color: pos.color};
+    updated[index].start_time = tem.start_time;
+    updated[index].end_time = tem.end_time;
+    setDayAssignments(updated);
+  };
+
   if (!selectedDate || !currentDraftData) return null;
 
-  // Handle adding a new shift to the day.
+  /**
+   * Handle adding a new shift to the day
+   */
   const handleAddShift = () => {
     if (positions.length === 0 || employees.length === 0) return;
 
@@ -172,7 +203,39 @@ export default function DayEditModal({
     setDayAssignments([...dayAssignments, newShift]);
   };
 
-  // Handle automatically finding the fairest, valid employee for a shift
+  /**
+   * Handle adding a shift for the skeleton. (This will not display assignments
+   * but instead creates an unassigned shift)
+   */
+  const handleAddTemplateShift = () => {
+    if (positions.length === 0 || templates.length === 0) return;
+
+    const firstTemplate = templates[0];
+    const firstPosition = positions[0];
+
+    const newShift: Assignment = {
+      date: selectedDate,
+      start_time: firstTemplate.start_time,
+      end_time: firstTemplate.end_time,
+      watchstander: {
+        id: 0,
+        name: "Unassigned",
+        offset: 0,
+        watchstations: []
+      },
+      watchstation: {
+        id: firstPosition.id,
+        name: `${firstPosition.name} (${firstTemplate.name})`,
+        color: firstPosition.color
+      }
+    }
+
+    setDayAssignments([...dayAssignments, newShift]);
+  }
+
+  /**
+   * Handle automatically finding the fairest, valid employee for a shift
+   */
   const handleAutoAssign = (index: number, positionId: number) => {
     if (!currentDraftData) return;
 
@@ -242,13 +305,17 @@ export default function DayEditModal({
     setDayAssignments(updated);
   };
 
-  // Handle removing a shift from the specified day.
+  /**
+   * Handle removing a shift from the specified day.
+   */
   const handleRemoveShift = (index: number) => {
     const updated = dayAssignments.filter((_, i) => i !== index);
     setDayAssignments(updated);
   };
 
-  // Apply changes and update the current draft data.
+  /**
+   * Apply changes and update the current draft data.
+   */
   const handleSave = () => {
     const otherDays = currentDraftData.assignments.filter(a => a.date !== selectedDate);
 
@@ -278,7 +345,8 @@ export default function DayEditModal({
               </Text>
             )}
 
-            {warnings.length > 0 && (
+            {/* Display any warnings if it's not a skeleton view */}
+            {warnings.length > 0 && !isSkeletonView && (
               <Box
                 p={3}
                 bg="yellow.100"
@@ -297,6 +365,7 @@ export default function DayEditModal({
               </Box>
             )}
 
+            {/* Display all assignments for this day */}
             {dayAssignments.map((shift, index) => (
               <Box key={index} p={4} border="1px solid" borderColor="gray.200" borderRadius="md" bg="gray.50" _dark={{ bg: "gray.800", borderColor: "gray.700" }}>
                 <Flex gap={4} align="flex-end">
@@ -312,31 +381,53 @@ export default function DayEditModal({
                     </NativeSelectRoot>
                   </Box>
 
+                  {/* Drop down for assigning the shift template type */}
                   <Box flex="2">
-                    <Text fontSize="sm" fontWeight="bold" mb={1}>Assignee</Text>
+                    <Text fontSize="sm" fontWeight="bold" mb={1}>Template</Text>
                     <NativeSelectRoot bg="white" _dark={{ bg: "gray.900" }}>
                       <NativeSelectField
-                        value={shift.watchstander.id.toString()}
-                        onChange={(e) => handleEmployeeChange(index, e.currentTarget.value)}
+                        value={templates.find(t => t.start_time === shift.start_time && t.end_time === shift.end_time)?.id.toString() || ""}
+                        onChange={(e) => handleTemplateChange(index, e.currentTarget.value, shift.watchstation.id.toString())}
                       >
-                        {/* Ensure that only people qualified for this shift will show up. */}
-                        {employees.filter(emp => emp.positions.map(p => p.id).includes(shift.watchstation.id)).map(emp => (
-                          <option key={emp.id} value={emp.id}>{emp.last_name}, {emp.first_name}</option>)
+                        <option value="" disabled>Select a template...</option>
+                        {templates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.start_time}-{t.end_time})</option>)
                         )}
                       </NativeSelectField>
                     </NativeSelectRoot>
                   </Box>
 
-                  {/* Auto assign button. Finds the fairest person for the shift. */}
-                  <Button
-                    colorPalette="purple"
-                    variant="surface"
-                    onClick={() => handleAutoAssign(index, shift.watchstation.id)}
-                    title="Auto-assign fairest available member"
-                  >
-                    <LuShuffle />
-                  </Button>
+                  {/* Only show employee assignment and auto assign if it's not a skeleton */}
+                  {!isSkeletonView && (
+                    <>
+                      {/* Drop down box for assigning users to a shift. */}
+                      <Box flex="2">
+                        <Text fontSize="sm" fontWeight="bold" mb={1}>Assignee</Text>
+                        <NativeSelectRoot bg="white" _dark={{ bg: "gray.900" }}>
+                          <NativeSelectField
+                            value={shift.watchstander.id.toString()}
+                            onChange={(e) => handleEmployeeChange(index, e.currentTarget.value)}
+                          >
+                            {/* Ensure that only people qualified for this shift will show up. */}
+                            {employees.filter(emp => emp.positions.map(p => p.id).includes(shift.watchstation.id)).map(emp => (
+                              <option key={emp.id} value={emp.id}>{emp.last_name}, {emp.first_name}</option>)
+                            )}
+                          </NativeSelectField>
+                        </NativeSelectRoot>
+                      </Box>
 
+                      {/* Auto assign button. Finds the fairest person for the shift. */}
+                      <Button
+                      colorPalette="purple"
+                      variant="surface"
+                      onClick={() => handleAutoAssign(index, shift.watchstation.id)}
+                      title="Auto-assign fairest available member"
+                      >
+                        <LuShuffle />
+                      </Button>
+                    </>
+                  )}
+                  
                   <Button colorPalette="red" variant="outline" onClick={() => handleRemoveShift(index)}>
                     Remove
                   </Button>
@@ -344,7 +435,7 @@ export default function DayEditModal({
               </Box>
             ))}
 
-            <Button colorPalette="green" variant="surface" mt={2} onClick={handleAddShift}>
+            <Button colorPalette="green" variant="surface" mt={2} onClick={isSkeletonView ? handleAddTemplateShift : handleAddShift}>
               + Add Additional Shift
             </Button>
           </VStack>

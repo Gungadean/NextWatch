@@ -6,6 +6,7 @@
 #  Modified by Ryan Huston 2026
 
 from dataclasses import dataclass, field
+from typing import List, Tuple
 
 import numpy as np
 from ortools.sat.python import cp_model
@@ -24,6 +25,11 @@ class OrOptimizer:
     # people x days - 1 conflict, 0 no conflict
     conflict_matrix: np.ndarray
 
+    # days x watchstations - 0 if not required, X for required headcount
+    headcount_matrix: np.ndarray
+    # list of (start_hour, end_hour) floats. e.g., (18.0, 30.0) for an 18:00 to 06:00 shift.
+    shift_times: List[Tuple[float, float]]
+
     frozen_shifts: list = field(default_factory=list)
 
     model: cp_model.CpModel = field(init=False)
@@ -40,7 +46,7 @@ class OrOptimizer:
                     )
 
     def get_initial_schedule(self) -> np.ndarray:
-        self.one_shift_per_day_constraint()
+        self.exact_headcount_constraint()
         self.no_two_watchstations_at_same_time_constraint()
 
         # TODO: Add setting to respect this constraint or not
@@ -52,12 +58,17 @@ class OrOptimizer:
         self.frozen_assignments_constraint()
 
         solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = 30
         status = solver.Solve(self.model)
 
         if status == cp_model.INFEASIBLE:
-            raise IllegalScheduleException(
-                "Unable to meet constraints. Try adjusting constraint requirements or adjust the dates."
-            )
+            raise IllegalScheduleException("Unable to meet constraints. Try adjusting constraint requirements or adjust the dates.")
+        elif status == cp_model.UNKNOWN:
+            raise IllegalScheduleException("Solver Timeout: The math engine could not find a solution in 30 seconds.")
+        elif status == cp_model.MODEL_INVALID:
+            raise IllegalScheduleException("Solver Error: The internal constraint model is mathematically invalid.")
+        elif status not in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
+            raise IllegalScheduleException(f"Solver failed with unknown status code: {status}")
 
         schedule = np.zeros(
             (self.num_people, self.num_days, self.num_watchstations), dtype=int
@@ -71,6 +82,20 @@ class OrOptimizer:
                             schedule[w, d, s] = 1
 
         return schedule
+
+
+    def exact_headcount_constraint(self):
+        """
+        Fills the exact number of required slots based on the dynamic headcount matrix.
+        Handles days when a shift requires 2 people, or 0 people (e.g. weekends).
+        """
+        for d in range(self.num_days):
+            for s in range(self.num_watchstations):
+                required_headcount = int(self.headcount_matrix[d, s])
+                self.model.Add(
+                    sum(self.schedule_vars[(w, d, s)] for w in range(self.num_people)) == required_headcount
+                )
+
 
     def one_shift_per_day_constraint(
         self,
@@ -88,21 +113,39 @@ class OrOptimizer:
                     == 1
                 )
 
+
     def no_two_watchstations_at_same_time_constraint(
         self,
     ):
         """
         One watchstander can't be on two watchstations at the same time
         """
+        intervals = {}
+        for d in range(self.num_days):
+            for s in range(self.num_watchstations):
+                st, et = self.shift_times[s]
+                abs_st = d * 24.0 + st
+                abs_et = d * 24.0 + et
+
+                # If end time is earlier than start time, it wraps into tomorrow!
+                if st >= et and not (st == 0.0 and et == 24.0):
+                    abs_et += 24.0
+
+                intervals[(d, s)] = (abs_st, abs_et)
+
+        # Check every possible combination of shifts for overlap
         for w in range(self.num_people):
-            for d in range(self.num_days):
-                self.model.Add(
-                    sum(
-                        self.schedule_vars[(w, d, s)]
-                        for s in range(self.num_watchstations)
-                    )
-                    <= 1
-                )
+            shifts = [(d, s) for d in range(self.num_days) for s in range(self.num_watchstations)]
+            for i in range(len(shifts)):
+                for j in range(i + 1, len(shifts)):
+                    d1, s1 = shifts[i]
+                    d2, s2 = shifts[j]
+
+                    st1, et1 = intervals[(d1, s1)]
+                    st2, et2 = intervals[(d2, s2)]
+
+                    if max(st1, st2) < min(et1, et2):
+                        self.model.Add(self.schedule_vars[(w, d1, s1)] + self.schedule_vars[(w, d2, s2)] <= 1)
 
     def min_days_off_between_duty_constraint(
         self,
@@ -110,22 +153,22 @@ class OrOptimizer:
         """
         No more than one duty day every x days
         """
+        if self.min_days_off_between_duty <= 0:
+            return
+
         for w in range(self.num_people):
             for d in range(self.num_days):
-                self.model.Add(
-                    sum(
-                        self.schedule_vars[(w, day, s)]
-                        for s in range(self.num_watchstations)
-                        for day in range(
-                            d,
-                            min(
-                                d + self.min_days_off_between_duty + 1,
-                                self.num_days,
-                            ),
-                        )
-                    )
-                    <= 1
-                )
+                worked_on_day_d = self.model.NewBoolVar(f"worked_{w}_day_{d}")
+
+                shifts_worked_today = sum(self.schedule_vars[(w, d, s)] for s in range(self.num_watchstations))
+
+                self.model.Add(shifts_worked_today > 0).OnlyEnforceIf(worked_on_day_d)
+                self.model.Add(shifts_worked_today == 0).OnlyEnforceIf(worked_on_day_d.Not())
+
+                # Force days off
+                for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
+                    for s in range(self.num_watchstations):
+                        self.model.AddImplication(worked_on_day_d, self.schedule_vars[(w, off_day, s)].Not())
 
     def watchstander_qualified_constraint(
         self,

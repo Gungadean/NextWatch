@@ -9,12 +9,9 @@
  * Page for building schedules.
  */
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {Center, Flex, Spinner, Text, VStack} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
-import {type Watchstander} from "../features/schedule/scheduleApi.ts";
-import {type CalendarEvent} from "@/components/CalendarGrid.tsx";
-import {type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
 import ConfirmPublishDraftModal from "@/features/schedule/components/ConfirmPublishDraftModal.tsx";
 import ConfirmDeleteDraftModal from "@/features/schedule/components/ConfirmDeleteDraftModal.tsx";
@@ -59,6 +56,7 @@ const BuilderPage = () => {
   const {
     employees,
     positions,
+    templates,
     draftSummaries,
     setDraftSummaries,
     isLoading
@@ -66,7 +64,6 @@ const BuilderPage = () => {
 
   const {
     isGenerating,
-    genProgress,
     isLoadingDraft,
     currentDraftData,
     setCurrentDraftData,
@@ -74,7 +71,9 @@ const BuilderPage = () => {
     setSelectedDraftId,
     generateSchedule,
     selectDraft,
-    updateCurrentDraft
+    updateCurrentDraft,
+    buildSkeleton,
+    genProgress
   } = useScheduleGenerator(setDraftSummaries, setCalendarViewDate, setStartDate, setEndDate);
 
   const mainBg = useColorModeValue("white", "gray.800");
@@ -90,10 +89,25 @@ const BuilderPage = () => {
       startDate,
       endDate,
       positionIds,
-      minDaysOff: Number(minDaysOff) || 1,
+      minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
       maxSteps: Number(maxSteps) || 10000
     }, isRegen, regenDates);
   }
+
+  /**
+   * Handles building skeleton for drafts
+   */
+  const handleBuildSkeleton = () => {
+    setViewMode("calendar");
+    const positionIds = selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number);
+    buildSkeleton({
+      startDate,
+      endDate,
+      positionIds,
+      minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
+      maxSteps: Number(maxSteps) || 10000
+    }, positions);
+  };
 
   /**
    * Navigates the Calendar view by month.
@@ -130,6 +144,9 @@ const BuilderPage = () => {
     }
   }
 
+  /**
+   * Handle changing the minimum number of days off
+   */
   const handleMinDaysOffChange = (rawDays: string) => {
     if (rawDays === "") {
       setMinDaysOff("");
@@ -150,6 +167,9 @@ const BuilderPage = () => {
     setMinDaysOff(days);
   }
 
+  /**
+   * Handle changing the maximum steps for annealing.
+   */
   const handleMaxStepsChange = (rawSteps: string) => {
     if (rawSteps === "") {
       setMaxSteps("");
@@ -160,69 +180,6 @@ const BuilderPage = () => {
 
     setMaxSteps(steps);
   }
-
-  /**
-   * Convert draft data into calendar events for display on CalendarGrid.
-   */
-  const builderEvents: CalendarEvent[] = useMemo(() => {
-    return (currentDraftData?.assignments || []).map(a => ({
-        id: `${a.date}-${a.watchstation.id}`,
-        date: a.date,
-        label: a.watchstation.name.substring(0,3),
-        text: (a.watchstander as Watchstander).name || "Unknown",
-        color: a.watchstation.color,
-        rawAssignment: a
-    }));
-  }, [currentDraftData]);
-
-  /**
-   * Convert draft data into timeline rows for display on TimelineGrid.
-   */
-  const timelineRows: TimelineRow[] = useMemo(() => {
-    return employees.map(emp => ({
-      id: emp.id,
-      label: `${emp.last_name}, ${emp.first_name.charAt(0)}.`,
-    }));
-  }, [employees]);
-
-  /**
-   * Convert draft data into timeline items for display on TimelineGrid.
-   */
-  const timelineItems: TimelineItem[] = useMemo(() => {
-    const items: TimelineItem[] = [];
-
-    // Add time off requests
-    employees.forEach(emp => {
-      (emp.time_off_requests || [])
-        .filter(req => req.status !== "Denied")
-        .forEach((req, i) => {
-        items.push({
-          id: `time-off-${emp.id}-${i}`,
-          rowId: emp.id,
-          start: req.start_date,
-          end: req.end_date,
-          label: `Time-Off: ${req.request_type} ${req.status}`,
-          color: req.status === "Approved" ? "green" : "gray"
-        });
-      });
-    });
-
-    // Add draft assignments
-    if (currentDraftData?.assignments) {
-      currentDraftData.assignments.forEach((assign, i) => {
-        items.push({
-          id: `shift-${i}`,
-          rowId: assign.watchstander.id,
-          start: assign.date,
-          end: assign.date,
-          label: `Shift: ${assign.watchstation.name}`,
-          color: assign.watchstation.color
-        });
-      });
-    }
-
-    return items;
-  }, [employees, currentDraftData]);
 
   if (isLoading) {
     return (
@@ -238,7 +195,6 @@ const BuilderPage = () => {
   return (
     <Flex h="calc(100vh - 64px)" overflow="hidden" borderRadius="md">
       {/* Left Sidebar: Config and History */}
-
       <BuilderSidebar
         mainBg={mainBg}
         borderColor={borderColor}
@@ -256,35 +212,36 @@ const BuilderPage = () => {
         startDate={startDate}
         endDate={endDate}
         isGenerating={isGenerating}
-        genProgress={genProgress}
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
-        onGenerate={handleGenerate}
         onDraftSelect={selectDraft}
+        onBuildSkeleton={handleBuildSkeleton}
+        currentDraftData={currentDraftData}
       />
 
+      {/* Main Content: Schedule Builder */}
       <BuilderMainStage
         mainBg={mainBg}
         borderColor={borderColor}
         employees={employees}
         positions={positions}
+        templates={templates}
         minDaysOff={Number(minDaysOff) || 1}
         selectedDraftId={selectedDraftId}
         currentDraftData={currentDraftData}
         startDate={startDate}
         endDate={endDate}
         viewMode={viewMode}
+        genProgress={genProgress}
         isLoadingDraft={isLoadingDraft}
-        builderEvents={builderEvents}
-        timelineRows={timelineRows}
-        timelineItems={timelineItems}
+        isGenerating={isGenerating}
         calendarViewDate={calendarViewDate}
         navMonth={navMonth}
         setViewMode={setViewMode}
         onDeleteDraft={() => setConfirmDeleteModalOpen(true)}
         onPublishDraft={() => setConfirmPublishModalOpen(true)}
         onCurrentDraftData={updateCurrentDraft}
-        regenerateSchedule={handleGenerate}
+        generateSchedule={handleGenerate}
       />
 
       {/* Modals */}

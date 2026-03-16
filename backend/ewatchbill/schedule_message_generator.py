@@ -7,6 +7,7 @@
 
 import logging
 import json
+import traceback
 import numpy as np
 from fastapi import Request
 
@@ -29,6 +30,9 @@ async def schedule_message_generator(
         holiday_mask,
         offset_matrix,
         min_days_off_between_duty,
+        headcount_matrix,
+        shift_times,
+        unique_shift_slots,
         frozen_assignments_matrix
     ) = from_watchbill_request(watchbill_params)
     scores = []
@@ -42,13 +46,15 @@ async def schedule_message_generator(
                     num_people=len(watchbill_params.watchstanders),
                     num_days=(watchbill_params.end - watchbill_params.start).days
                              + 1,
-                    num_watchstations=len(watchbill_params.watchstations),
+                    num_watchstations=len(unique_shift_slots),
                     min_days_off_between_duty=min_days_off_between_duty,
                     max_steps=watchbill_params.max_iteration_steps,
                     qualification_matrix=qualification_matrix,
                     conflict_matrix=conflict_matrix,
                     holiday_mask=holiday_mask,
                     offset_matrix=offset_matrix,
+                    headcount_matrix=headcount_matrix,
+                    shift_times=shift_times,
                     frozen_assignments_matrix=frozen_assignments_matrix
                 )
         ):
@@ -86,7 +92,7 @@ async def schedule_message_generator(
         yield {"data": json.dumps({"type": "error", "payload": response.model_dump()})}
         return
     except Exception as e:
-        logging.error(f"Unexpected error: {e}")
+        logging.error(f"Unexpected error: {traceback.format_exc()}")
         response = WatchbillResponse(
             score_history=[],
             assignments=[],
@@ -102,6 +108,7 @@ async def schedule_message_generator(
         params=watchbill_params,
         score_history=scores,
         complete=True,
+        unique_shift_slots=unique_shift_slots,
     )
     cache[public_id] = final_response
     yield {

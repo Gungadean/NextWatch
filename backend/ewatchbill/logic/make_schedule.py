@@ -26,6 +26,8 @@ def make_schedule(
     conflict_matrix: np.ndarray,
     holiday_mask: np.ndarray,
     offset_matrix: np.ndarray,
+    headcount_matrix: np.ndarray = None,
+    shift_times: list = None,
     frozen_assignments_matrix: list = None
 ):
     if frozen_assignments_matrix is None:
@@ -38,6 +40,8 @@ def make_schedule(
         num_watchstations=num_watchstations,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
+        headcount_matrix=headcount_matrix,
+        shift_times=shift_times,
         frozen_shifts=frozen_assignments_matrix
     ).get_initial_schedule()
 
@@ -47,6 +51,8 @@ def make_schedule(
             min_days_off_between_duty=min_days_off_between_duty,
             qualification_matrix=qualification_matrix,
             conflict_matrix=conflict_matrix,
+            headcount_matrix=headcount_matrix,
+            shift_times=shift_times,
             frozen_assignments_matrix=frozen_assignments_matrix
         )
         return is_legal_bool
@@ -66,6 +72,8 @@ def make_schedule(
         min_days_off_between_duty=min_days_off_between_duty,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
+        headcount_matrix=headcount_matrix,
+        shift_times=shift_times,
         frozen_assignments_matrix=frozen_assignments_matrix
     )
 

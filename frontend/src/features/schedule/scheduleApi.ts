@@ -13,6 +13,16 @@
 import axiosInstance from "@/axiosConfig.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
 
+export interface ShiftTemplateCreate {
+  name: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface ShiftTemplateRead extends ShiftTemplateCreate {
+  id: number;
+}
+
 /**
  * Represents a shift assigned in the official schedule.
  */
@@ -24,6 +34,7 @@ export interface Shift {
   start_time: string;
   end_time: string;
   employee?: {
+    id: number;
     first_name: string;
     last_name: string;
     middle_name: string;
@@ -58,6 +69,8 @@ export interface Watchstation {
  */
 export interface Assignment {
   date: string;
+  start_time?: string;
+  end_time?: string;
   watchstander: Watchstander;
   watchstation: Watchstation;
 }
@@ -109,6 +122,7 @@ export interface ScheduleRequest {
   manual_conflicts?: Array<Record<string, unknown>>;
   holidays?: string[];
   frozen_assignments?: Assignment[];
+  skeleton?: Assignment[];
 }
 
 /**
@@ -319,6 +333,32 @@ export const deleteDraft = async (uuid: string) => {
 export const getMonthlySchedule = async (year: number, month: number): Promise<Shift[]> => {
   try {
     const response = await axiosInstance.get<Shift[]>(`/schedule/${year}/${month}`);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Schedule Request Failed"));
+  }
+}
+
+/**
+ * Requests list of templates that can be assigned to shifts
+ */
+export const getShiftTemplates = async (): Promise<ShiftTemplateRead[]> => {
+  try {
+    const response = await axiosInstance.get<ShiftTemplateRead[]>('/templates');
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Schedule Request Failed"));
+  }
+}
+
+/**
+ * Send a request to create a new shift template
+ */
+export const createShiftTemplate = async (data: ShiftTemplateCreate): Promise<ShiftTemplateRead> => {
+  try {
+    const response = await axiosInstance.post<ShiftTemplateRead>('/templates/add', data);
 
     return response.data;
   } catch (error: unknown) {

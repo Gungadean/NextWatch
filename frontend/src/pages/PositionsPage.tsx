@@ -24,7 +24,10 @@ import {
   VStack,
   Text, ColorSwatch
 } from "@chakra-ui/react";
-import {getPositionList, type PositionQueryResponse} from "../features/position/positionApi.ts";
+import {
+  getPositionList,
+  type PositionWithRequirementsRead
+} from "../features/position/positionApi.ts";
 import {useEffect, useState} from "react";
 import AddPositionModal from "../features/position/components/AddPositionModal.tsx";
 import {convertToLocalTime} from "../utils/timeUtils.ts";
@@ -37,7 +40,7 @@ import {getErrorMessage} from "@/utils/errorUtils.ts";
  * Main Layout for the Positions (Watch Stations) Management Page.
  */
 const PositionsPage = () => {
-  const [positions, setPositions] = useState<PositionQueryResponse[]>([]);
+  const [positions, setPositions] = useState<PositionWithRequirementsRead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [selection, setSelection] = useState<number[]>([]);
@@ -224,6 +227,7 @@ return (
         positions={positions}
         onPositionsChange={setPositions}
       />
+
       <ConfirmPositionDeletionModal
         isOpen={isConfirmDeletionModalOpen}
         onOpenChange={(e) => setConfirmDeletionModalOpen(e.open)}

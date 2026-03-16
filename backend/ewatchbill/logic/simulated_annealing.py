@@ -82,7 +82,6 @@ class AnnealingOptimizer:
             self.perturb_schedule_swap_person,
             self.perturb_schedule_change_watchstation,
             self.perturb_schedule_swap_watchstander_day,
-            self.perturb_schedule_move_day,
         ]
         perturbation_function = np.random.choice(perturbation_functions, 1)[0]
         return perturbation_function(self.schedule.copy())
@@ -138,13 +137,12 @@ class AnnealingOptimizer:
         # choose another watchstation
         other_watchstation = np.random.randint(0, self.num_watchstations)
         # get the person on the other watchstation
-        other_person = np.argwhere(schedule[:, day, other_watchstation] == 1)
+        other_people = np.argwhere(schedule[:, day, other_watchstation] == 1)
 
-        assert len(other_person) == 1, (
-            "Not exactly one person on watchstation"
-            f"{other_watchstation} on day {day}"
-        )
-        other_person = other_person[0][0]
+        if len(other_people) == 0:
+            return schedule
+
+        other_person = other_people[np.random.randint(0, len(other_people))][0]
 
         # Return the schedule if either of these assignments are frozen
         if (self.frozen_mask[person, day, watchstation] == 1 or
@@ -170,8 +168,17 @@ class AnnealingOptimizer:
 
         watchstation = np.random.randint(0, self.num_watchstations)
 
-        person_1 = np.argwhere(schedule[:, day_1, watchstation] == 1)[0][0]
-        person_2 = np.argwhere(schedule[:, day_2, watchstation] == 1)[0][0]
+        # Find potential watchstanders for the selected shift on each day
+        person_1_candidates = np.argwhere(schedule[:, day_1, watchstation] == 1)
+        person_2_candidates = np.argwhere(schedule[:, day_2, watchstation] == 1)
+
+        # If either variables are zero, there is no shift to swap.
+        # This means it's likely a non default shift added by the end user.
+        if len(person_1_candidates) == 0 or len(person_2_candidates) == 0:
+            return schedule
+
+        person_1 = person_1_candidates[0][0]
+        person_2 = person_2_candidates[0][0]
 
         if person_1 == person_2:
             # same person, no swap needed

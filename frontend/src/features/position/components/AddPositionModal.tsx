@@ -22,7 +22,11 @@ import {
   Stack
 } from "@chakra-ui/react";
 import {Field} from "@/components/ui/field.tsx";
-import {addPosition, type PositionAddRequest, type PositionQueryResponse} from "../positionApi.ts";
+import {
+  addPosition,
+  type PositionAddRequest,
+  type PositionWithRequirementsRead,
+} from "../positionApi.ts";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {useForm} from "@/hooks/useForm.ts";
 import React, {type Dispatch, type SetStateAction} from "react";
@@ -34,8 +38,8 @@ import {getErrorMessage} from "@/utils/errorUtils.ts";
 interface AddPositionModalProps {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
-  positions: PositionQueryResponse[];
-  onPositionsChange: Dispatch<SetStateAction<PositionQueryResponse[]>>;
+  positions: PositionWithRequirementsRead[];
+  onPositionsChange: Dispatch<SetStateAction<PositionWithRequirementsRead[]>>;
 }
 
 /**
@@ -61,7 +65,7 @@ const AddPositionModal = ({ isOpen, onOpenChange, positions, onPositionsChange }
         color: formData.color
       });
 
-      onPositionsChange([...positions, result]);
+      onPositionsChange([...positions, { ...result, requirements: [] }]);
 
       onOpenChange({ open: false });
       resetForm();
