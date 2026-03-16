@@ -15,7 +15,7 @@ import React, { useState } from 'react';
 /**
  * Custom hook to handle form states.
  */
-export const useForm = <T extends Record<string, unknown>>(initialValues: T) => {
+export const useForm = <T extends object>(initialValues: T) => {
   const [formData, setFormData] = useState<T>(initialValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -25,7 +25,7 @@ export const useForm = <T extends Record<string, unknown>>(initialValues: T) => 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
 
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value } as T));
 
     setErrors((prev) => {
       // Don't trigger a state update if there are no errors.
