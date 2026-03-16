@@ -126,6 +126,7 @@ def from_watchbill_request(params: WatchbillParams):
         holiday_mask,
         offset_matrix,
         params.min_days_off_between_duty,
+        params.max_days_off_between_duty,
         headcount_matrix,
         shift_times,
         unique_shift_slots,

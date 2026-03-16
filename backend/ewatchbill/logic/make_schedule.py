@@ -21,6 +21,7 @@ def make_schedule(
     num_days: int,
     num_watchstations: int,
     min_days_off_between_duty: int,
+    max_days_off_between_duty: int,
     max_steps: int,
     qualification_matrix: np.ndarray,
     conflict_matrix: np.ndarray,
@@ -37,6 +38,7 @@ def make_schedule(
         num_days=num_days,
         num_people=num_people,
         min_days_off_between_duty=min_days_off_between_duty,
+        max_days_off_between_duty=max_days_off_between_duty,
         num_watchstations=num_watchstations,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
@@ -49,6 +51,7 @@ def make_schedule(
         is_legal_bool, _ = is_legal(
             schedule,
             min_days_off_between_duty=min_days_off_between_duty,
+            max_days_off_between_duty=max_days_off_between_duty,
             qualification_matrix=qualification_matrix,
             conflict_matrix=conflict_matrix,
             headcount_matrix=headcount_matrix,
@@ -70,6 +73,7 @@ def make_schedule(
     initial_is_legal, error_message = is_legal(
         initial_schedule,
         min_days_off_between_duty=min_days_off_between_duty,
+        max_days_off_between_duty=max_days_off_between_duty,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
         headcount_matrix=headcount_matrix,

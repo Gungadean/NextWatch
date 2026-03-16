@@ -19,6 +19,7 @@ class OrOptimizer:
     num_days: int
     num_people: int
     min_days_off_between_duty: int
+    max_days_off_between_duty: int
     num_watchstations: int
     # people x watchstations - 1 qualified, 0 not qualified
     qualification_matrix: np.ndarray
@@ -52,6 +53,7 @@ class OrOptimizer:
         # TODO: Add setting to respect this constraint or not
         if len(self.frozen_shifts) == 0:
             self.min_days_off_between_duty_constraint()
+            self.max_days_off_between_duty_constraint()
 
         self.watchstander_qualified_constraint()
         self.no_duty_on_conflicts_constraint()
@@ -169,6 +171,30 @@ class OrOptimizer:
                 for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
                     for s in range(self.num_watchstations):
                         self.model.AddImplication(worked_on_day_d, self.schedule_vars[(w, off_day, s)].Not())
+
+    def max_days_off_between_duty_constraint(self):
+        """
+        Ensures a person works at least one shift within any sliding window
+        of (max_days_off + 1) days, ignoring approved time off
+        """
+        if self.max_days_off_between_duty <= 0 or self.max_days_off_between_duty >= self.num_days:
+            return
+
+        window_size = self.max_days_off_between_duty + 1
+
+        for w in range(self.num_people):
+            for start_d in range(self.num_days - window_size + 1):
+                conflicts_in_window = sum(self.conflict_matrix[w, start_d: start_d + window_size])
+
+                # Only enforce the rule if the window consists purely of available days
+                if conflicts_in_window == 0:
+                    shifts_in_window = [
+                        self.schedule_vars[(w, d, s)]
+                        for d in range(start_d, start_d + window_size)
+                        for s in range(self.num_watchstations)
+                    ]
+                    self.model.Add(sum(shifts_in_window) >= 1)
+
 
     def watchstander_qualified_constraint(
         self,

@@ -47,6 +47,7 @@ class WatchbillParams(BaseModel):
     conflicts: List[Conflict]
     holidays: List[date]
     min_days_off_between_duty: int = Field(gt=-1)
+    max_days_off_between_duty: int = Field(gt=0)
     max_iteration_steps: int = Field(gt=0, le=100000)
     frozen_assignments: List[Assignment] = Field(default_factory=list)
     skeleton: List[Assignment] = Field(default_factory=list)

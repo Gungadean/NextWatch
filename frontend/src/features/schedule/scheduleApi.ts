@@ -118,6 +118,7 @@ export interface ScheduleRequest {
   end_date: string;
   position_ids: number[];
   min_days_off?: number;
+  max_days_off?: number;
   max_steps?: number;
   manual_conflicts?: Array<Record<string, unknown>>;
   holidays?: string[];

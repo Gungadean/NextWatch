@@ -51,6 +51,7 @@ interface BuilderSidebarProps {
   borderColor: string;
 
   minDaysOff: number | string;
+  maxDaysOff: number | string;
   maxSteps: number | string;
   positions: Position[];
   selectAllPositions: boolean;
@@ -58,6 +59,7 @@ interface BuilderSidebarProps {
 
   onMaxStepsChange: (rawSteps: string) => void;
   onMinDaysOffChange: (rawDays: string) => void;
+  onMaxDaysOffChange: (rawDays: string) => void;
   onSelectAllPositionsChange: (isSelected: boolean) => void;
   onSelectedPositionsChange: (position_strings: string[]) => void;
 
@@ -83,6 +85,7 @@ const BuilderSidebar = ({
   mainBg,
   borderColor,
   minDaysOff,
+  maxDaysOff,
   maxSteps,
   positions,
   currentDraftData,
@@ -91,6 +94,7 @@ const BuilderSidebar = ({
   onSelectAllPositionsChange,
   onSelectedPositionsChange,
   onMinDaysOffChange,
+  onMaxDaysOffChange,
   onMaxStepsChange,
   draftSummaries,
   selectedDraftId,
@@ -224,7 +228,23 @@ const BuilderSidebar = ({
                     />
                   </Box>
 
-                  {/* Settings for  */}
+                  {/* Settings for Maximum Days Off */}
+                  <Box>
+                    <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500">Max Days Off Between Duty</Text>
+                    <Input
+                      type="number"
+                      size="sm"
+                      min={0}
+                      max={10}
+                      value={maxDaysOff}
+                      onChange={(e) => onMaxDaysOffChange(e.target.value)}
+                      border="2px solid"
+                      borderColor={borderColor}
+                      borderRadius="sm"
+                    />
+                  </Box>
+
+                  {/* Settings for max steps for annealing process to perform */}
                   <Box>
                     <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500">Optimization Effort</Text>
                     <Select.Root

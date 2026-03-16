@@ -12,6 +12,7 @@ from .exceptions.IllegalScheduleException import IllegalScheduleException
 def is_legal(
     schedule: np.ndarray,
     min_days_off_between_duty: int,
+    max_days_off_between_duty: int,
     qualification_matrix: np.ndarray,
     conflict_matrix: np.ndarray,
     headcount_matrix: np.ndarray,
@@ -27,7 +28,14 @@ def is_legal(
         # TODO: Replace with option to toggle skipping this constraint
         if len(frozen_assignments_matrix) == 0:
             min_days_off_between_duty_constraint(
-                schedule, min_days_off_between_duty=min_days_off_between_duty
+                schedule,
+                min_days_off_between_duty=min_days_off_between_duty
+            )
+
+            max_days_off_between_duty_constraint(
+                schedule,
+                max_days_off_between_duty=max_days_off_between_duty,
+                conflict_matrix=conflict_matrix
             )
 
         exact_headcount_constraint(schedule, headcount_matrix)
@@ -182,6 +190,56 @@ def min_days_off_between_duty_constraint(
                 f"Person {person} has duty on day {day1} and "
                 f"should have at least {min_days_off_between_duty}"
                 f" days off before next duty on day {day2}"
+            )
+
+def max_days_off_between_duty_constraint(
+        schedule: np.ndarray,
+        max_days_off_between_duty: int,
+        conflict_matrix: np.ndarray
+):
+    if max_days_off_between_duty <= 0:
+        return
+
+    n_people, n_days, n_slots = schedule.shape
+
+    # Flatten the 3D array into a 2D boolean array (Person x Day)
+    person_duty_days = np.sum(schedule, axis=2) > 0
+
+    for person in range(n_people):
+        # Get the integer index of every day this person works
+        active_mask = person_duty_days[person] | (conflict_matrix[person] == 1)
+        active_days = np.where(active_mask)[0]
+
+        # Case 1: They don't work at all
+        if len(active_days) == 0:
+            if n_days > max_days_off_between_duty:
+                raise IllegalScheduleException(
+                    f"Person {person} works 0 days, exceeding max {max_days_off_between_duty} days off.")
+            continue
+
+        # Case 2: Too many days off BEFORE their first shift
+        if active_days[0] > max_days_off_between_duty:
+            raise IllegalScheduleException(
+                f"Person {person} has {active_days[0]} days off before their first shift, exceeding max {max_days_off_between_duty}."
+            )
+
+        # Standard Case: Look at the gaps between active shifts
+        if len(active_days) > 1:
+            # np.diff gets the mathematical distance between days. Subtract 1 to get the actual "days off" between them.
+            gaps = np.diff(active_days) - 1
+            violations = np.where(gaps > max_days_off_between_duty)[0]
+
+            if len(violations) > 0:
+                v_idx = violations[0]
+                raise IllegalScheduleException(
+                    f"Person {person} has {gaps[v_idx]} days off between day {active_days[v_idx]} and {active_days[v_idx + 1]}, exceeding max {max_days_off_between_duty}."
+                )
+
+        # Case 3: Too many days off after their final shift
+        trailing_days_off = (n_days - 1) - active_days[-1]
+        if trailing_days_off > max_days_off_between_duty:
+            raise IllegalScheduleException(
+                f"Person {person} has {trailing_days_off} days off at the end of the schedule, exceeding max {max_days_off_between_duty}."
             )
 
 

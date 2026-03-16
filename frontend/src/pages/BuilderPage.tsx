@@ -27,8 +27,9 @@ const BuilderPage = () => {
   const [isConfirmPublishModalOpen, setConfirmPublishModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
 
-  const [maxSteps, setMaxSteps] = useState<number | string>(10000);
+  const [maxSteps, setMaxSteps] = useState<number | string>(50000);
   const [minDaysOff, setMinDaysOff] = useState<number | string>(1);
+  const [maxDaysOff, setMaxDaysOff] = useState<number | string>(3);
 
   const [selectAllPositions, setSelectAllPositions] = useState<boolean>(true);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
@@ -90,6 +91,7 @@ const BuilderPage = () => {
       endDate,
       positionIds,
       minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
+      maxDaysOff: maxDaysOff === "" ? 1 : Number(maxDaysOff),
       maxSteps: Number(maxSteps) || 10000
     }, isRegen, regenDates);
   }
@@ -105,6 +107,7 @@ const BuilderPage = () => {
       endDate,
       positionIds,
       minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
+      maxDaysOff: maxDaysOff === "" ? 1 : Number(maxDaysOff),
       maxSteps: Number(maxSteps) || 10000
     }, positions);
   };
@@ -168,6 +171,29 @@ const BuilderPage = () => {
   }
 
   /**
+   * Handle changing the maximum number of days off
+   */
+  const handleMaxDaysOffChange = (rawDays: string) => {
+    if (rawDays === "") {
+      setMaxDaysOff("");
+      return;
+    }
+
+    const days = Number(rawDays);
+
+    if (days > 10 || days < 0) {
+      toaster.create({
+          title: "Invalid Input",
+          description: "Max Days off must be between 0 and 10.",
+          type: "error"
+        });
+      return;
+    }
+
+    setMaxDaysOff(days);
+  }
+
+  /**
    * Handle changing the maximum steps for annealing.
    */
   const handleMaxStepsChange = (rawSteps: string) => {
@@ -199,6 +225,7 @@ const BuilderPage = () => {
         mainBg={mainBg}
         borderColor={borderColor}
         minDaysOff={minDaysOff}
+        maxDaysOff={maxDaysOff}
         maxSteps={maxSteps}
         positions={positions}
         selectAllPositions={selectAllPositions}
@@ -207,6 +234,7 @@ const BuilderPage = () => {
         onSelectedPositionsChange={setSelectedPositionIds}
         onMaxStepsChange={handleMaxStepsChange}
         onMinDaysOffChange={handleMinDaysOffChange}
+        onMaxDaysOffChange={handleMaxDaysOffChange}
         draftSummaries={draftSummaries}
         selectedDraftId={selectedDraftId}
         startDate={startDate}

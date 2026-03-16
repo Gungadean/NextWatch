@@ -57,6 +57,7 @@ class ScheduleRequest(BaseModel):
 
     # Constraints
     min_days_off: int = 1
+    max_days_off: int = 3
     max_steps: int = 50000
 
     # Manual overrides or specific constraint injections
