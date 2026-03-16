@@ -4,14 +4,14 @@
  */
 
 /**
- * TemplateBuilder.tsx
+ * TemplateBuilderPage.tsx
  *
  * Page for building and assigning templates.
  */
 
 import {useEffect, useState} from "react";
 import {Box, Flex, Text, Button, Input, Badge, Spinner, Grid} from "@chakra-ui/react";
-import { useColorModeValue } from "@/components/ui/color-mode";
+import { useColorModeValue } from "@/components/ui/color-mode.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
 import {
@@ -32,7 +32,7 @@ import {
 /**
  * Main component for template builder page.
  */
-export default function TemplateBuilder() {
+export default function TemplateBuilderPage() {
   const background = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
   const itemBg = useColorModeValue("gray.50", "gray.700");
