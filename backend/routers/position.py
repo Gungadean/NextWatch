@@ -177,6 +177,7 @@ async def route_delete_position(
 def create_position_requirement(
         position_id: int,
         req_in: PositionRequirementCreate,
+        user: User = Depends(get_current_active_user),
         session: Session = Depends(get_session)
 ):
     """Map a time block to a position with specific rules."""
@@ -196,7 +197,12 @@ def create_position_requirement(
 
 
 @router.delete("/positions/{position_id}/requirements/{req_id}")
-def delete_position_requirement(position_id: int, req_id: int, session: Session = Depends(get_session)):
+def delete_position_requirement(
+        position_id: int,
+        req_id: int,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """Remove a shift mapping from a position."""
     db_req = session.get(PositionRequirement, req_id)
     if not db_req or db_req.position_id != position_id:

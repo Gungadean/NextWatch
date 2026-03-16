@@ -25,7 +25,10 @@ from utils.request.request_utils import sanitize_request
 router = APIRouter()
 
 @router.get("/requests", response_model=List[TimeOffResponsePublic])
-async def route_list_requests(user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+async def route_list_requests(
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Retrieve a list of all time-off requests.
 
@@ -45,7 +48,11 @@ async def route_list_requests(user: User = Depends(get_current_active_user), ses
 
 
 @router.post("/requests/add", response_model=TimeOffResponsePublic)
-async def route_add_request(data: TimeOffAddRequest, user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+async def route_add_request(
+        data: TimeOffAddRequest,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Submit a new time-off request.
 
@@ -94,7 +101,11 @@ async def route_add_request(data: TimeOffAddRequest, user: User = Depends(get_cu
 
 
 @router.delete("/requests/{request_id}/delete")
-async def route_delete_request(request_id: int, user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+async def route_delete_request(
+        request_id: int,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Delete a specific time-off request.
 
@@ -119,7 +130,11 @@ async def route_delete_request(request_id: int, user: User = Depends(get_current
 
 
 @router.get("/requests/{request_id}", response_model=TimeOffResponsePublic)
-async def route_get_request(request_id: int, user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+async def route_get_request(
+        request_id: int,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Retrieve details for a single time-off request.
 
@@ -144,7 +159,11 @@ async def route_get_request(request_id: int, user: User = Depends(get_current_ac
 
 
 @router.patch("/requests/{request_id}/approve", response_model=TimeOffResponsePublic)
-async def route_approve_request(request_id: int, user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+async def route_approve_request(
+        request_id: int,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Mark a time-off request as Approved.
 
@@ -180,7 +199,11 @@ async def route_approve_request(request_id: int, user: User = Depends(get_curren
 
 
 @router.patch("/requests/{request_id}/deny", response_model=TimeOffResponsePublic)
-async def route_deny_request(request_id: int, user: User = Depends(get_current_active_user), session: Session = Depends(get_session)):
+async def route_deny_request(
+        request_id: int,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Mark a time-off request as 'Denied'.
 

@@ -62,6 +62,7 @@ async def route_read_employees(
 @router.get("/employees/{employee_id}", response_model=EmployeeReadWithTimeOff)
 async def route_get_employee(
         employee_id: int,
+        user: User = Depends(get_current_active_user),
         session: Session = Depends(get_session)
 ) -> Employee:
     """
@@ -96,6 +97,7 @@ async def route_get_employee(
 @router.post("/employees/add", response_model=EmployeeReadWithTimeOff)
 async def route_add_employee(
         data: EmployeeAddRequest,
+        user: User = Depends(get_current_active_user),
         session: Session = Depends(get_session)
 ) -> Employee:
     """
@@ -153,7 +155,10 @@ async def route_add_employee(
 
 
 @router.post("/employees/delete")
-async def route_delete_employees(data: List[EmployeeDeleteRequest], session: Session = Depends(get_session)):
+async def route_delete_employees(
+        data: List[EmployeeDeleteRequest],
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)):
     """
     Delete one or more employees.
 

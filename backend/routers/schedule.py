@@ -104,7 +104,11 @@ async def sse_generator(generator, params, regen_uuid: str = None):
 
 
 @router.post("/schedule/drafts/generate")
-async def generate_schedule(request_data: ScheduleRequest, request: Request):
+async def generate_schedule(
+        request_data: ScheduleRequest,
+        request: Request,
+        user: User = Depends(get_current_active_user)
+):
     """
     Initiate the schedule generation process.
 
@@ -153,7 +157,10 @@ async def generate_schedule(request_data: ScheduleRequest, request: Request):
     )
 
 @router.get("/schedule/drafts", response_model=List[ScheduleDraftSummaryRequest])
-async def get_schedule_drafts(session: Session = Depends(get_session)):
+async def get_schedule_drafts(
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Retrieve a summary list of all saved schedule drafts.
     Ordered by creation date (newest first).
@@ -170,9 +177,11 @@ async def get_schedule_drafts(session: Session = Depends(get_session)):
     return drafts
 
 @router.get("/schedule/drafts/{uuid_str}", response_model=ScheduleDraft)
-async def get_schedule_draft(uuid_str: str,
-                             user: User = Depends(get_current_active_user),
-                             session: Session = Depends(get_session)):
+async def get_schedule_draft(
+        uuid_str: str,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Retrieve a specific draft by its UUID.
     Includes the full 'assignments' JSON blob.
@@ -197,9 +206,11 @@ async def get_schedule_draft(uuid_str: str,
     return draft
 
 @router.post("/schedule/drafts/{uuid_str}/publish")
-async def route_publish_draft(uuid_str: str,
-                              user: User = Depends(get_current_active_user),
-                              session: Session = Depends(get_session)):
+async def route_publish_draft(
+        uuid_str: str,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Promotes a draft to the official schedule.
     WARNING: This overwrites any existing dates on the schedule.
@@ -270,10 +281,12 @@ async def route_publish_draft(uuid_str: str,
 
 
 @router.post("/schedule/drafts/{uuid_str}/update")
-async def route_update_draft(uuid_str: str,
-                              data: List[dict],
-                              user: User = Depends(get_current_active_user),
-                              session: Session = Depends(get_session)):
+async def route_update_draft(
+        uuid_str: str,
+        data: List[dict],
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Updates a draft based on changes made in the frontend builder.
 
@@ -302,9 +315,12 @@ async def route_update_draft(uuid_str: str,
 
 
 @router.post("/schedule/drafts/{uuid_str}/regen")
-async def regenerate_schedule(uuid_str: str,
-                            request_data: ScheduleRequest,
-                            request: Request):
+async def regenerate_schedule(
+        uuid_str: str,
+        request_data: ScheduleRequest,
+        request: Request,
+        user: User = Depends(get_current_active_user)
+):
     """
     This router takes an existing schedule and regenerates only for the user selected dates
     in the frontend.
@@ -359,7 +375,8 @@ async def regenerate_schedule(uuid_str: str,
 async def route_delete_draft(
         uuid_str: str,
         user: User = Depends(get_current_active_user),
-        session: Session = Depends(get_session)):
+        session: Session = Depends(get_session)
+):
     """
     Delete a draft schedule
     """
@@ -373,7 +390,8 @@ async def retrieve_schedule(
         year: int,
         month: int,
         user: User = Depends(get_current_active_user),
-        session: Session = Depends(get_session)):
+        session: Session = Depends(get_session)
+):
     """
     Retrieve the official schedule (Shifts) for a specific Month/Year.
 

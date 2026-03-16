@@ -8,14 +8,19 @@ from sqlalchemy import delete
 from sqlmodel import Session, select
 
 from database.database import get_session
+from database.models import User
 from database.models.position import ShiftTemplate
 from schemas.template_schemas import ShiftTemplateRead, ShiftTemplateCreate
+from utils.auth.auth_users_utils import get_current_active_user
 
 router = APIRouter()
 
 
 @router.get("/templates", response_model=list[ShiftTemplateRead])
-def get_shift_templates(session: Session = Depends(get_session)):
+def get_shift_templates(
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Fetch all reusable time blocks.
     """
@@ -24,7 +29,11 @@ def get_shift_templates(session: Session = Depends(get_session)):
 
 
 @router.post("/templates/add", response_model=ShiftTemplateRead)
-def create_shift_template(template_in: ShiftTemplateCreate, session: Session = Depends(get_session)):
+def create_shift_template(
+        template_in: ShiftTemplateCreate,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Create a new reusable time block.
     """
@@ -36,7 +45,11 @@ def create_shift_template(template_in: ShiftTemplateCreate, session: Session = D
 
 
 @router.delete("/templates/{template_id}/delete")
-def delete_shift_template(template_id: int, session: Session = Depends(get_session)):
+def delete_shift_template(
+        template_id: int,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Delete a reusable time block.
     """
