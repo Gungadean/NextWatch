@@ -10,13 +10,12 @@ This module defines the API router for personnel management.
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 from starlette import status
 
 from database.database import get_session
-from database.models import Employee, User
+from database.models import Employee, Position, User
 from schemas.employee_schemas import EmployeeAddRequest, EmployeeDeleteRequest, EmployeeReadWithTimeOff
 from schemas.generic_schemas import MessageResponse
 from utils.auth.auth_users_utils import get_current_active_user
@@ -124,11 +123,21 @@ async def route_add_employee(
                             detail="Employee already exists",
                             headers={"WWW-Authenticate": "Bearer"})
 
+    position_statement = select(Position).where(Position.id.in_(data.positions))
+    positions_to_link = session.exec(position_statement).all()
+
+    if len(positions_to_link) != len(data.positions):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more specified positions could not be found."
+        )
+
     employee = Employee(
         first_name=data.first_name,
         last_name=data.last_name,
         middle_name=data.middle_name,
-        email=data.email
+        email=data.email,
+        positions=positions_to_link
     )
 
     session.add(employee)
@@ -154,9 +163,16 @@ async def route_delete_employees(data: List[EmployeeDeleteRequest], session: Ses
     Returns:
         MessageResponse: That deletion was successful.
     """
-    for employee_id in data:
-        statement = delete(Employee).where(Employee.id == employee_id)
-        session.exec(statement)
-        session.commit()
+    ids_to_delete = [req.id for req in data]
+    if not ids_to_delete:
+        return MessageResponse(message="No employees to delete.")
 
+    # Fetch all employees to be deleted in a single query
+    employees_to_delete = session.exec(select(Employee).where(Employee.id.in_(ids_to_delete))).all()
+
+    for employee in employees_to_delete:
+        session.delete(employee)
+
+    # Commit the single transaction
+    session.commit()
     return MessageResponse(message="Employees deleted successfully")
