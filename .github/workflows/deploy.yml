@@ -16,10 +16,11 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          
           script: |
-            PROJECT_DIR="~/nextwatch"
+            PROJECT_DIR="${{ secrets.SSH_WORKING_DIRECTORY }}/nextwatch"
             TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-            BACKUP_DIR="~/nextwatch_backups/$TIMESTAMP"
+            BACKUP_DIR="${{ secrets.SSH_WORKING_DIRECTORY }}/nextwatch_backups/$TIMESTAMP"
 
             echo "Starting deployment process..."
 
