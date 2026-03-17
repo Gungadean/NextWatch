@@ -9,10 +9,11 @@ This module defines the API router for Schedule Generation and Management.
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 from typing import List
 
 from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
@@ -20,6 +21,7 @@ from sqlmodel import Session, select, extract
 
 from database.database import get_session, engine
 from database.models import ScheduleDraft, User, Shift
+from ewatchbill.logic.exceptions.IllegalScheduleException import IllegalScheduleException
 from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest
 from utils.auth.auth_users_utils import get_current_active_user
 from utils.schedule.schedule_builder import build_watchbill_params
@@ -32,7 +34,7 @@ router = APIRouter()
 schedule_cache: dict[str, WatchbillResponse] = {}
 
 
-async def sse_generator(generator, params):
+async def sse_generator(generator, params, regen_uuid: str = None):
     """
     Wraps the schedule generator to format output as Server-Sent Events (SSE).
 
@@ -44,6 +46,7 @@ async def sse_generator(generator, params):
     Args:
         generator: An asynchronous generator yielding schedule updates.
         params: The parameters used for schedule generation (start/end dates).
+        regen_uuid: The uuid of the existing draft to regenerate.
 
     Yields:
         str: Server-Sent Events formatted string (e.g., "data: {...}\n\n").
@@ -64,20 +67,28 @@ async def sse_generator(generator, params):
                     if not history:
                         print("WARNING: Score history missing from generator output.")
 
-                    new_draft = ScheduleDraft(
-                        score=final_score,
-                        start_date=params.start,
-                        end_date=params.end,
-                        assignments=draft_data["assignments"]
-                    )
+                    if regen_uuid:
+                        stmt = select(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(regen_uuid))
+                        draft = session.exec(stmt).one_or_none()
 
-                    session.add(new_draft)
+                        if not draft:
+                            print("WARNING: Draft not found for regeneration.")
+                            break
+                    else:
+                        draft = ScheduleDraft(
+                            score=final_score,
+                            start_date=params.start,
+                            end_date=params.end,
+                            assignments=draft_data["assignments"]
+                        )
+
+                    session.add(draft)
                     session.commit()
-                    session.refresh(new_draft)
+                    session.refresh(draft)
 
                     # Inject the new Draft ID back into the payload so the frontend knows it was saved
-                    draft_data["draft_id"] = str(new_draft.public_id)
-                    draft_data["created_at"] = new_draft.created_at.isoformat()
+                    draft_data["draft_id"] = str(draft.public_id)
+                    draft_data["created_at"] = draft.created_at.isoformat()
                     draft_data["final_score"] = final_score
 
                     # Re-serialize the modified payload
@@ -93,7 +104,11 @@ async def sse_generator(generator, params):
 
 
 @router.post("/schedule/drafts/generate")
-async def generate_schedule(request_data: ScheduleRequest, request: Request):
+async def generate_schedule(
+        request_data: ScheduleRequest,
+        request: Request,
+        user: User = Depends(get_current_active_user)
+):
     """
     Initiate the schedule generation process.
 
@@ -142,7 +157,10 @@ async def generate_schedule(request_data: ScheduleRequest, request: Request):
     )
 
 @router.get("/schedule/drafts", response_model=List[ScheduleDraftSummaryRequest])
-async def get_schedule_drafts(session: Session = Depends(get_session)):
+async def get_schedule_drafts(
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Retrieve a summary list of all saved schedule drafts.
     Ordered by creation date (newest first).
@@ -159,9 +177,11 @@ async def get_schedule_drafts(session: Session = Depends(get_session)):
     return drafts
 
 @router.get("/schedule/drafts/{uuid_str}", response_model=ScheduleDraft)
-async def get_schedule_draft(uuid_str: str,
-                             user: User = Depends(get_current_active_user),
-                             session: Session = Depends(get_session)):
+async def get_schedule_draft(
+        uuid_str: str,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Retrieve a specific draft by its UUID.
     Includes the full 'assignments' JSON blob.
@@ -186,9 +206,11 @@ async def get_schedule_draft(uuid_str: str,
     return draft
 
 @router.post("/schedule/drafts/{uuid_str}/publish")
-async def route_publish_draft(uuid_str: str,
-                              user: User = Depends(get_current_active_user),
-                              session: Session = Depends(get_session)):
+async def route_publish_draft(
+        uuid_str: str,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
     """
     Promotes a draft to the official schedule.
     WARNING: This overwrites any existing dates on the schedule.
@@ -197,9 +219,6 @@ async def route_publish_draft(uuid_str: str,
         uuid_str (str): The UUID of the draft to publish.
         user (User): The currently authenticated user.
         session (Session): Database session dependency.
-
-    Returns:
-        dict: A message indicating success and the count of created shifts.
 
     Raises:
         HTTPException (404): If the draft is not found.
@@ -231,10 +250,17 @@ async def route_publish_draft(uuid_str: str,
         date = datetime.fromisoformat(assignment['date'])
 
         # Attempt to extract start/end time if exists. Otherwise, default to 8-16
-        start_time = datetime.fromisoformat(assignment['start_time'])\
-            if "start_time" in assignment else date.replace(hour=8)
-        end_time = datetime.fromisoformat(assignment['start_time'])\
-            if "start_time" in assignment else date.replace(hour=16)
+        if "start_time" in assignment and assignment['start_time']:
+            parsed_start = time.fromisoformat(assignment['start_time'])
+            start_time = datetime.combine(date.date(), parsed_start)
+        else:
+            start_time = date.replace(hour=8)
+
+        if "end_time" in assignment and assignment['end_time']:
+            parsed_end = time.fromisoformat(assignment['end_time'])
+            end_time = datetime.combine(date.date(), parsed_end)
+        else:
+            end_time = date.replace(hour=16)
 
         new_shifts.append(Shift(
             employee_id=assignment['watchstander']['id'],
@@ -251,13 +277,106 @@ async def route_publish_draft(uuid_str: str,
     session.exec(statement)
 
     session.commit()
+    return None
+
+
+@router.post("/schedule/drafts/{uuid_str}/update")
+async def route_update_draft(
+        uuid_str: str,
+        data: List[dict],
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
+    """
+    Updates a draft based on changes made in the frontend builder.
+
+    Args:
+        uuid_str (str): The UUID of the draft to publish.
+        data (ScheduleDraft): The updated draft data.
+        user (User): The currently authenticated user.
+        session (Session): Database session dependency.
+
+    Raises:
+        HTTPException (404): If the draft is not found.
+    """
+    statement = select(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(uuid_str))
+
+    draft = session.exec(statement).one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
+    draft.assignments = jsonable_encoder(data)
+
+    session.add(draft)
+    session.commit()
+    session.refresh(draft)
+
+    return draft
+
+
+@router.post("/schedule/drafts/{uuid_str}/regen")
+async def regenerate_schedule(
+        uuid_str: str,
+        request_data: ScheduleRequest,
+        request: Request,
+        user: User = Depends(get_current_active_user)
+):
+    """
+    This router takes an existing schedule and regenerates only for the user selected dates
+    in the frontend.
+
+    This endpoint does not return a JSON body. Instead, it returns a StreamingResponse
+    (Content-Type: text/event-stream) that pushes updates to the client as the
+    algorithm progresses.
+
+    Args:
+        uuid_str (str): The UUID of the draft to regenerated.
+        request_data (ScheduleRequest): The schedule generation parameters.
+        request (Request): The incoming request object.
+
+    Returns:
+        StreamingResponse: A stream of SSE events.
+
+    Raises:
+        HTTPException (400): If no qualified members are found.
+        HTTPException (500): If an error occurs during parameter building.
+    """
+    try:
+        # Convert db data to ewatchbill algorithm parameters
+        params = build_watchbill_params(request_data)
+
+        if not params.watchstanders:
+            raise HTTPException(status_code=400, detail="No qualified members found for these qualifications.")
+
+    except Exception as e:
+        # Re-raise HTTP exceptions, wrap others
+        if isinstance(e, HTTPException):
+            raise e
+        if isinstance(e, IllegalScheduleException):
+            raise HTTPException(status_code=500, detail=f"Error building parameters: {str(e)}")
+        raise e
+
+    # Initialize the generator logic
+    logic_stream = schedule_message_generator(
+        public_id=uuid_str,
+        cache=schedule_cache,
+        request=request,
+        watchbill_params=params
+    )
+
+    # Stream the output via SSE
+    return StreamingResponse(
+        sse_generator(logic_stream, params, regen_uuid=uuid_str),
+        media_type="text/event-stream"
+    )
 
 
 @router.delete("/schedule/drafts/{uuid_str}/delete")
 async def route_delete_draft(
         uuid_str: str,
         user: User = Depends(get_current_active_user),
-        session: Session = Depends(get_session)):
+        session: Session = Depends(get_session)
+):
     """
     Delete a draft schedule
     """
@@ -271,7 +390,8 @@ async def retrieve_schedule(
         year: int,
         month: int,
         user: User = Depends(get_current_active_user),
-        session: Session = Depends(get_session)):
+        session: Session = Depends(get_session)
+):
     """
     Retrieve the official schedule (Shifts) for a specific Month/Year.
 

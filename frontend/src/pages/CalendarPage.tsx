@@ -12,10 +12,12 @@
 
 import {useEffect, useState} from "react";
 import {Box, Button, Heading, Stack} from "@chakra-ui/react";
-import {getMonthlySchedule} from "@/features/schedule/scheduleApi.ts";
-import {type CalendarEvent, CalendarGrid} from "@/components/CalendarGrid.tsx";
+import {getMonthlySchedule, type Shift} from "@/features/schedule/scheduleApi.ts";
+import {CalendarGrid} from "@/components/CalendarGrid.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
+import {type EmployeeWithTimeOff, getEmployeesWithTimeOff} from "@/features/personnel/personnelApi.ts";
+import {useScheduleViewData} from "@/features/schedule/hooks/useScheduleViewData.ts";
 
 /**
  * Main calendar layout for displaying schedule calendar.
@@ -24,42 +26,39 @@ import {getErrorMessage} from "@/utils/errorUtils.ts";
 const CalendarPage = () => {
   const [currentViewDate, setCurrentViewDate] = useState(new Date());
 
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithTimeOff[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
 
   const selectedMonth = currentViewDate.getMonth() + 1;
   const selectedYear = currentViewDate.getFullYear();
+
+  const { events, timelineRows, timelineItems } = useScheduleViewData(employees, shifts);
 
   /**
    * Data Fetching Effect.
    * Runs whenever the user navigates to a new month.
    */
   useEffect(() => {
-    const fetchSchedule = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getMonthlySchedule(selectedYear, selectedMonth);
+        // Fetch both the schedule and the employees
+        const [scheduleData, employeeData] = await Promise.all([
+          getMonthlySchedule(selectedYear, selectedMonth),
+          getEmployeesWithTimeOff()
+        ]);
 
-        // Convert shifts into calendar events for CalendarGrid.
-        const normalizedEvents: CalendarEvent[] = data.map(shift => ({
-          id: shift.id,
-          date: shift.shift_date,
-          label: shift.position?.name.substring(0, 3) || "?",
-          text: shift.employee ?
-            `${shift.employee.last_name}, ${shift.employee.first_name} ${shift.employee.middle_name.charAt(0)}.`
-            : "Unknown",
-          color: shift.position?.color || "#3256a8"
-        }));
-
-        setEvents(normalizedEvents);
+        setEmployees(employeeData);
+        setShifts(scheduleData);
       } catch (error: unknown) {
         toaster.create({
           title: "Schedule Load Failed",
-          description: getErrorMessage(error, "Could not retrieve shifts."),
+          description: getErrorMessage(error, "Could not retrieve schedule or personnel data."),
           type: "error"
         });
       }
     };
 
-    fetchSchedule();
+    fetchData();
   }, [selectedYear, selectedMonth]);
 
   /**
@@ -72,10 +71,10 @@ const CalendarPage = () => {
   }
 
   return (
-    <Box p="4" h="100%" display="flex" flexDirection="column">
+    <Box p="0" h="100%" display="flex" flexDirection="column">
 
       {/* Header Controls */}
-      <Stack direction="row" justify="space-between" paddingBottom="5" align="center">
+      <Stack direction="row" justify="space-between" paddingBottom="2" align="center">
         <Button onClick={() => updateSelectedMonth(-1)}>
           Previous Month
         </Button>
@@ -95,6 +94,8 @@ const CalendarPage = () => {
           year={selectedYear}
           month={selectedMonth}
           events={events}
+          timelineRows={timelineRows}
+          timelineItems={timelineItems}
         />
       </Box>
     </Box>

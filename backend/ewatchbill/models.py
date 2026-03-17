@@ -2,11 +2,15 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+#
+#  Modified by Ryan Huston 2026
 
 from datetime import date
 from typing import List
 
 from pydantic import BaseModel, Field
+
+from schemas.schedule_schemas import DraftWatchstander
 
 
 class Watchstation(BaseModel):
@@ -27,21 +31,26 @@ class Conflict(BaseModel):
     date: date
 
 
+class Assignment(BaseModel):
+    watchstander: DraftWatchstander
+    watchstation: Watchstation
+    date: date
+    start_time: str | None = None
+    end_time: str | None = None
+
+
 class WatchbillParams(BaseModel):
     start: date
     end: date
-    watchstanders: List[Watchstander] = Field(min_length=1)
+    watchstanders: List[DraftWatchstander] = Field(min_length=1)
     watchstations: List[Watchstation] = Field(min_length=1)
     conflicts: List[Conflict]
     holidays: List[date]
     min_days_off_between_duty: int = Field(gt=-1)
+    max_days_off_between_duty: int = Field(gt=0)
     max_iteration_steps: int = Field(gt=0, le=100000)
-
-
-class Assignment(BaseModel):
-    watchstander: Watchstander
-    watchstation: Watchstation
-    date: date
+    frozen_assignments: List[Assignment] = Field(default_factory=list)
+    skeleton: List[Assignment] = Field(default_factory=list)
 
 
 class WatchbillResponse(BaseModel):

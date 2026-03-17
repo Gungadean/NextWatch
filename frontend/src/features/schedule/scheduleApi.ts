@@ -13,6 +13,16 @@
 import axiosInstance from "@/axiosConfig.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
 
+export interface ShiftTemplateCreate {
+  name: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface ShiftTemplateRead extends ShiftTemplateCreate {
+  id: number;
+}
+
 /**
  * Represents a shift assigned in the official schedule.
  */
@@ -24,6 +34,7 @@ export interface Shift {
   start_time: string;
   end_time: string;
   employee?: {
+    id: number;
     first_name: string;
     last_name: string;
     middle_name: string;
@@ -40,6 +51,8 @@ export interface Shift {
 export interface Watchstander {
   id: number;
   name: string;
+  watchstations?: number[];
+  offset?: number;
 }
 
 /**
@@ -56,6 +69,8 @@ export interface Watchstation {
  */
 export interface Assignment {
   date: string;
+  start_time?: string;
+  end_time?: string;
   watchstander: Watchstander;
   watchstation: Watchstation;
 }
@@ -102,10 +117,14 @@ export interface ScheduleRequest {
   start_date: string;
   end_date: string;
   position_ids: number[];
+  ignore_pending_timeoff: boolean;
   min_days_off?: number;
+  max_days_off?: number;
   max_steps?: number;
   manual_conflicts?: Array<Record<string, unknown>>;
   holidays?: string[];
+  frozen_assignments?: Assignment[];
+  skeleton?: Assignment[];
 }
 
 /**
@@ -187,6 +206,64 @@ export const generateScheduleStream = async (
 };
 
 /**
+ * Manages the streaming generation of a schedule via Server-Sent Events (SSE).
+ *
+ *
+ * Uses an Axios `onDownloadProgress` handler to parse a stream of data chunks.
+ * This allows the UI to show real-time progress to the user.
+ */
+export const generateRegenStream = async (
+  uuid: string,
+  requestData: ScheduleRequest,
+  onProgress: (data: GenerationProgress) => void,
+  onComplete: (data: ScheduleResponse) => void,
+  onError: (err: StreamError) => void
+) => {
+  let seenBytes = 0;
+  let buffer = "";
+
+  try {
+    await axiosInstance.post(`/schedule/drafts/${uuid}/regen`, requestData, {
+      onDownloadProgress: (progressEvent) => {
+        const xhr = progressEvent.event?.target;
+        const response = xhr?.response || "";
+
+        // Extract only the new part of the response
+        const newChunk = response.substring(seenBytes);
+        seenBytes = response.length;
+
+        buffer += newChunk;
+
+        // SSE messages are separated by double newlines
+        const parts = buffer.split("\n\n");
+
+        // Loop through all parts except the last one (which might be incomplete)
+        for (let i = 0; i < parts.length - 1; i++) {
+          const line = parts[i];
+          if (line.startsWith("data: ")) {
+            const jsonStr = line.replace("data: ", "");
+            try {
+              const payload = JSON.parse(jsonStr);
+              if (payload.type === "progress") onProgress(payload);
+              if (payload.type === "result") onComplete(payload.payload);
+              if (payload.type === "error") onError({type: "error", message:payload.payload.error });
+            } catch (e) {
+              console.error("Stream parse error:", e);
+            }
+          }
+        }
+
+        // Keep the last part in the buffer for the next chunk
+        buffer = parts[parts.length - 1];
+      }
+    });
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error, "Schedule Generation Failed");
+    onError({ type: "error", message: errorMessage });
+  }
+};
+
+/**
  * Fetches a list of all previously generated schedule drafts.
  */
 export const getScheduleDraftSummaries = async (): Promise<DraftSummary[]> => {
@@ -216,13 +293,26 @@ export const getScheduleDraftSchedule = async (uuid: string): Promise<ScheduleDr
  * Promotes a draft to the official schedule.
  * WARNING: This will overwrite any existing shifts for the given date range and positions.
  */
-export const publishDraft = async (uuid: string): Promise<ScheduleResponse> => {
+export const publishDraft = async (uuid: string) => {
   try {
     const response = await axiosInstance.post(`/schedule/drafts/${uuid}/publish`);
 
     return response.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Draft Publishing Failed"));
+  }
+}
+
+/**
+ * Updates draft based on changes from the frontend.
+ */
+export const updateDraft = async (uuid: string, data: Assignment[]): Promise<ScheduleDraft> => {
+  try {
+    const response = await axiosInstance.post(`/schedule/drafts/${uuid}/update`, data);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Update Draft Request Failed"));
   }
 }
 
@@ -245,6 +335,45 @@ export const deleteDraft = async (uuid: string) => {
 export const getMonthlySchedule = async (year: number, month: number): Promise<Shift[]> => {
   try {
     const response = await axiosInstance.get<Shift[]>(`/schedule/${year}/${month}`);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Schedule Request Failed"));
+  }
+}
+
+/**
+ * Requests list of templates that can be assigned to shifts
+ */
+export const getShiftTemplates = async (): Promise<ShiftTemplateRead[]> => {
+  try {
+    const response = await axiosInstance.get<ShiftTemplateRead[]>('/templates');
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Schedule Request Failed"));
+  }
+}
+
+/**
+ * Send a request to create a new shift template
+ */
+export const createShiftTemplate = async (data: ShiftTemplateCreate): Promise<ShiftTemplateRead> => {
+  try {
+    const response = await axiosInstance.post<ShiftTemplateRead>('/templates/add', data);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Schedule Request Failed"));
+  }
+}
+
+/**
+ * Send a request to delete a shift template
+ */
+export const deleteShiftTemplate = async (id: number) => {
+  try {
+    const response = await axiosInstance.delete(`/templates/${id}/delete`);
 
     return response.data;
   } catch (error: unknown) {

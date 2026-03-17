@@ -12,7 +12,11 @@
 
 import {Button, CloseButton, Dialog, List, Portal} from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster.tsx";
-import {deletePositions, type PositionDeleteRequest, type PositionQueryResponse} from "../positionApi.ts";
+import {
+  deletePositions,
+  type PositionDeleteRequest,
+  type PositionWithRequirementsRead
+} from "../positionApi.ts";
 import type {Dispatch, SetStateAction} from "react";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
 
@@ -23,8 +27,8 @@ interface ConfirmDeletionModalProps {
   isOpen: boolean;
   onOpenChange: (details: { open: boolean }) => void;
   selection: number[];
-  positions: PositionQueryResponse[];
-  onPositionsChange: Dispatch<SetStateAction<PositionQueryResponse[]>>
+  positions: PositionWithRequirementsRead[];
+  onPositionsChange: Dispatch<SetStateAction<PositionWithRequirementsRead[]>>
 }
 
 /**

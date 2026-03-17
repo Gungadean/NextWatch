@@ -30,7 +30,7 @@ interface ConfirmPublishModalProps {
   draft_id: string;
   drafts: DraftSummary[];
   onDraftChange: Dispatch<SetStateAction<DraftSummary[]>>
-  onDraftViewChange: Dispatch<SetStateAction<ScheduleResponse | ScheduleDraft | null | undefined>>
+  onDraftViewChange: Dispatch<SetStateAction<ScheduleResponse | ScheduleDraft | null>>
 }
 
 /**

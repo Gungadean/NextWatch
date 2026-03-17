@@ -401,15 +401,14 @@ const RequestPage = () => {
                 </Table.Root>
             </Table.ScrollArea>
           ) : (
-            // --- TIMELINE VIEW ---
             <VStack align="stretch" h="100%">
                 {/* Month Controls */}
                 <Flex justify="center" align="center" mb={2}>
-                    <Button size="xs" variant="ghost" onClick={() => handleMonthChange(-1)}>Prev</Button>
+                    <Button size="xs" border="1px solid" variant="ghost" onClick={() => handleMonthChange(-1)}>Prev</Button>
                     <Text fontWeight="bold" mx={4} w="150px" textAlign="center">
                         {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                     </Text>
-                    <Button size="xs" variant="ghost" onClick={() => handleMonthChange(1)}>Next</Button>
+                    <Button size="xs" border="1px solid" variant="ghost" onClick={() => handleMonthChange(1)}>Next</Button>
                 </Flex>
 
                 <Box flex="1" overflowY="auto">

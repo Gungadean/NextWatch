@@ -12,6 +12,33 @@
 
 import axiosInstance from "../../axiosConfig.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
+import type {ShiftTemplateRead} from "@/features/schedule/scheduleApi.ts";
+
+/**
+ * Payload for creating a new position requirement
+ */
+export interface PositionRequirementCreate {
+  shift_template_id: number
+  count: number
+  applies_weekdays: boolean
+  applies_weekends: boolean
+}
+
+/**
+ * Payload of a positions requirement
+ */
+export interface PositionRequirementRead extends PositionRequirementCreate {
+  id: number;
+  position_id: number;
+  shift_template?: ShiftTemplateRead;
+}
+
+/**
+ * Payload for reading a Position with its headcount/template requirements
+ */
+export interface PositionWithRequirementsRead extends PositionQueryResponse {
+  requirements: PositionRequirementRead[]
+}
 
 /**
  * Payload required to create a new position.
@@ -44,7 +71,7 @@ export interface PositionQueryResponse {
 /**
  * Retrieves the full list of positions (watch stations) from the database.
  */
-export const getPositionList = async (): Promise<PositionQueryResponse[]> => {
+export const getPositionList = async (): Promise<PositionWithRequirementsRead[]> => {
   try {
     const response = await axiosInstance.get('/positions');
 
@@ -75,5 +102,29 @@ export const deletePositions = async (positions: PositionDeleteRequest[]) => {
     await axiosInstance.post<PositionDeleteRequest[]>('/positions/delete', positions);
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Position deletion(s) failed"));
+  }
+}
+
+/**
+ * Sends a request to create a new requirement for the specified position
+ */
+export const createPositionRequirement = async (activePositionId: number, newReq: PositionRequirementCreate): Promise<PositionRequirementRead> => {
+  try {
+    const response = await axiosInstance.post<PositionRequirementRead>(`/positions/${activePositionId}/requirements`, newReq);
+
+    return response.data;
+  } catch(error: unknown) {
+    throw new Error(getErrorMessage(error, "Position requirement creation failed"));
+  }
+}
+
+/**
+ * Sends a request to delete a positions requirement
+ */
+export const deletePositionRequirement = async (activePositionId: number, reqId: number): Promise<void> => {
+  try {
+    await axiosInstance.delete(`/positions/${activePositionId}/requirements/${reqId}`);
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Position requirement deletion failed"));
   }
 }

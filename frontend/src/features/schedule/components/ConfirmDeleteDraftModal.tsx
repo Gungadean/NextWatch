@@ -30,7 +30,7 @@ interface ConfirmDeletionModalProps {
   draft_id: string;
   drafts: DraftSummary[];
   onDraftChange: Dispatch<SetStateAction<DraftSummary[]>>
-  onDraftViewChange: Dispatch<SetStateAction<ScheduleResponse | ScheduleDraft | null | undefined>>
+  onDraftViewChange: Dispatch<SetStateAction<ScheduleResponse | ScheduleDraft | null>>
   onSelectedChange: Dispatch<SetStateAction<string | null>>
   onSetViewChange: Dispatch<SetStateAction<string>>
 }

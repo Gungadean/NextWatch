@@ -22,7 +22,7 @@ import numpy as np
 from datetime import datetime, date, timedelta
 from sqlmodel import Session, select
 
-from main import app_logger
+from utils.logger import logger
 from database.database import engine
 from database.models import Position, Employee, EmployeePosition, TimeOffRequest, Shift, User
 from schemas.schedule_schemas import ScheduleRequest
@@ -61,7 +61,7 @@ def seed_employees_and_positions(session: Session):
     Returns:
         Tuple[List[Employee], List[Position]]: The lists of created objects.
     """
-    print("Seeding employees and positions...")
+    logger.info("Seeding employees and positions...")
 
     # Create positions
     position_data = [
@@ -137,7 +137,7 @@ def seed_employees_and_positions(session: Session):
                 session.add(EmployeePosition(employee_id=employee.id, position_id=p.id))
 
     session.commit()
-    print(f"   - employees: {len(db_employees)}, positions: {len(db_positions)}")
+    logger.info(f"   - employees: {len(db_employees)}, positions: {len(db_positions)}")
     return db_employees, db_positions
 
 
@@ -152,7 +152,7 @@ def seed_leave_requests(session: Session, employees):
         session (Session): Database session.
         employees (List[Employee]): The list of employees to generate requests for.
     """
-    print("Seeding Year-Long Leave Requests...")
+    logger.info("Seeding Year-Long Leave Requests...")
 
     # Configuration
     requests_per_person_range = (3, 8)
@@ -209,7 +209,7 @@ def seed_leave_requests(session: Session, employees):
                 count += 1
 
     session.commit()
-    print(f"   - Seeded {count} leave requests across {CURRENT_YEAR}.")
+    logger.info(f"   - Seeded {count} leave requests across {CURRENT_YEAR}.")
 
 
 def generate_month_schedule(session: Session):
@@ -219,7 +219,7 @@ def generate_month_schedule(session: Session):
     This acts as an integration test for the scheduling engine and populates
     the 'Shifts' table so the Calendar UI is not empty on first load.
     """
-    print("Generating Schedule for Current Month...")
+    logger.info("Generating Schedule for Current Month...")
 
     start_date, end_date = get_month_date_range()
 
@@ -227,7 +227,7 @@ def generate_month_schedule(session: Session):
     position_ids = [q.id for q in all_positions]
 
     if not position_ids:
-        print("   ! No positions found. Skipping schedule gen.")
+        logger.info("   ! No positions found. Skipping schedule gen.")
         return
 
     req = ScheduleRequest(
@@ -248,7 +248,7 @@ def generate_month_schedule(session: Session):
         min_days_off
     ) = from_watchbill_request(params)
 
-    print(f"   - Scheduling {len(params.watchstanders)} people for {len(params.watchstations)} stations over {(end_date - start_date).days + 1} days.")
+    logger.info(f"   - Scheduling {len(params.watchstanders)} people for {len(params.watchstations)} stations over {(end_date - start_date).days + 1} days.")
 
     try:
         generator = make_schedule(
@@ -272,17 +272,17 @@ def generate_month_schedule(session: Session):
                 best_score = score
 
     except ValueError as e:
-        print(f"   Constraint Error: {e}")
+        logger.error(f"   Constraint Error: {e}")
         return
     except Exception as e:
-        print(f"   Unexpected Error: {e}")
+        logger.error(f"   Unexpected Error: {e}")
         return
 
     if best_schedule is None:
-        print("   Failed to generate a schedule.")
+        logger.error("   Failed to generate a schedule.")
         return
 
-    app_logger.info(f"  Schedule Generated! Final Score: {best_score}")
+    logger.info(f"  Schedule Generated! Final Score: {best_score}")
 
     shifts_created = 0
 
@@ -315,7 +315,7 @@ def generate_month_schedule(session: Session):
             shifts_created += 1
 
     session.commit()
-    print(f"   Saved {shifts_created} shifts to database.")
+    logger.info(f"   Saved {shifts_created} shifts to database.")
 
 
 def create_default_admin(is_test_seed: bool = False):
@@ -332,11 +332,11 @@ def create_default_admin(is_test_seed: bool = False):
         # Determine the password based on the environment
         if is_test_seed:
             raw_password = "password"
-            print("--- TEST ENVIRONMENT ---")
+            logger.info("--- TEST ENVIRONMENT ---")
         else:
             # Generate a secure 16-character random password for production
             raw_password = secrets.token_urlsafe(12)
-            print("Default Admin Password. Save this password:")
+            logger.info("Default Admin Password. Save this password:")
 
         # Create the Admin User
         admin_user = User(
@@ -350,10 +350,10 @@ def create_default_admin(is_test_seed: bool = False):
         session.add(admin_user)
         session.commit()
 
-        print(f"Admin Account Created:")
-        print(f"Username: admin")
-        print(f"Password: {raw_password}")
-        print("-------------------------------------")
+        logger.info(f"Admin Account Created:")
+        logger.info(f"Username: admin")
+        logger.info(f"Password: {raw_password}")
+        logger.info("-------------------------------------")
 
 
 def seed_database():

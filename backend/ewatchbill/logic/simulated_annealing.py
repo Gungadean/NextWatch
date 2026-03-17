@@ -2,9 +2,11 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+#
+#  Modified by Ryan Huston
 
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Tuple, List
 
 import numpy as np
 
@@ -22,12 +24,21 @@ class AnnealingOptimizer:
     max_steps: int
     best_schedule: np.ndarray = field(init=False)
     best_schedule_score: float = field(init=False)
+    frozen_coordinates: List[Tuple[int, int, int]] = field(default_factory=list)
     temperature: float = 1
+
+    frozen_mask: np.ndarray = field(init=False)
 
     def __post_init__(self):
         self.best_schedule = self.schedule.copy()
         self.best_schedule_score = self.objective_function(self.schedule)
         self.schedule_score = self.objective_function(self.schedule)
+
+        # Build mask of frozen days to optimize the annealing process
+        # to not attempt to assign to these coordinates, saving cycles.
+        self.frozen_mask = np.zeros_like(self.schedule)
+        for w, d, s in self.frozen_coordinates:
+            self.frozen_mask[w, d, s] = 1
 
     @property
     def cooling_rate(self) -> float:
@@ -71,7 +82,6 @@ class AnnealingOptimizer:
             self.perturb_schedule_swap_person,
             self.perturb_schedule_change_watchstation,
             self.perturb_schedule_swap_watchstander_day,
-            self.perturb_schedule_move_day,
         ]
         perturbation_function = np.random.choice(perturbation_functions, 1)[0]
         return perturbation_function(self.schedule.copy())
@@ -86,7 +96,12 @@ class AnnealingOptimizer:
         indices = np.argwhere(schedule[person, :, :] == 1)
         if len(indices) == 0:
             return schedule
+
         day, watchstation = indices[np.random.randint(0, len(indices))]
+
+        # Return the schedule if this specific assignment is frozen
+        if self.frozen_mask[person, day, watchstation] == 1:
+            return schedule
 
         def person_can_swap(candidate: int, day: int) -> bool:
             if np.sum(schedule[candidate, day, :]) > 0:
@@ -117,16 +132,22 @@ class AnnealingOptimizer:
         indices = np.argwhere(schedule[person, :, :] == 1)
         if len(indices) == 0:
             return schedule
+
         day, watchstation = indices[np.random.randint(0, len(indices))]
         # choose another watchstation
         other_watchstation = np.random.randint(0, self.num_watchstations)
         # get the person on the other watchstation
-        other_person = np.argwhere(schedule[:, day, other_watchstation] == 1)
-        assert len(other_person) == 1, (
-            "Not exactly one person on watchstation"
-            f"{other_watchstation} on day {day}"
-        )
-        other_person = other_person[0]
+        other_people = np.argwhere(schedule[:, day, other_watchstation] == 1)
+
+        if len(other_people) == 0:
+            return schedule
+
+        other_person = other_people[np.random.randint(0, len(other_people))][0]
+
+        # Return the schedule if either of these assignments are frozen
+        if (self.frozen_mask[person, day, watchstation] == 1 or
+                self.frozen_mask[other_person, day, other_watchstation] == 1):
+            return schedule
 
         schedule[person, day, watchstation] = 0
         schedule[person, day, other_watchstation] = 1
@@ -144,9 +165,21 @@ class AnnealingOptimizer:
         day_2 = np.random.randint(0, self.num_days)
         if day_1 == day_2:
             return schedule
+
         watchstation = np.random.randint(0, self.num_watchstations)
-        person_1 = np.argwhere(schedule[:, day_1, watchstation] == 1)[0]
-        person_2 = np.argwhere(schedule[:, day_2, watchstation] == 1)[0]
+
+        # Find potential watchstanders for the selected shift on each day
+        person_1_candidates = np.argwhere(schedule[:, day_1, watchstation] == 1)
+        person_2_candidates = np.argwhere(schedule[:, day_2, watchstation] == 1)
+
+        # If either variables are zero, there is no shift to swap.
+        # This means it's likely a non default shift added by the end user.
+        if len(person_1_candidates) == 0 or len(person_2_candidates) == 0:
+            return schedule
+
+        person_1 = person_1_candidates[0][0]
+        person_2 = person_2_candidates[0][0]
+
         if person_1 == person_2:
             # same person, no swap needed
             return schedule
@@ -156,6 +189,11 @@ class AnnealingOptimizer:
         if np.sum(schedule[person_2, day_1, :]) > 0:
             # person_2 is already assigned on day_1
             return schedule
+
+        if (self.frozen_mask[person_1, day_1, watchstation] == 1 or
+                self.frozen_mask[person_2, day_2, watchstation] == 1):
+            return schedule
+
         schedule[person_1, day_1, watchstation] = 0
         schedule[person_2, day_2, watchstation] = 0
         schedule[person_1, day_2, watchstation] = 1
@@ -166,10 +204,16 @@ class AnnealingOptimizer:
         """
         Move one whole day and shift the rest of the schedule
         """
+        # Prevent day shifting to respect frozen days
+        if len(self.frozen_coordinates) > 0:
+            return schedule
+
         day = np.random.randint(0, self.num_days)
         new_position = np.random.randint(0, self.num_days)
+
         if new_position == day:
             return schedule
+
         day_data = schedule[:, day, :]
         schedule = np.delete(schedule, day, axis=1)
         schedule = np.insert(schedule, new_position, day_data, axis=1)

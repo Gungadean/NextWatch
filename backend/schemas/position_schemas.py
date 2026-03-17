@@ -8,16 +8,36 @@ This module defines Pydantic models (Schemas) for Position-related API operation
 """
 
 from datetime import datetime
+from typing import Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from schemas.template_schemas import ShiftTemplateRead
+
+
+class PositionRequirementCreate(BaseModel):
+    """
+    Model for building a new position requirement
+    """
+    shift_template_id: int
+    count: int = 1
+    applies_weekdays: bool = True
+    applies_weekends: bool = True
+
+class PositionRequirementRead(PositionRequirementCreate):
+    """
+    Model for fetching Position Requirements link object
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    position_id: int
+    shift_template: Optional[ShiftTemplateRead] = None
 
 
 class PositionAddRequest(BaseModel):
     """
     Request model for creating a new position.
-
-    Attributes:
-        color (str): Hex code (e.g., #FF0000) for UI visualization of shifts.
     """
     name: str
     description: str
@@ -33,6 +53,13 @@ class PositionQueryResponse(PositionAddRequest):
     id: int
     created_by: str
     created_at: datetime
+
+
+class PositionWithRequirementsRead(PositionQueryResponse):
+    """
+    Model for requesting a position with its requirements
+    """
+    requirements: List[PositionRequirementRead] = []
 
 
 class PositionDeleteRequest(BaseModel):

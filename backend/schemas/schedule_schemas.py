@@ -13,6 +13,36 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
 
+class DraftWatchstander(BaseModel):
+    """
+    Lightweight Draft model for the watchstander sent from the React UI.
+    """
+    id: int
+    name: str
+    watchstations: Optional[List[int]]
+    offset: Optional[int]
+
+
+class DraftWatchstation(BaseModel):
+    """
+    Draft model to mirror the ewatchbill DraftWatchstation model but with
+    an optional color field and removing the offset field.
+    """
+    id: int
+    name: str
+    color: Optional[str] = None
+
+
+class DraftAssignment(BaseModel):
+    """
+    Draft model to mirror the ewatchbill Assignment model but allowing for optional fields.
+    """
+    date: date
+    watchstander: DraftWatchstander
+    watchstation: DraftWatchstation
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
 class ScheduleRequest(BaseModel):
     """
     Request model for initiating the schedule generation process.
@@ -27,11 +57,16 @@ class ScheduleRequest(BaseModel):
 
     # Constraints
     min_days_off: int = 1
+    max_days_off: int = 3
     max_steps: int = 50000
+
+    ignore_pending_timeoff: bool = False
 
     # Manual overrides or specific constraint injections
     manual_conflicts: List[Dict[str, Any]] = []
     holidays: List[date] = []
+    frozen_assignments: List[DraftAssignment] = []
+    skeleton: List[DraftAssignment] = []
 
 
 class ScheduleDraftSummaryRequest(BaseModel):
