@@ -1,0 +1,50 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute SSH commands to backup and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            PROJECT_DIR="~/nextwatch"
+            TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+            BACKUP_DIR="~/nextwatch_backups/$TIMESTAMP"
+
+            echo "Starting deployment process..."
+
+            # Ensure backup directories exist
+            mkdir -p $BACKUP_DIR/data
+            mkdir -p $BACKUP_DIR/frontend
+            mkdir -p $BACKUP_DIR/backend
+
+            # Backup the critical files
+            cp -a $PROJECT_DIR/data/database.db $BACKUP_DIR/data/ 2>/dev/null || true
+            cp -a $PROJECT_DIR/frontend/.env $BACKUP_DIR/frontend/ 2>/dev/null || true
+            cp -a $PROJECT_DIR/backend/.env $BACKUP_DIR/backend/ 2>/dev/null || true
+            echo "Backups saved to $BACKUP_DIR"
+
+            # Pull the latest code using the Deploy Key
+            cd $PROJECT_DIR
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "Rebuilding and restarting Docker containers..."
+            docker compose down
+            
+            # Rebuild the images with the fresh code and start them detached
+            docker compose up -d --build
+            
+            # Clean up dangling images
+            docker image prune -f
+
+            echo "Deployment completed successfully!"
