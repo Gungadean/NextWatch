@@ -210,12 +210,14 @@ const BuilderPage = () => {
     setMaxSteps(steps);
   }
 
-  if (isLoading) {
+  const isInitialLoad = isLoading && employees.length === 0;
+
+  if (isInitialLoad) {
     return (
       <Center h="100vh" bg={mainBg}>
         <VStack>
           <Spinner size="xl" color="blue.500"/>
-          <Text color="gray.500">Loading Requests...</Text>
+          <Text color="gray.500">Loading Builder...</Text>
         </VStack>
       </Center>
     );
