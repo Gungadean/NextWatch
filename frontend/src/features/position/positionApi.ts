@@ -84,13 +84,26 @@ export const getPositionList = async (): Promise<PositionWithRequirementsRead[]>
 /**
  * Submits a request to add a new position to the backend.
  */
-export const addPosition = async (positions: PositionAddRequest): Promise<PositionQueryResponse> => {
+export const addPosition = async (position: PositionAddRequest): Promise<PositionQueryResponse> => {
   try {
-    const response = await axiosInstance.post<PositionQueryResponse>('/positions/add', positions);
+    const response = await axiosInstance.post<PositionQueryResponse>('/positions/add', position);
 
     return response.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Position creation failed"));
+  }
+}
+
+/**
+ * Submits a request to update a position.
+ */
+export const updatePosition = async (id: number, data: PositionAddRequest): Promise<PositionQueryResponse> => {
+  try {
+    const response = await axiosInstance.patch<PositionQueryResponse>(`/positions/${id}/update`, data);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Position update failed"));
   }
 }
 

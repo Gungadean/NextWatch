@@ -41,7 +41,8 @@ async def route_read_employees(
         List[EmployeeReadWithTimeOff]: List of employees with populated relationship fields.
     """
     # Always load 'positions' as it is required by the response model schema
-    statement = select(Employee).options(selectinload(Employee.positions))
+    statement = (select(Employee).where(Employee.is_active == True)
+                 .options(selectinload(Employee.positions.and_(Position.is_active == True))))
 
     # Only join the time_off_requests table if explicitly asked.
     if include_time_off:
@@ -70,6 +71,7 @@ async def route_get_employee(
 
     Args:
         employee_id (int): ID of the employee to retrieve.
+        user (User): Authentication dependency.
         session (Session): Database session dependency.
 
     Returns:
@@ -79,8 +81,11 @@ async def route_get_employee(
         HTTPException (404): If the employee does not exist.
     """
     # Eagerly load both relationships
-    statement = select(Employee).where(Employee.id == employee_id).options(
-        selectinload(Employee.positions),
+    statement = select(Employee).where(
+        Employee.id == employee_id,
+        Employee.is_active == True,
+    ).options(
+        selectinload(Employee.positions.and_(Position.is_active == True)),
         selectinload(Employee.time_off_requests)
     )
     employee = session.exec(statement).one_or_none()
@@ -105,6 +110,7 @@ async def route_add_employee(
 
     Args:
         data (EmployeeAddRequest): Data for new employee to be added.
+        user (User): Authentication dependency.
         session (Session): Database session dependency.
 
     Returns:
@@ -154,6 +160,73 @@ async def route_add_employee(
     return full_employee
 
 
+@router.patch("/employees/{employee_id}/update", response_model=EmployeeReadWithTimeOff)
+async def route_update_employee(
+        employee_id: int,
+        data: EmployeeAddRequest,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
+    """
+    Update an existing employee's details and their assigned watchstations.
+
+    Args:
+        employee_id (int): The ID of the employee to update.
+        data (EmployeeUpdateRequest): The updated details.
+        user (User): Authentication dependency.
+        session (Session): Database session dependency.
+
+    Returns:
+        EmployeeReadWithTimeOff: The fully updated employee record.
+    """
+    statement = select(Employee).where(Employee.id == employee_id).options(
+        selectinload(Employee.positions)
+    )
+    employee = session.exec(statement).one_or_none()
+
+    if not employee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Employee not found"
+        )
+
+    # Update the basic text fields
+    employee.first_name = data.first_name
+    employee.last_name = data.last_name
+    employee.middle_name = data.middle_name
+    employee.email = data.email
+
+    # Update positions
+    if data.positions:
+        position_statement = select(Position).where(Position.id.in_(data.positions))
+        new_positions = session.exec(position_statement).all()
+
+        # Make sure all positions exist
+        if len(new_positions) != len(data.positions):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or more specified positions could not be found."
+            )
+
+        employee.positions = new_positions
+    else:
+        # If an empty array was sent, clear out all their positions
+        employee.positions = []
+
+    # Save and commit the changes
+    session.add(employee)
+    session.commit()
+
+    # Re-fetch the employee to get relations
+    refetch_statement = select(Employee).where(Employee.id == employee_id).options(
+        selectinload(Employee.positions.and_(Position.is_active == True)),
+        selectinload(Employee.time_off_requests)
+    )
+    full_employee = session.exec(refetch_statement).one()
+
+    return full_employee
+
+
 @router.post("/employees/delete")
 async def route_delete_employees(
         data: List[EmployeeDeleteRequest],
@@ -164,6 +237,8 @@ async def route_delete_employees(
 
     Args:
         data (List[EmployeeDeleteRequest]): List of objects containing IDs to delete.
+        user (User): Authentication dependency.
+        session (Session): Database session dependency.
 
     Returns:
         MessageResponse: That deletion was successful.
@@ -172,12 +247,11 @@ async def route_delete_employees(
     if not ids_to_delete:
         return MessageResponse(message="No employees to delete.")
 
-    # Fetch all employees to be deleted in a single query
     employees_to_delete = session.exec(select(Employee).where(Employee.id.in_(ids_to_delete))).all()
 
     for employee in employees_to_delete:
-        session.delete(employee)
+        employee.is_active = False
+        session.add(employee)
 
-    # Commit the single transaction
     session.commit()
     return MessageResponse(message="Employees deleted successfully")
