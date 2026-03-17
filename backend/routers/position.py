@@ -10,7 +10,6 @@ This module defines the API router for Position (Job Role) management.
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 from starlette import status
@@ -18,6 +17,7 @@ from starlette import status
 from database.database import get_session
 from database.models import User, Position
 from database.models.position import PositionRequirement
+from schemas.generic_schemas import MessageResponse
 from schemas.position_schemas import PositionAddRequest, PositionDeleteRequest, \
     PositionQueryResponse, PositionRequirementRead, PositionRequirementCreate, PositionWithRequirementsRead
 from utils.auth.auth_users_utils import get_current_active_user
@@ -42,6 +42,7 @@ async def route_list_positions(
     """
     statement = (
         select(Position, User.username)
+        .where(Position.is_active == True)
         .join(User, Position.created_by == User.id, isouter=True)
         .options(
             selectinload(Position.requirements).selectinload(PositionRequirement.shift_template)
@@ -92,6 +93,7 @@ async def route_get_position(
         Position.created_at,
         User.username.label("created_by")
     ).where(
+        Position.is_active == True,
         Position.id == position_id
     ).join(User, Position.created_by == User.id))
 
@@ -151,14 +153,59 @@ async def route_add_position(
         created_by=user.username
     )
 
+@router.patch("/positions/{position_id}/update")
+async def route_update_position(
+        position_id: int,
+        data: PositionAddRequest,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
+    """
+    Update an existing positions details.
 
+    Args:
+        position_id (int): The ID of the position to update.
+        data (PositionAddRequest): The updated details.
+        user (User): Authentication dependency.
+        session (Session): Database session dependency.
+
+    Returns:
+        PositionQueryResponse: The fully updated position object.
+    """
+    statement = select(Position).where(Position.id == position_id)
+    position = session.exec(statement).one_or_none()
+
+    if not position:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Position not found"
+        )
+
+    # Update the basic text fields
+    position.name = data.name
+    position.description = data.description
+    position.color = data.color
+
+    # Save and commit the changes
+    session.add(position)
+    session.commit()
+    session.refresh(position)
+
+    return PositionQueryResponse(
+        id=position.id,
+        name=position.name,
+        description=position.description,
+        color=position.color,
+        created_at=position.created_at,
+        created_by=user.username
+    )
 
 @router.post('/positions/delete')
 async def route_delete_position(
         data: List[PositionDeleteRequest],
         user: User = Depends(get_current_active_user),
         session: Session = Depends(get_session)
-) -> None:
+):
     """
     Delete one or more positions from the database.
 
@@ -167,10 +214,19 @@ async def route_delete_position(
         user (User): The currently authenticated user.
         session (Session): Database session dependency.
     """
-    for position_id in data:
-        statement = delete(Position).where(Position.id == position_id.id)
-        session.exec(statement)
+    ids_to_delete = [req.id for req in data]
+
+    if not ids_to_delete:
+        return MessageResponse(message="No positions to delete.")
+
+    positions_to_delete = session.exec(select(Position).where(Position.id.in_(ids_to_delete))).all()
+
+    for position in positions_to_delete:
+        position.is_active = False
+        session.add(position)
+
     session.commit()
+    return MessageResponse(message="Positions deleted successfully")
 
 
 @router.post("/positions/{position_id}/requirements", response_model=PositionRequirementRead)

@@ -41,7 +41,8 @@ async def route_read_employees(
         List[EmployeeReadWithTimeOff]: List of employees with populated relationship fields.
     """
     # Always load 'positions' as it is required by the response model schema
-    statement = select(Employee).where(Employee.is_active == True).options(selectinload(Employee.positions))
+    statement = (select(Employee).where(Employee.is_active == True)
+                 .options(selectinload(Employee.positions.and_(Position.is_active == True))))
 
     # Only join the time_off_requests table if explicitly asked.
     if include_time_off:
@@ -84,7 +85,7 @@ async def route_get_employee(
         Employee.id == employee_id,
         Employee.is_active == True,
     ).options(
-        selectinload(Employee.positions),
+        selectinload(Employee.positions.and_(Position.is_active == True)),
         selectinload(Employee.time_off_requests)
     )
     employee = session.exec(statement).one_or_none()
@@ -218,13 +219,12 @@ async def route_update_employee(
 
     # Re-fetch the employee to get relations
     refetch_statement = select(Employee).where(Employee.id == employee_id).options(
-        selectinload(Employee.positions),
+        selectinload(Employee.positions.and_(Position.is_active == True)),
         selectinload(Employee.time_off_requests)
     )
     full_employee = session.exec(refetch_statement).one()
 
     return full_employee
-
 
 
 @router.post("/employees/delete")

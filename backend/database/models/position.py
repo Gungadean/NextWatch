@@ -35,6 +35,8 @@ class Position(SQLModel, table=True):
     created_by: Optional[int] = Field(default=None, foreign_key="user.id")
     color: str = Field(default="#000080", max_length=7)
 
+    is_active: bool = Field(default=True)
+
     # Many-to-Many relationship to Employee through EmployeePosition table
     employees: Optional[List["Employee"]] = Relationship( # noqa: F821
         back_populates="positions",

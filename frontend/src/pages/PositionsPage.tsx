@@ -25,16 +25,18 @@ import {
   Text, ColorSwatch
 } from "@chakra-ui/react";
 import {
+  addPosition,
   getPositionList,
+  updatePosition,
   type PositionWithRequirementsRead
 } from "../features/position/positionApi.ts";
 import {useEffect, useState} from "react";
-import AddPositionModal from "../features/position/components/AddPositionModal.tsx";
 import {convertToLocalTime} from "../utils/timeUtils.ts";
 import ConfirmPositionDeletionModal from "../features/position/components/ConfirmPositionDeletionModal.tsx";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
+import PositionModal from "@/features/position/components/PositionModal.tsx";
 
 /**
  * Main Layout for the Positions (Watch Stations) Management Page.
@@ -46,13 +48,15 @@ const PositionsPage = () => {
   const [selection, setSelection] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [selectedPosition, setSelectedPosition] = useState<PositionWithRequirementsRead | null>(null);
   const [isConfirmDeletionModalOpen, setConfirmDeletionModalOpen] = useState(false);
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const headerBg = useColorModeValue("gray.50", "gray.700");
+  const rowHoverBg = useColorModeValue("gray.100", "gray.700");
 
   /**
    * Initialization Effect.
@@ -92,6 +96,14 @@ const PositionsPage = () => {
         if (isChecked) return [...prev, id];
         return prev.filter(itemId => itemId !== id);
     });
+  };
+
+  /**
+   * Handle clicking on a positions row.
+   */
+  const handleRowClick = (position: PositionWithRequirementsRead) => {
+    setSelectedPosition(position);
+    setModalOpen(true);
   };
 
   // Loading View
@@ -148,7 +160,7 @@ return (
             >
               Delete ({selection.length})
             </Button>
-            <Button size="sm" colorPalette="blue" onClick={() => setAddModalOpen(true)}>
+            <Button size="sm" colorPalette="blue" onClick={() => setModalOpen(true)}>
               Add Position
             </Button>
           </HStack>
@@ -186,8 +198,14 @@ return (
                      </Table.Row>
                 ) : (
                     filteredPositions.map((item) => (
-                      <Table.Row key={item.id}>
-                        <Table.Cell>
+                      <Table.Row
+                        key={item.id}
+                        cursor="pointer"
+                        onClick={() => handleRowClick(item)}
+                        _hover={{ bg: rowHoverBg }}
+                        transition="background 0.2s"
+                      >
+                        <Table.Cell onClick={(e) => e.stopPropagation()}>
                           <Checkbox.Root
                             size="sm"
                             aria-label={`Select ${item.name}`}
@@ -221,11 +239,30 @@ return (
       </VStack>
 
       {/* Modals */}
-      <AddPositionModal
-        isOpen={isAddModalOpen}
-        onOpenChange={(e) => setAddModalOpen(e.open)}
-        positions={positions}
-        onPositionsChange={setPositions}
+      <PositionModal
+        isOpen={isModalOpen}
+        onOpenChange={(open) => {
+            setModalOpen(open);
+            if (!open) setSelectedPosition(null);
+        }}
+        position={selectedPosition}
+        onSave={async (payload, id) => {
+          if (id) {
+            // Edit Flow
+            const updatedRecord = await updatePosition(id, payload);
+            setPositions(positions.map(p => p.id === id ? { ...p, ...updatedRecord } : p));
+            toaster.create({ title: "Position Updated", type: "success" });
+          } else {
+            // Add Flow
+            const newRecord = await addPosition(payload);
+            setPositions([...positions, { ...newRecord, requirements: [] }]);
+            toaster.create({ title: "Position Created", type: "success" });
+          }
+        }}
+        onDelete={(id) => {
+          setSelection([id]);
+          setConfirmDeletionModalOpen(true);
+        }}
       />
 
       <ConfirmPositionDeletionModal
