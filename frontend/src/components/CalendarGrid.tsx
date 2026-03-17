@@ -428,6 +428,7 @@ export const CalendarGrid = ({
             {/* Create Timeline View when a week is expanded. */}
             {isEndOfRow && isExpanded && rowStartStr && rowEndStr && (
               <Box
+                ref={drawerRef}
                 gridColumn="1 / -1"
                 bg={expandedBg}
                 borderBottom="1px solid"
