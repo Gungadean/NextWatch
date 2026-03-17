@@ -131,7 +131,7 @@ export const useScheduleViewData = (
           rowId: data.employeeId,
           start: startStr,
           end: endStr,
-          label: `Shift: ${data.roleName}`,
+          label: `${data.roleName}: (${data.startTime} - ${data.endTime})`,
           color: data.roleColor
         });
       }
