@@ -226,6 +226,15 @@ export const TimelineGrid = ({
 
       sorted.forEach(obj => {
         const { left, width } = getBoxDimensions(obj.item.start, obj.item.end);
+
+        // Skip the rest calculation for this time if the width is less than or
+        // equal to 0 (This happens if there are time off requests not for
+        // the current displayed month.)
+        if (width <= 0) {
+            obj.lane = 0;
+            return;
+        }
+
         const endPct = left + width;
 
         let placedLane = -1;
