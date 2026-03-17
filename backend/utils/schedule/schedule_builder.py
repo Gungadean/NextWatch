@@ -74,13 +74,23 @@ def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
             conflicts.append(Conflict(watchstander=manual_conflict['employee_id'], date=manual_conflict['date']))
 
         # Get time off requests from database
-        time_off_stmt = select(TimeOffRequest).where(
-            TimeOffRequest.start_date <= request_data.end_date,
-            TimeOffRequest.end_date >= request_data.start_date,
-            TimeOffRequest.status != "Denied",
-            TimeOffRequest.employee_id.in_([ws.id for ws in watchstanders])
-        )
-        time_off_requests = session.exec(time_off_stmt).all()
+        if request_data.ignore_pending_timeoff:
+            time_off_stmt = select(TimeOffRequest).where(
+                TimeOffRequest.start_date <= request_data.end_date,
+                TimeOffRequest.end_date >= request_data.start_date,
+                TimeOffRequest.status != "Denied",
+                TimeOffRequest.status != "Pending",
+                TimeOffRequest.employee_id.in_([ws.id for ws in watchstanders])
+            )
+            time_off_requests = session.exec(time_off_stmt).all()
+        else:
+            time_off_stmt = select(TimeOffRequest).where(
+                TimeOffRequest.start_date <= request_data.end_date,
+                TimeOffRequest.end_date >= request_data.start_date,
+                TimeOffRequest.status != "Denied",
+                TimeOffRequest.employee_id.in_([ws.id for ws in watchstanders])
+            )
+            time_off_requests = session.exec(time_off_stmt).all()
 
         for time_off in time_off_requests:
             # Calculate overlap

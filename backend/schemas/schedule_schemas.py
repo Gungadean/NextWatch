@@ -60,6 +60,8 @@ class ScheduleRequest(BaseModel):
     max_days_off: int = 3
     max_steps: int = 50000
 
+    ignore_pending_timeoff: bool = False
+
     # Manual overrides or specific constraint injections
     manual_conflicts: List[Dict[str, Any]] = []
     holidays: List[date] = []

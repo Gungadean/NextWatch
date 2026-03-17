@@ -55,12 +55,14 @@ interface BuilderSidebarProps {
   maxSteps: number | string;
   positions: Position[];
   selectAllPositions: boolean;
+  selectIgnorePending: boolean;
   selectedPositions: string[];
 
   onMaxStepsChange: (rawSteps: string) => void;
   onMinDaysOffChange: (rawDays: string) => void;
   onMaxDaysOffChange: (rawDays: string) => void;
   onSelectAllPositionsChange: (isSelected: boolean) => void;
+  onSelectIgnorePendingChange: (isSelected: boolean) => void;
   onSelectedPositionsChange: (position_strings: string[]) => void;
 
   draftSummaries: DraftSummary[];
@@ -90,8 +92,10 @@ const BuilderSidebar = ({
   positions,
   currentDraftData,
   selectAllPositions,
+  selectIgnorePending,
   selectedPositions,
   onSelectAllPositionsChange,
+  onSelectIgnorePendingChange,
   onSelectedPositionsChange,
   onMinDaysOffChange,
   onMaxDaysOffChange,
@@ -211,6 +215,17 @@ const BuilderSidebar = ({
                       </Select.Root>
                     </VStack>
                   </Box>
+
+                  {/* Ignore Pending Time Off Requests Checkbox */}
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '13px' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectIgnorePending}
+                      onChange={(e) => onSelectIgnorePendingChange(e.target.checked)}
+                      style={{ marginRight: '8px', cursor: 'pointer' }}
+                    />
+                    Ignore Pending Time Off Requests?
+                  </label>
 
                   {/* Settings for Minimum Days Off */}
                   <Box>

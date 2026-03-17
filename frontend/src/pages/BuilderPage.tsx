@@ -32,6 +32,7 @@ const BuilderPage = () => {
   const [maxDaysOff, setMaxDaysOff] = useState<number | string>(3);
 
   const [selectAllPositions, setSelectAllPositions] = useState<boolean>(true);
+  const [selectIgnorePending, setIgnorePending] = useState<boolean>(false);
   const [selectedPositionIds, setSelectedPositionIds] = useState<string[]>([]);
 
   // Default start date to the first day of next month
@@ -90,6 +91,7 @@ const BuilderPage = () => {
       startDate,
       endDate,
       positionIds,
+      selectIgnorePending,
       minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
       maxDaysOff: maxDaysOff === "" ? 1 : Number(maxDaysOff),
       maxSteps: Number(maxSteps) || 10000
@@ -106,6 +108,7 @@ const BuilderPage = () => {
       startDate,
       endDate,
       positionIds,
+      selectIgnorePending,
       minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
       maxDaysOff: maxDaysOff === "" ? 1 : Number(maxDaysOff),
       maxSteps: Number(maxSteps) || 10000
@@ -229,8 +232,10 @@ const BuilderPage = () => {
         maxSteps={maxSteps}
         positions={positions}
         selectAllPositions={selectAllPositions}
+        selectIgnorePending={selectIgnorePending}
         selectedPositions={selectedPositionIds}
         onSelectAllPositionsChange={setSelectAllPositions}
+        onSelectIgnorePendingChange={setIgnorePending}
         onSelectedPositionsChange={setSelectedPositionIds}
         onMaxStepsChange={handleMaxStepsChange}
         onMinDaysOffChange={handleMinDaysOffChange}

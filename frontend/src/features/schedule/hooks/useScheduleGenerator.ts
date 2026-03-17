@@ -30,6 +30,7 @@ export interface GenerateConfig {
   startDate: string;
   endDate: string;
   positionIds: number[];
+  selectIgnorePending: boolean;
   minDaysOff: number;
   maxDaysOff: number;
   maxSteps: number;
@@ -88,6 +89,7 @@ export const useScheduleGenerator = (
         start_date: config.startDate,
         end_date: config.endDate,
         position_ids: config.positionIds,
+        ignore_pending_timeoff: config.selectIgnorePending,
         min_days_off: config.minDaysOff,
         max_days_off: config.maxDaysOff,
         max_steps: config.maxSteps,

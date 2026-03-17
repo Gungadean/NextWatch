@@ -117,6 +117,7 @@ export interface ScheduleRequest {
   start_date: string;
   end_date: string;
   position_ids: number[];
+  ignore_pending_timeoff: boolean;
   min_days_off?: number;
   max_days_off?: number;
   max_steps?: number;
