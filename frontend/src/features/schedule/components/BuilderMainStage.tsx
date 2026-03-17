@@ -3,6 +3,12 @@
  * Copyright (c) 2026. Ryan Huston
  */
 
+/**
+ * BuilderMainStage.tsx
+ *
+ * Main stage for builder component.
+ */
+
 import {
   Box,
   Button,
@@ -28,12 +34,7 @@ import {useState} from "react";
 import DayEditModal from "@/features/schedule/components/DayEditModal.tsx";
 import {useScheduleViewData} from "@/features/schedule/hooks/useScheduleViewData.ts";
 import type { PositionWithRequirementsRead } from "@/features/position/positionApi";
-
-/**
- * BuilderMainStage.tsx
- *
- * Main stage for builder component.
- */
+import FullScreenTimelineModal from "@/components/FullScreenTimelineModal.tsx";
 
 /**
  * Props for the Builder Main Stage.
@@ -93,13 +94,14 @@ const BuilderMainStage = ({
   onCurrentDraftData,
   generateSchedule
 }: BuilderMainStageProps) => {
-
   const buttonBG = useColorModeValue("gray.100", "gray.700");
   const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.800");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayAssignments, setDayAssignments] = useState<Assignment[]>([]);
+
+  const [isFullScreenTimelineOpen, setFullScreenTimelineOpen] = useState(false);
 
   const [selectedRegenDates, setSelectedRegenDates] = useState<string[]>([]);
 
@@ -272,6 +274,7 @@ const BuilderMainStage = ({
               onDayClick={handleDayClick}
               enableEmployeeModal={true}
               enableHighlight={true}
+              onExpandView={() => setFullScreenTimelineOpen(true)}
             />
           )}
         </Box>
@@ -326,6 +329,19 @@ const BuilderMainStage = ({
         templates={templates}
         minDaysOff={minDaysOff}
         isSkeletonView={hasSkeleton && !isSavedDraft ? hasSkeleton : false}
+      />
+
+      {/* Full screen timeline view modal */}
+      <FullScreenTimelineModal
+        mainBg={mainBg}
+        borderColor={borderColor}
+        open={isFullScreenTimelineOpen}
+        onOpenChange={(details) => setFullScreenTimelineOpen(details.open)}
+        timelineItems={timelineItems}
+        timelineRows={timelineRows}
+        rangeStart={startDate}
+        rangeEnd={endDate}
+        onDayClick={handleDayClick}
       />
     </Flex>
   );

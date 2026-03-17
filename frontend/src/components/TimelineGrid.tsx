@@ -10,12 +10,13 @@
  * single month view.
  */
 
-import { Box, Flex, Text } from "@chakra-ui/react";
+import {Box, Flex, IconButton, Text} from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {Tooltip} from "@/components/ui/tooltip.tsx";
 import {toSimpleDate} from "@/utils/timeUtils";
 import React, {useCallback, useMemo, useState} from "react";
 import EmployeeTimelineModal from "@/components/EmployeeTimelineModal.tsx";
+import {LuMaximize} from "react-icons/lu";
 
 /**
  * Represents a single block on the timeline (e.g., a shift or leave request).
@@ -53,6 +54,7 @@ interface TimelineGridProps {
   onDayClick?: (dateStr: string) => void;
   enableEmployeeModal?: boolean;
   enableHighlight?: boolean;
+  onExpandView?: () => void;
 }
 
 /**
@@ -87,7 +89,8 @@ export const TimelineGrid = ({
   showConflicts,
   onDayClick,
   enableEmployeeModal = false,
-  enableHighlight = false
+  enableHighlight = false,
+  onExpandView
 }: TimelineGridProps) => {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const headerBg = useColorModeValue("gray.50", "gray.800");
@@ -181,8 +184,8 @@ export const TimelineGrid = ({
     let dur = Math.round(eH - sH);
     if (dur <= 0) dur += 24;
 
-    let offsetPct = 0;
-    let widthPct = 100;
+    let offsetPct;
+    let widthPct;
 
     if (dur >= 20) {
         // 24 Hour Shift
@@ -354,10 +357,12 @@ return (
         {/* Header Row (Dates) */}
         <Flex borderBottom="1px solid" borderColor={borderColor} bg={headerBg} align="stretch">
           {/* Sticky Corner Box */}
-          <Box
+          <Flex
             w="200px"
-            fontWeight="bold"
+            justify="space-between"
+            align="center"
             pl={4}
+            pr={2}
             py={2}
             position="sticky"
             left={0}
@@ -367,8 +372,24 @@ return (
             borderColor={borderColor}
             shadow="sm"
           >
-             Personnel
-          </Box>
+             <Text fontWeight="bold">Personnel</Text>
+
+             {/* Optional full screen expand button */}
+             {onExpandView && (
+               <Tooltip content="Open Full-Screen Timeline" showArrow>
+                 <IconButton
+                    size="xs"
+                    variant="ghost"
+                    color="gray.500"
+                    onClick={onExpandView}
+                    aria-label="Open Full-Screen Timeline"
+                    _hover={{ bg: "gray.200", _dark: { bg: "gray.700" } }}
+                 >
+                   <LuMaximize />
+                 </IconButton>
+               </Tooltip>
+             )}
+          </Flex>
 
           {/* Date Columns */}
           <Flex flex="1">
