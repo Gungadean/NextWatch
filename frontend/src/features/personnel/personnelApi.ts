@@ -121,6 +121,19 @@ export const addEmployee = async (data: EmployeeAddRequest): Promise<Employee> =
 }
 
 /**
+ * Update an employees data.
+ */
+export const updateEmployee = async (id: number, data: EmployeeAddRequest): Promise<Employee> => {
+  try {
+    const response = await axiosInstance.patch<Employee>(`/employees/${id}/update`, data);
+
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Employee adding failed"));
+  }
+}
+
+/**
  * Performs a bulk deletion of employee records.
  */
 export const deleteEmployees = async (employees: EmployeeDeleteRequest[]) => {

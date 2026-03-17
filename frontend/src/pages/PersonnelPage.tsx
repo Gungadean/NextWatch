@@ -12,7 +12,7 @@
  */
 
 import {useEffect, useState} from "react";
-import {getEmployees, type Employee} from "../features/personnel/personnelApi.ts";
+import {getEmployees, type Employee, updateEmployee, addEmployee} from "../features/personnel/personnelApi.ts";
 import {getPositionList, type PositionQueryResponse} from "../features/position/positionApi.ts";
 import {
   Badge,
@@ -22,18 +22,19 @@ import {
   Checkbox,
   Flex,
   Heading,
-  HStack, Input,
+  HStack,
+  Input,
   Separator,
   Spinner,
   Table,
   VStack,
   Text
 } from "@chakra-ui/react";
-import AddEmployeeModal from "../features/personnel/components/AddEmployeeModal.tsx";
 import ConfirmEmployeeDeletionModal from "../features/personnel/components/ConfirmEmployeeDeletionModal.tsx";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
+import EmployeeModal from "@/features/personnel/components/EmployeeModal.tsx";
 
 /**
  * Main Personnel Management Page.
@@ -49,9 +50,13 @@ const PersonnelPage = () => {
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isConfirmDeletionModalOpen, setConfirmDeletionModalOpen] = useState(false);
 
+  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [selectedEmployeeForEdit, setSelectedEmployeeForEdit] = useState<Employee | null>(null);
+
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
   const rowBg = useColorModeValue("gray.50", "gray.700");
+  const rowHoverBg = useColorModeValue("gray.100", "gray.750");
   const borderColor = useColorModeValue("gray.200", "gray.700");
 
   /**
@@ -99,6 +104,14 @@ const PersonnelPage = () => {
         return prev.filter((itemId) => itemId !== id);
       }
     });
+  };
+
+  /**
+   * Handles clicking on an employee for editing.
+   */
+  const handleRowClick = (employee: Employee) => {
+    setSelectedEmployeeForEdit(employee);
+    setEditModalOpen(true);
   };
 
   // Loading State View
@@ -199,8 +212,15 @@ const PersonnelPage = () => {
                   </Table.Row>
                 ) : (
                   filteredEmployees.map((item) => (
-                    <Table.Row key={item.id}>
-                      <Table.Cell>
+                    <Table.Row
+                      key={item.id}
+                      cursor="pointer"
+                      onClick={() => handleRowClick(item)}
+                      _hover={{ bg: rowHoverBg }}
+                      transition={"background 0.2s"}
+                    >
+                      {/* Prevent clicking on the checkmark from accidentally triggering the row click */}
+                      <Table.Cell onClick={(e) => e.stopPropagation()}>
                         <Checkbox.Root
                           size="sm"
                           aria-label={`Select ${item.last_name}`}
@@ -241,12 +261,32 @@ const PersonnelPage = () => {
         </Box>
       </VStack>
 
-      <AddEmployeeModal
-        isOpen={isAddModalOpen}
-        onOpenChange={(e) => setAddModalOpen(e.open)}
-        employees={employees}
+      <EmployeeModal
+        isOpen={isAddModalOpen || isEditModalOpen}
+        onOpenChange={(open) => {
+          setAddModalOpen(open);
+          setEditModalOpen(open);
+          if (!open) setSelectedEmployeeForEdit(null);
+        }}
+        employee={isEditModalOpen ? selectedEmployeeForEdit : null}
         positions={positions}
-        onEmployeesChange={setEmployees}
+        onSave={async (payload, employeeId) => {
+          if (employeeId) {
+            // Edit Flow
+            const updatedRecord = await updateEmployee(employeeId, payload);
+            setEmployees(employees.map(e => e.id === employeeId ? updatedRecord : e));
+            toaster.create({ title: "Employee updated", type: "success" });
+          } else {
+            // Add Flow
+            const newRecord = await addEmployee(payload);
+            setEmployees([...employees, newRecord]);
+            toaster.create({ title: "Employee added", type: "success" });
+          }
+        }}
+        onDelete={(id) => {
+          setSelection([id]);
+          setConfirmDeletionModalOpen(true);
+        }}
       />
 
       <ConfirmEmployeeDeletionModal
