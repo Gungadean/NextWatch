@@ -27,3 +27,4 @@ dist-ssr
 __pycache__
 /backend/database.db
 data
+docker-compose.yml
