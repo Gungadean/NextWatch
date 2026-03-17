@@ -3,6 +3,12 @@
  * Copyright (c) 2026. Ryan Huston
  */
 
+/**
+ * EmployeeTimelineModal.tsx
+ *
+ * Creates a view of a single employees timeline dataset for a period
+ */
+
 import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
 import {useMemo} from "react";
 import {
@@ -40,10 +46,16 @@ const EmployeeTimelineModal = ({
    rangeEnd
 }: EmployeeTimelineModalProps) => {
 
+  /**
+   * Filter to only show the rows for the selected employee
+   */
   const employeeTimelineRow = useMemo(() => {
     return timelineRows.filter((item) => item.id === employee);
   }, [employee, timelineRows]);
 
+  /**
+   * Filter to only show the items for the selected employee
+   */
   const employeeTimelineItems = useMemo(() => {
     return timelineItems.filter(item => item.rowId === employee);
   }, [employee, timelineItems]);
@@ -51,9 +63,9 @@ const EmployeeTimelineModal = ({
   if (!employee) return null;
 
   return (
-    <DialogRoot open={open} onOpenChange={onOpenChange} placement="center" size="xl">
+    <DialogRoot open={open} onOpenChange={onOpenChange} placement="center">
       <DialogBackdrop />
-      <DialogContent>
+      <DialogContent maxWidth="90%">
         <DialogCloseTrigger />
 
         <DialogHeader borderBottomWidth="1px">
