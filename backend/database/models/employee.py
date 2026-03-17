@@ -37,6 +37,8 @@ class Employee(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     user_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
+    is_active: bool = Field(default=True)
+
     # Link to auth user (optional, as an employee might exist without a login)
     user: Optional["User"] = Relationship(back_populates="employee") # noqa: F821
 

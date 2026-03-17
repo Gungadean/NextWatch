@@ -41,7 +41,7 @@ async def route_read_employees(
         List[EmployeeReadWithTimeOff]: List of employees with populated relationship fields.
     """
     # Always load 'positions' as it is required by the response model schema
-    statement = select(Employee).options(selectinload(Employee.positions))
+    statement = select(Employee).where(Employee.is_active == True).options(selectinload(Employee.positions))
 
     # Only join the time_off_requests table if explicitly asked.
     if include_time_off:
@@ -80,7 +80,10 @@ async def route_get_employee(
         HTTPException (404): If the employee does not exist.
     """
     # Eagerly load both relationships
-    statement = select(Employee).where(Employee.id == employee_id).options(
+    statement = select(Employee).where(
+        Employee.id == employee_id,
+        Employee.is_active == True,
+    ).options(
         selectinload(Employee.positions),
         selectinload(Employee.time_off_requests)
     )
@@ -244,12 +247,11 @@ async def route_delete_employees(
     if not ids_to_delete:
         return MessageResponse(message="No employees to delete.")
 
-    # Fetch all employees to be deleted in a single query
     employees_to_delete = session.exec(select(Employee).where(Employee.id.in_(ids_to_delete))).all()
 
     for employee in employees_to_delete:
-        session.delete(employee)
+        employee.is_active = False
+        session.add(employee)
 
-    # Commit the single transaction
     session.commit()
     return MessageResponse(message="Employees deleted successfully")

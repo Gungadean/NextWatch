@@ -42,7 +42,7 @@ def build_watchbill_params(request_data: ScheduleRequest) -> WatchbillParams:
         ]
 
         # Eager load positions using selectinload
-        employee_stmt = select(Employee).options(selectinload(Employee.positions))
+        employee_stmt = select(Employee).where(Employee.is_active == True).options(selectinload(Employee.positions))
         db_employees = session.exec(employee_stmt).all()
 
         watchstanders = []
