@@ -25,20 +25,6 @@ def is_legal(
 
     # these might be, but should be penalized
     try:
-        # TODO: Replace with option to toggle skipping this constraint
-        if len(frozen_assignments_matrix) == 0:
-            min_days_off_between_duty_constraint(
-                schedule,
-                min_days_off_between_duty=min_days_off_between_duty
-            )
-
-            max_days_off_between_duty_constraint(
-                schedule,
-                max_days_off_between_duty=max_days_off_between_duty,
-                conflict_matrix=conflict_matrix
-            )
-
-        exact_headcount_constraint(schedule, headcount_matrix)
         frozen_assignments_constraint(schedule, frozen_assignments_matrix)
 
         no_two_watchstations_at_same_time_constraint(

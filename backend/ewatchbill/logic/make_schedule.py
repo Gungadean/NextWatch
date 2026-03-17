@@ -5,8 +5,6 @@
 #
 #  Modified by Ryan Huston 2026
 
-from typing import List, Tuple
-
 import numpy as np
 
 from .constraints import is_legal
@@ -67,6 +65,10 @@ def make_schedule(
             holiday_mask=holiday_mask,
             is_legal=is_legal_local,
             offset_matrix=offset_matrix,
+            min_days_off=min_days_off_between_duty,
+            max_days_off=max_days_off_between_duty,
+            headcount_matrix=headcount_matrix,
+            conflict_matrix=conflict_matrix
         )
 
 

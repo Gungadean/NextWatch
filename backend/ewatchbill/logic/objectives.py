@@ -7,7 +7,7 @@ from typing import Callable
 
 import numpy as np
 
-ILLEGAL_SCHEDULE_PENALTY = 20
+ILLEGAL_SCHEDULE_PENALTY = 1000000
 
 
 def badness_array(
@@ -57,6 +57,70 @@ def badness_array(
     return badness_array
 
 
+def calculate_soft_penalties(
+        schedule: np.ndarray,
+        min_days_off: int,
+        max_days_off: int,
+        headcount_matrix: np.ndarray,
+        conflict_matrix: np.ndarray
+) -> float:
+    """
+    Calculates penalties
+    """
+    penalty = 0.0
+    n_people, n_days, n_slots = schedule.shape
+
+    # Headcount Penalties
+    if headcount_matrix is not None:
+        assignments_per_day_station = np.sum(schedule, axis=0)
+        shortfalls = headcount_matrix - assignments_per_day_station
+
+        for d in range(n_days):
+            for s in range(n_slots):
+                shortfall = int(shortfalls[d, s])
+                if shortfall > 0:
+                    for i in range(shortfall):
+                        if i == 0:
+                            penalty += 100000
+                        elif i == 1:
+                            penalty += 10000
+                        else:
+                            penalty += 1000
+
+    # Min Days Off Penalties
+    if min_days_off > 0:
+        person_duty_days = np.sum(schedule, axis=2) > 0
+        for person in range(n_people):
+            duty_days = np.where(person_duty_days[person])[0]
+            if len(duty_days) > 1:
+                gaps = np.diff(duty_days)
+                violations = np.sum(gaps <= min_days_off)
+                penalty += violations * 500
+
+    # Max Days Off Penalties
+    if 0 < max_days_off < n_days:
+        person_duty_days = np.sum(schedule, axis=2) > 0
+        for person in range(n_people):
+            active_mask = person_duty_days[person] | (conflict_matrix[person] == 1)
+            active_days = np.where(active_mask)[0]
+
+            if len(active_days) == 0:
+                if n_days > max_days_off: penalty += 50
+                continue
+
+            if active_days[0] > max_days_off: penalty += 50
+
+            if len(active_days) > 1:
+                gaps = np.diff(active_days) - 1
+                violations = np.sum(gaps > max_days_off)
+                penalty += violations * 50
+
+            trailing_days = (n_days - 1) - active_days[-1]
+            if trailing_days > max_days_off: penalty += 50
+
+    return penalty
+
+
 def days_between_watches_reciprocals(schedule: np.ndarray) -> np.ndarray:
     person_duty_days = np.sum(schedule, axis=2) > 0
     n_people = person_duty_days.shape[0]
@@ -80,6 +144,10 @@ def badness_standard_deviation_objective(
     holiday_mask: np.ndarray,
     is_legal: Callable[[np.ndarray], bool],
     offset_matrix: np.ndarray,
+    min_days_off: int,
+    max_days_off: int,
+    headcount_matrix: np.ndarray,
+    conflict_matrix: np.ndarray
 ) -> float:
     badness = badness_array(schedule, holiday_mask)
     if np.isnan(badness).any():
@@ -89,10 +157,14 @@ def badness_standard_deviation_objective(
 
     badness_standard_deviation = np.std(badness)
 
+    soft_penalties = calculate_soft_penalties(
+        schedule, min_days_off, max_days_off, headcount_matrix, conflict_matrix
+    )
+
     is_legal_schedule = is_legal(schedule)
 
     return round(
-        badness_standard_deviation
+        badness_standard_deviation + soft_penalties
         + (0 if is_legal_schedule else ILLEGAL_SCHEDULE_PENALTY),
         2,
     )

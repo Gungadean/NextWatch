@@ -39,6 +39,7 @@ class OrOptimizer:
     def __post_init__(self):
         self.model = cp_model.CpModel()
         self.schedule_vars = {}
+        self.penalties = []
         for w in range(self.num_people):
             for d in range(self.num_days):
                 for s in range(self.num_watchstations):
@@ -50,14 +51,15 @@ class OrOptimizer:
         self.exact_headcount_constraint()
         self.no_two_watchstations_at_same_time_constraint()
 
-        # TODO: Add setting to respect this constraint or not
-        if len(self.frozen_shifts) == 0:
-            self.min_days_off_between_duty_constraint()
-            self.max_days_off_between_duty_constraint()
+        self.min_days_off_between_duty_constraint()
+        self.max_days_off_between_duty_constraint()
 
         self.watchstander_qualified_constraint()
         self.no_duty_on_conflicts_constraint()
         self.frozen_assignments_constraint()
+
+        if self.penalties:
+            self.model.Minimize(sum(self.penalties))
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = 30
@@ -88,21 +90,41 @@ class OrOptimizer:
 
     def exact_headcount_constraint(self):
         """
+        Soft Constraint
         Fills the exact number of required slots based on the dynamic headcount matrix.
         Handles days when a shift requires 2 people, or 0 people (e.g. weekends).
         """
         for d in range(self.num_days):
             for s in range(self.num_watchstations):
                 required_headcount = int(self.headcount_matrix[d, s])
-                self.model.Add(
-                    sum(self.schedule_vars[(w, d, s)] for w in range(self.num_people)) == required_headcount
-                )
+
+                if required_headcount > 0:
+                    assigned_people = sum(self.schedule_vars[(w, d, s)] for w in range(self.num_people))
+
+                    missing_vars = [self.model.NewBoolVar(f"missing_d{d}_s{s}_chair{i}") for i in
+                                    range(required_headcount)]
+
+                    self.model.Add(assigned_people + sum(missing_vars) == required_headcount)
+
+                    # Applied tier penalties based on the number of missing people. The index represents the number
+                    # of people assigned to the role of what should have been. 0 means the role could not be filled.
+                    for i, missing_var in enumerate(missing_vars):
+                        if i == 0:
+                            self.penalties.append(missing_var * 100000)
+                        elif i == 1:
+                            self.penalties.append(missing_var * 10000)
+                        else:
+                            self.penalties.append(missing_var * 1000)
+                else:
+                    # If the shift isn't required that day, enforce 0
+                    self.model.Add(sum(self.schedule_vars[(w, d, s)] for w in range(self.num_people)) == 0)
 
 
     def one_shift_per_day_constraint(
         self,
     ):
         """
+        Hard Constraint
         Exactly one shift per day per watchstation
         """
         for d in range(self.num_days):
@@ -120,6 +142,7 @@ class OrOptimizer:
         self,
     ):
         """
+        Hard Constraint
         One watchstander can't be on two watchstations at the same time
         """
         intervals = {}
@@ -153,7 +176,8 @@ class OrOptimizer:
         self,
     ):
         """
-        No more than one duty day every x days
+        Soft Constraint
+        No more than one duty day every x days.
         """
         if self.min_days_off_between_duty <= 0:
             return
@@ -170,10 +194,14 @@ class OrOptimizer:
                 # Force days off
                 for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
                     for s in range(self.num_watchstations):
-                        self.model.AddImplication(worked_on_day_d, self.schedule_vars[(w, off_day, s)].Not())
+                        # If this is violated, allow it but assign 500 penalty points to the model.
+                        violation = self.model.NewIntVar(0, 1, f"min_viol_w{w}_d{d}_od{off_day}_s{s}")
+                        self.model.Add(worked_on_day_d + self.schedule_vars[(w, off_day, s)] <= 1 + violation)
+                        self.penalties.append(violation * 500)
 
     def max_days_off_between_duty_constraint(self):
         """
+        Soft Constraint
         Ensures a person works at least one shift within any sliding window
         of (max_days_off + 1) days, ignoring approved time off
         """
@@ -193,13 +221,17 @@ class OrOptimizer:
                         for d in range(start_d, start_d + window_size)
                         for s in range(self.num_watchstations)
                     ]
-                    self.model.Add(sum(shifts_in_window) >= 1)
+                    # If this is violated, allow it but assign 50 penalty points to the model.
+                    violation = self.model.NewIntVar(0, 1, f"max_viol_w{w}_start{start_d}")
+                    self.model.Add(sum(shifts_in_window) + violation >= 1)
+                    self.penalties.append(violation * 50)
 
 
     def watchstander_qualified_constraint(
         self,
     ):
         """
+        Hard Constraint
         Watchstander must be qualified
         """
         for w in range(self.num_people):
@@ -217,6 +249,7 @@ class OrOptimizer:
         self,
     ):
         """
+        Hard Constraint
         No duty on conflicts
         """
         for w in range(self.num_people):
@@ -235,6 +268,7 @@ class OrOptimizer:
         self,
     ):
         """
+        Hard Constraint
         Do not overwrite the provided "frozen" assignments
         """
         for w, d, s in self.frozen_shifts:
