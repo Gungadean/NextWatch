@@ -53,6 +53,7 @@ class OrOptimizer:
 
         self.min_days_off_between_duty_constraint()
         self.max_days_off_between_duty_constraint()
+        self.fair_utilization_constraint()
 
         self.watchstander_qualified_constraint()
         self.no_duty_on_conflicts_constraint()
@@ -137,6 +138,31 @@ class OrOptimizer:
                     == 1
                 )
 
+    def fair_utilization_constraint(self):
+        """
+        SOFT CONSTRAINT: Penalizes the solver if a qualified person is assigned 0 shifts.
+        Ensures the workload is distributed rather than dumped on a few people.
+        """
+        for w in range(self.num_people):
+            # Only apply this if the person is actually qualified for at least one station
+            if sum(self.qualification_matrix[w]) > 0:
+                total_shifts = sum(
+                    self.schedule_vars[(w, d, s)]
+                    for d in range(self.num_days)
+                    for s in range(self.num_watchstations)
+                )
+
+                is_benched = self.model.NewBoolVar(f"is_benched_w{w}")
+
+                # If total_shifts == 0, then is_benched MUST be 1
+                self.model.Add(total_shifts == 0).OnlyEnforceIf(is_benched)
+                self.model.Add(total_shifts > 0).OnlyEnforceIf(is_benched.Not())
+
+                # Apply a moderate penalty (300 points)
+                # This ensures the solver will prefer to spread shifts out,
+                # but won't break a critical rule just to give someone a shift.
+                self.penalties.append(is_benched * 300)
+
 
     def no_two_watchstations_at_same_time_constraint(
         self,
@@ -172,6 +198,7 @@ class OrOptimizer:
                     if max(st1, st2) < min(et1, et2):
                         self.model.Add(self.schedule_vars[(w, d1, s1)] + self.schedule_vars[(w, d2, s2)] <= 1)
 
+
     def min_days_off_between_duty_constraint(
         self,
     ):
@@ -198,6 +225,7 @@ class OrOptimizer:
                         violation = self.model.NewIntVar(0, 1, f"min_viol_w{w}_d{d}_od{off_day}_s{s}")
                         self.model.Add(worked_on_day_d + self.schedule_vars[(w, off_day, s)] <= 1 + violation)
                         self.penalties.append(violation * 500)
+
 
     def max_days_off_between_duty_constraint(self):
         """
