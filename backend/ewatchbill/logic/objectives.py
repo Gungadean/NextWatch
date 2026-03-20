@@ -62,7 +62,8 @@ def calculate_soft_penalties(
         min_days_off: int,
         max_days_off: int,
         headcount_matrix: np.ndarray,
-        conflict_matrix: np.ndarray
+        conflict_matrix: np.ndarray,
+        qualification_matrix: np.ndarray
 ) -> float:
     """
     Calculates penalties
@@ -118,6 +119,13 @@ def calculate_soft_penalties(
             trailing_days = (n_days - 1) - active_days[-1]
             if trailing_days > max_days_off: penalty += 50
 
+    for person in range(n_people):
+        # Only penalize if the person is actually qualified for at least one station
+        if np.sum(qualification_matrix[person]) > 0:
+            total_shifts = np.sum(schedule[person, :, :])
+            if total_shifts == 0:
+                penalty += 5000
+
     return penalty
 
 
@@ -147,7 +155,8 @@ def badness_standard_deviation_objective(
     min_days_off: int,
     max_days_off: int,
     headcount_matrix: np.ndarray,
-    conflict_matrix: np.ndarray
+    conflict_matrix: np.ndarray,
+    qualification_matrix: np.ndarray
 ) -> float:
     badness = badness_array(schedule, holiday_mask)
     if np.isnan(badness).any():
@@ -158,7 +167,7 @@ def badness_standard_deviation_objective(
     badness_standard_deviation = np.std(badness)
 
     soft_penalties = calculate_soft_penalties(
-        schedule, min_days_off, max_days_off, headcount_matrix, conflict_matrix
+        schedule, min_days_off, max_days_off, headcount_matrix, conflict_matrix, qualification_matrix
     )
 
     is_legal_schedule = is_legal(schedule)
