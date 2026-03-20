@@ -138,19 +138,26 @@ def calculate_soft_penalties(
             active_mask = person_duty_days[person] | (conflict_matrix[person] == 1)
             active_days = np.where(active_mask)[0]
 
+            # They don't work at all
             if len(active_days) == 0:
-                if n_days > max_days_off: penalty += 50
+                penalty += get_exponential_gap_penalty(n_days, max_days_off)
                 continue
 
-            if active_days[0] > max_days_off: penalty += 50
+            # Leading gaps
+            if active_days[0] > max_days_off:
+                penalty += get_exponential_gap_penalty(active_days[0], max_days_off)
 
+            # Middle gaps
             if len(active_days) > 1:
                 gaps = np.diff(active_days) - 1
-                violations = np.sum(gaps > max_days_off)
-                penalty += violations * 50
+                violations = gaps[gaps > max_days_off]
+                for gap in violations:
+                    penalty += get_exponential_gap_penalty(gap, max_days_off)
 
+            # Trailing gap
             trailing_days = (n_days - 1) - active_days[-1]
-            if trailing_days > max_days_off: penalty += 50
+            if trailing_days > max_days_off:
+                penalty += get_exponential_gap_penalty(trailing_days, max_days_off)
 
     for person in range(n_people):
         # Only penalize if the person is actually qualified for at least one station
@@ -160,6 +167,30 @@ def calculate_soft_penalties(
                 penalty += 5000
 
     return penalty
+
+
+def get_exponential_gap_penalty(gap_size: int, max_days_off: int) -> float:
+    """
+    Apply exponential penalty for an increasing window size above max
+    days off.
+    """
+    excess = gap_size - max_days_off
+    if excess <= 0:
+        return 0.0
+
+    total_penalty = 0.0
+    for k in range(1, excess + 1):
+        window_size = max_days_off + k
+        # Calculate how many times this specific window size fits inside the total gap
+        count = gap_size - window_size + 1
+
+        weight = int(10 * (2 ** (k - 1)))
+        if weight > 50000:
+            weight = 50000
+
+        total_penalty += count * weight
+
+    return float(total_penalty)
 
 
 def days_between_watches_reciprocals(schedule: np.ndarray) -> np.ndarray:

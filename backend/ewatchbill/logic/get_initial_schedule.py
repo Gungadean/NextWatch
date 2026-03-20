@@ -260,23 +260,30 @@ class OrOptimizer:
         if self.max_days_off_between_duty <= 0 or self.max_days_off_between_duty >= self.num_days:
             return
 
-        window_size = self.max_days_off_between_duty + 1
-
         for w in range(self.num_people):
-            for start_d in range(self.num_days - window_size + 1):
-                conflicts_in_window = sum(self.conflict_matrix[w, start_d: start_d + window_size])
+            # Evaluate windows of increasing size to create an exponentially stacking penalty
+            for extra_days in range(1, self.num_days - self.max_days_off_between_duty + 1):
+                window_size = self.max_days_off_between_duty + extra_days
 
-                # Only enforce the rule if the window consists purely of available days
-                if conflicts_in_window == 0:
-                    shifts_in_window = [
-                        self.schedule_vars[(w, d, s)]
-                        for d in range(start_d, start_d + window_size)
-                        for s in range(self.num_watchstations)
-                    ]
-                    # If this is violated, allow it but assign 50 penalty points to the model.
-                    violation = self.model.NewIntVar(0, 1, f"max_viol_w{w}_start{start_d}")
-                    self.model.Add(sum(shifts_in_window) + violation >= 1)
-                    self.penalties.append(violation * 50)
+                penalty_weight = int(10 * (2 ** (extra_days - 1)))
+
+                # Cap at 50,000 to prevent integer overflow on massive date ranges
+                if penalty_weight > 50000:
+                    penalty_weight = 50000
+
+                for start_d in range(self.num_days - window_size + 1):
+                    conflicts_in_window = sum(self.conflict_matrix[w, start_d: start_d + window_size])
+
+                    # Only enforce the rule if the window consists purely of available days
+                    if conflicts_in_window == 0:
+                        shifts_in_window = [
+                            self.schedule_vars[(w, d, s)]
+                            for d in range(start_d, start_d + window_size)
+                            for s in range(self.num_watchstations)
+                        ]
+                        violation = self.model.NewIntVar(0, 1, f"max_viol_w{w}_start{start_d}_len{window_size}")
+                        self.model.Add(sum(shifts_in_window) + violation >= 1)
+                        self.penalties.append(violation * penalty_weight)
 
 
     def watchstander_qualified_constraint(
