@@ -3,7 +3,7 @@
 #
 #  Copyright (c). Carl Kolon
 
-from typing import Callable
+from typing import Callable, List, Tuple
 
 import numpy as np
 
@@ -63,7 +63,8 @@ def calculate_soft_penalties(
         max_days_off: int,
         headcount_matrix: np.ndarray,
         conflict_matrix: np.ndarray,
-        qualification_matrix: np.ndarray
+        qualification_matrix: np.ndarray,
+        shift_times: List[Tuple[float, float]]
 ) -> float:
     """
     Calculates penalties
@@ -88,15 +89,47 @@ def calculate_soft_penalties(
                         else:
                             penalty += 1000
 
-    # Min Days Off Penalties
-    if min_days_off > 0:
-        person_duty_days = np.sum(schedule, axis=2) > 0
-        for person in range(n_people):
-            duty_days = np.where(person_duty_days[person])[0]
-            if len(duty_days) > 1:
-                gaps = np.diff(duty_days)
-                violations = np.sum(gaps <= min_days_off)
-                penalty += violations * 500
+        # Min Days Off Penalties
+        if min_days_off > 0:
+            person_duty_days = np.sum(schedule, axis=2) > 0
+            for person in range(n_people):
+                duty_days = np.where(person_duty_days[person])[0]
+                if len(duty_days) > 1:
+                    gaps = np.diff(duty_days)
+
+                    # Normal penalties for compressing requested days off (gap > 1)
+                    normal_violations = np.sum((gaps > 1) & (gaps <= min_days_off))
+                    penalty += normal_violations * 500
+
+                    # Evaluate consecutive calendar days (gap == 1)
+                    consecutive_indices = np.where(gaps == 1)[0]
+                    for idx in consecutive_indices:
+                        d1 = duty_days[idx]
+                        d2 = duty_days[idx + 1]
+
+                        # Find exactly which shifts they worked on those days
+                        s1_arr = np.where(schedule[person, d1] == 1)[0]
+                        s2_arr = np.where(schedule[person, d2] == 1)[0]
+
+                        for s1 in s1_arr:
+                            for s2 in s2_arr:
+                                st1, et1 = shift_times[s1]
+                                st2, et2 = shift_times[s2]
+
+                                # Calculate absolute end time of Shift 1
+                                abs_end1 = d1 * 24.0 + et1
+                                if st1 >= et1 and not (st1 == 0.0 and et1 == 24.0):
+                                    abs_end1 += 24.0
+
+                                # Calculate absolute start time of Shift 2
+                                abs_start2 = d2 * 24.0 + st2
+
+                                rest_hours = abs_start2 - abs_end1
+
+                                if rest_hours <= 0:
+                                    penalty += 500000  # No physical rest
+                                else:
+                                    penalty += 10000  # Violated min_days_off, but safely
 
     # Max Days Off Penalties
     if 0 < max_days_off < n_days:
@@ -156,7 +189,8 @@ def badness_standard_deviation_objective(
     max_days_off: int,
     headcount_matrix: np.ndarray,
     conflict_matrix: np.ndarray,
-    qualification_matrix: np.ndarray
+    qualification_matrix: np.ndarray,
+    shift_times: List[Tuple[float, float]]
 ) -> float:
     badness = badness_array(schedule, holiday_mask)
     if np.isnan(badness).any():
@@ -167,7 +201,7 @@ def badness_standard_deviation_objective(
     badness_standard_deviation = np.std(badness)
 
     soft_penalties = calculate_soft_penalties(
-        schedule, min_days_off, max_days_off, headcount_matrix, conflict_matrix, qualification_matrix
+        schedule, min_days_off, max_days_off, headcount_matrix, conflict_matrix, qualification_matrix, shift_times
     )
 
     is_legal_schedule = is_legal(schedule)

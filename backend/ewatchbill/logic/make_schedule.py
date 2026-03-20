@@ -69,7 +69,8 @@ def make_schedule(
             max_days_off=max_days_off_between_duty,
             headcount_matrix=headcount_matrix,
             conflict_matrix=conflict_matrix,
-            qualification_matrix=qualification_matrix
+            qualification_matrix=qualification_matrix,
+            shift_times=shift_times
         )
 
 

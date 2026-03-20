@@ -158,10 +158,10 @@ class OrOptimizer:
                 self.model.Add(total_shifts == 0).OnlyEnforceIf(is_benched)
                 self.model.Add(total_shifts > 0).OnlyEnforceIf(is_benched.Not())
 
-                # Apply a moderate penalty (300 points)
+                # Apply a moderate penalty (5000 points)
                 # This ensures the solver will prefer to spread shifts out,
                 # but won't break a critical rule just to give someone a shift.
-                self.penalties.append(is_benched * 300)
+                self.penalties.append(is_benched * 5000)
 
 
     def no_two_watchstations_at_same_time_constraint(
@@ -209,22 +209,46 @@ class OrOptimizer:
         if self.min_days_off_between_duty <= 0:
             return
 
+        intervals = {}
+        for d in range(self.num_days):
+            for s in range(self.num_watchstations):
+                st, et = self.shift_times[s]
+                abs_st = d * 24.0 + st
+                abs_et = d * 24.0 + et
+                # If end time is earlier than start time, it wrapped past midnight into tomorrow
+                if st >= et and not (st == 0.0 and et == 24.0):
+                    abs_et += 24.0
+                intervals[(d, s)] = (abs_st, abs_et)
+
         for w in range(self.num_people):
             for d in range(self.num_days):
-                worked_on_day_d = self.model.NewBoolVar(f"worked_{w}_day_{d}")
+                for s1 in range(self.num_watchstations):
+                    for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
+                        for s2 in range(self.num_watchstations):
 
-                shifts_worked_today = sum(self.schedule_vars[(w, d, s)] for s in range(self.num_watchstations))
+                            violation = self.model.NewIntVar(0, 1, f"min_viol_w{w}_d{d}_s{s1}_od{off_day}_s{s2}")
 
-                self.model.Add(shifts_worked_today > 0).OnlyEnforceIf(worked_on_day_d)
-                self.model.Add(shifts_worked_today == 0).OnlyEnforceIf(worked_on_day_d.Not())
+                            # Evaluate if the person is working both s1 and s2, violation must be 1.
+                            self.model.Add(
+                                self.schedule_vars[(w, d, s1)] + self.schedule_vars[(w, off_day, s2)] <= 1 + violation)
 
-                # Force days off
-                for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
-                    for s in range(self.num_watchstations):
-                        # If this is violated, allow it but assign 500 penalty points to the model.
-                        violation = self.model.NewIntVar(0, 1, f"min_viol_w{w}_d{d}_od{off_day}_s{s}")
-                        self.model.Add(worked_on_day_d + self.schedule_vars[(w, off_day, s)] <= 1 + violation)
-                        self.penalties.append(violation * 500)
+                            if off_day == d + 1:
+                                # They are working consecutive days. Calculate actual rest hours.
+                                _, end1 = intervals[(d, s1)]
+                                start2, _ = intervals[(off_day, s2)]
+                                rest_hours = start2 - end1
+
+                                if rest_hours <= 0:
+                                    # This is a critical safety violation.
+                                    # Back to back shifts with no break in between.
+                                    self.penalties.append(violation * 500000)
+                                else:
+                                    # Violates the calendar preference, but is physically safe.
+                                    # At least 12hrs between shifts.
+                                    self.penalties.append(violation * 10000)
+                            else:
+                                # Normal penalty for subtracting a day from min days off (gap > 1)
+                                self.penalties.append(violation * 500)
 
 
     def max_days_off_between_duty_constraint(self):

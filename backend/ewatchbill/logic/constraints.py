@@ -31,6 +31,10 @@ def is_legal(
             schedule,
             shift_times=shift_times
         )
+        min_days_off_between_duty_constraint(
+            schedule,
+            min_days_off_between_duty=min_days_off_between_duty
+        )
         watchstander_qualified_constraint(
             schedule,
             qualification_matrix=qualification_matrix,
@@ -163,8 +167,8 @@ def min_days_off_between_duty_constraint(
         # Calculate gaps between consecutive duty days
         gaps = np.diff(duty_days)
 
-        # Find violations where gaps are too small
-        violations = np.where(gaps <= min_days_off_between_duty)[0]
+        # Mark violation if there is not at least 1 day off
+        violations = np.where(gaps == 1)[0]
 
         if len(violations) > 0:
             # Get the first violation
@@ -173,9 +177,8 @@ def min_days_off_between_duty_constraint(
             day2 = duty_days[violation_idx + 1]
 
             raise IllegalScheduleException(
-                f"Person {person} has duty on day {day1} and "
-                f"should have at least {min_days_off_between_duty}"
-                f" days off before next duty on day {day2}"
+                f"Person {person} is scheduled on consecutive days ({day1} and {day2}). "
+                f"At least 1 day off is strictly required."
             )
 
 def max_days_off_between_duty_constraint(
