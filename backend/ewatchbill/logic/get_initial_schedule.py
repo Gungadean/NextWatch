@@ -4,7 +4,7 @@
 #  Copyright (c). Carl Kolon
 #
 #  Modified by Ryan Huston 2026
-
+import multiprocessing
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
@@ -64,6 +64,9 @@ class OrOptimizer:
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = 30
+
+        solver.parameters.num_workers = multiprocessing.cpu_count()
+
         status = solver.Solve(self.model)
 
         if status == cp_model.INFEASIBLE:
