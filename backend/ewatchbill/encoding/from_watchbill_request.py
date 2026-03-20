@@ -35,6 +35,22 @@ def from_watchbill_request(params: WatchbillParams):
 
     num_shift_slots = len(unique_shift_slots)
 
+    frozen_emp_ids = set()
+    if hasattr(params, 'frozen_assignments') and params.frozen_assignments:
+        frozen_emp_ids = {fa.watchstander.id for fa in params.frozen_assignments if fa.watchstander.id != 0}
+
+    # Filter out watchstanders who are not qualified for any of the positions that are being scheduled.
+    active_watchstanders = []
+    for ws in params.watchstanders:
+        is_qualified = any(slot[0] in ws.watchstations for slot in unique_shift_slots)
+        has_frozen = ws.id in frozen_emp_ids
+
+        if is_qualified or has_frozen:
+            active_watchstanders.append(ws)
+
+    params.watchstanders = active_watchstanders
+    num_people = len(params.watchstanders)
+
     shift_times = []
     for slot in unique_shift_slots:
         st = parse_time(slot[1]) if slot[1] else 0.0
