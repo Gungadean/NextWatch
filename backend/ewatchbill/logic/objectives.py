@@ -2,7 +2,6 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
-
 from typing import Callable, List, Tuple
 
 import numpy as np

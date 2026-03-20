@@ -21,7 +21,6 @@ def from_watchbill_request(params: WatchbillParams):
     conflicts = params.conflicts
 
     num_days = (end_date - start_date).days + 1
-    num_people = len(params.watchstanders)
 
     unique_shift_slots = []
     if hasattr(params, 'skeleton') and params.skeleton:
@@ -45,7 +44,13 @@ def from_watchbill_request(params: WatchbillParams):
         is_qualified = any(slot[0] in ws.watchstations for slot in unique_shift_slots)
         has_frozen = ws.id in frozen_emp_ids
 
-        if is_qualified or has_frozen:
+        user_conflict_days = sum(
+            1 for c in conflicts
+            if c.watchstander == ws.id and 0 <= (c.date - start_date).days < num_days
+        )
+        is_available = user_conflict_days < num_days
+
+        if (is_qualified and is_available) or has_frozen:
             active_watchstanders.append(ws)
 
     params.watchstanders = active_watchstanders
