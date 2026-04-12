@@ -10,7 +10,7 @@ import numpy as np
 from .constraints import is_legal
 from .exceptions.IllegalScheduleException import IllegalScheduleException
 from .get_initial_schedule import OrOptimizer
-from .objectives import badness_standard_deviation_objective
+from .objectives import DeltaScorer
 from .simulated_annealing import AnnealingOptimizer
 
 
@@ -60,10 +60,9 @@ def make_schedule(
 
 
     def objective_function_local(schedule: np.ndarray):
-        return badness_standard_deviation_objective(
+        return DeltaScorer(
             schedule,
             holiday_mask=holiday_mask,
-            is_legal=is_legal_local,
             offset_matrix=offset_matrix,
             min_days_off=min_days_off_between_duty,
             max_days_off=max_days_off_between_duty,

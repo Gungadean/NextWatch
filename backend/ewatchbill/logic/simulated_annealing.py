@@ -6,7 +6,7 @@
 #  Modified by Ryan Huston
 
 from dataclasses import dataclass, field
-from typing import Callable, Tuple, List
+from typing import Callable, Tuple, List, Any
 
 import numpy as np
 
@@ -20,7 +20,7 @@ class AnnealingOptimizer:
     schedule: np.ndarray
     schedule_score: float = field(init=False)
     is_legal: Callable[[np.ndarray], bool]
-    objective_function: Callable[[np.ndarray], float]
+    objective_function: Callable[[np.ndarray], Any]
     max_steps: int
     best_schedule: np.ndarray = field(init=False)
     best_schedule_score: float = field(init=False)
@@ -28,17 +28,22 @@ class AnnealingOptimizer:
     temperature: float = 1
 
     frozen_mask: np.ndarray = field(init=False)
+    scorer: Any = field(init=False)
 
     def __post_init__(self):
-        self.best_schedule = self.schedule.copy()
-        self.best_schedule_score = self.objective_function(self.schedule)
-        self.schedule_score = self.objective_function(self.schedule)
-
         # Build mask of frozen days to optimize the annealing process
         # to not attempt to assign to these coordinates, saving cycles.
         self.frozen_mask = np.zeros_like(self.schedule)
         for w, d, s in self.frozen_coordinates:
             self.frozen_mask[w, d, s] = 1
+
+        self.scorer = self.objective_function(self.schedule)
+
+        self.best_schedule = self.schedule.copy()
+
+        self.schedule_score = self.scorer.get_total_score()
+        self.best_schedule_score = self.schedule_score
+
 
     @property
     def cooling_rate(self) -> float:
@@ -66,7 +71,7 @@ class AnnealingOptimizer:
         if not schedule_changes:
             return
 
-        new_schedule_score = self.objective_function(self.schedule)
+        new_schedule_score, affected_people, old_badness, old_penalties = self.scorer.apply_changes_and_score(schedule_changes)
 
         keep_change = False
 
@@ -91,8 +96,7 @@ class AnnealingOptimizer:
         if keep_change:
             self.schedule_score = new_schedule_score
         else:
-            for person, day, watchstation, old_val in schedule_changes:
-                self.schedule[person, day, watchstation] = old_val
+            self.scorer.rollback(schedule_changes, affected_people, old_badness, old_penalties)
 
     def perturb_schedule(self) -> List[Tuple[int, int, int, int]]:
         perturbation_functions = [
