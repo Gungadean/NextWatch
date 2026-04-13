@@ -110,6 +110,16 @@ export interface ScheduleDraft {
 }
 
 /**
+ * Result returned from the backend validation endpoint
+ */
+export interface ValidationResult {
+  is_valid: boolean;
+  hard_error: string[];
+  soft_warnings: string[];
+  score_breakdown: Record<string, number>;
+}
+
+/**
  * Request payload for initiating schedule generation.
  * Matches backend/schemas/schedule_schemas.py -> ScheduleRequest
  */
@@ -326,6 +336,26 @@ export const deleteDraft = async (uuid: string) => {
     return response.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Draft Publishing Failed"));
+  }
+}
+
+/**
+ * Validates a modified schedule against the backend constraints.
+ */
+export const validateScheduleDraft = async (
+  requestData: {
+    params: ScheduleRequest;
+    assignments: Assignment[];
+    target_date?: string;
+    target_person_names?: string[];
+    is_global_audit: boolean;
+  }
+): Promise<ValidationResult> => {
+  try {
+    const response = await axiosInstance.post<ValidationResult>('/schedule/validate', requestData);
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Validation Request Failed"));
   }
 }
 

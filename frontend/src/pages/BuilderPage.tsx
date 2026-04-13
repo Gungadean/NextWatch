@@ -20,6 +20,7 @@ import BuilderSidebar from "@/features/schedule/components/BuilderSidebar.tsx";
 import BuilderMainStage from "@/features/schedule/components/BuilderMainStage.tsx";
 import {useScheduleGenerator} from "@/features/schedule/hooks/useScheduleGenerator.ts";
 import {useBuilderData} from "@/features/schedule/hooks/useBuilderData.ts";
+import type {ScheduleRequest} from "@/features/schedule/scheduleApi.ts";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
@@ -223,6 +224,19 @@ const BuilderPage = () => {
     );
   }
 
+  /**
+   * Get current schedule parameters to help validate draft schedule.
+   */
+  const currentScheduleParams: ScheduleRequest = {
+    start_date: startDate,
+    end_date: endDate,
+    position_ids: selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number),
+    ignore_pending_timeoff: selectIgnorePending,
+    min_days_off: minDaysOff === "" ? 1 : Number(minDaysOff),
+    max_days_off: maxDaysOff === "" ? 1 : Number(maxDaysOff),
+    max_steps: Number(maxSteps) || 10000,
+  };
+
   return (
     <Flex h="calc(100vh - 64px)" overflow="hidden" borderRadius="md">
       {/* Left Sidebar: Config and History */}
@@ -277,6 +291,7 @@ const BuilderPage = () => {
         onPublishDraft={() => setConfirmPublishModalOpen(true)}
         onCurrentDraftData={updateCurrentDraft}
         generateSchedule={handleGenerate}
+        scheduleParams={currentScheduleParams}
       />
 
       {/* Modals */}

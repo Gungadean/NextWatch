@@ -9,29 +9,41 @@ This module defines the API router for Schedule Generation and Management.
 
 import json
 import uuid
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from typing import List
 
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import delete
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, extract
 
 from database.database import get_session, engine
 from database.models import ScheduleDraft, User, Shift
+from ewatchbill.logic.evaluate_schedule import evaluate_draft_schedule, ValidationResponse
 from ewatchbill.logic.exceptions.IllegalScheduleException import IllegalScheduleException
 from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest
 from utils.auth.auth_users_utils import get_current_active_user
 from utils.schedule.schedule_builder import build_watchbill_params
 from ewatchbill.schedule_message_generator import schedule_message_generator
-from ewatchbill.models import WatchbillResponse
+from ewatchbill.models import WatchbillResponse, Assignment
 
 router = APIRouter()
 
 # In-memory cache to store temporary generation states/results
 schedule_cache: dict[str, WatchbillResponse] = {}
+
+
+class ValidationRequest(BaseModel):
+    """
+    A draft from the frontend to be validated against the application contraint model
+    """
+    params: ScheduleRequest
+    assignments: List[Assignment]
+    target_date: str = None
+    target_person_names: List[str] = []
 
 
 async def sse_generator(generator, params, regen_uuid: str = None):
@@ -333,6 +345,7 @@ async def regenerate_schedule(
         uuid_str (str): The UUID of the draft to regenerated.
         request_data (ScheduleRequest): The schedule generation parameters.
         request (Request): The incoming request object.
+        user (User): The currently authenticated user.
 
     Returns:
         StreamingResponse: A stream of SSE events.
@@ -379,10 +392,76 @@ async def route_delete_draft(
 ):
     """
     Delete a draft schedule
+
+    Args:
+        uuid_str (str): The UUID of the draft to regenerated.
+        user (User): The currently authenticated user.
+        session (Session): Database session dependency.
     """
     delete_statement = delete(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(uuid_str))
     session.exec(delete_statement)
     session.commit()
+
+
+@router.post("/schedule/validate", response_model=ValidationResponse)
+async def validate_schedule(
+        request: ValidationRequest,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
+    """
+    Retrieve the official schedule (Shifts) for a specific Month/Year.
+
+    Includes eager loading of Employee and Position details.
+
+    Args:
+        request (ValidationRequest): The schedule generation parameters.
+        user (User): The currently authenticated user.
+        session (Session): Database session dependency.
+
+    Returns:
+        ValidationResponse: A list containing
+
+    Raises:
+        HTTPException (500): If an error occurs while validating.
+    """
+    try:
+        # Rebuild the mathematical environment from the frontend's parameters
+        watchbill_params = build_watchbill_params(request.params)
+
+        # Fetch historical/future shifts
+        buffer_start = watchbill_params.start - timedelta(days=7)
+        buffer_end = watchbill_params.end + timedelta(days=7)
+
+        # Query published shifts outside the draft window but inside the buffer
+        stmt = select(Shift).where(
+            ((Shift.shift_date >= buffer_start) & (Shift.shift_date < watchbill_params.start)) |
+            ((Shift.shift_date > watchbill_params.end) & (Shift.shift_date <= buffer_end))
+        ).options(selectinload(Shift.employee), selectinload(Shift.position))
+
+        buffer_shifts = session.exec(stmt).all()
+
+        # Format them for the math engine
+        published_buffers = [
+            {
+                "name": f"{s.employee.last_name}, {s.employee.first_name}",
+                "date": s.shift_date.strftime("%Y-%m-%d"),
+            }
+            for s in buffer_shifts
+        ]
+
+        evaluation_result = evaluate_draft_schedule(
+            watchbill_params=watchbill_params,
+            draft_assignments=request.assignments,
+            target_date=request.target_date,
+            target_person_names=request.target_person_names,
+            published_buffers=published_buffers
+        )
+
+        return evaluation_result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 
 @router.get("/schedule/{year}/{month}", response_model=List[EmployeeShiftRequest])

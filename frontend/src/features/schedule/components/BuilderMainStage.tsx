@@ -23,7 +23,7 @@ import {
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {
   type Assignment,
-  type ScheduleDraft,
+  type ScheduleDraft, type ScheduleRequest,
   type ScheduleResponse,
   type ShiftTemplateRead
 } from "@/features/schedule/scheduleApi.ts";
@@ -66,6 +66,8 @@ interface BuilderMainStageProps {
   onPublishDraft: () => void;
   onCurrentDraftData: (data: ScheduleResponse | ScheduleDraft | null | undefined) => void;
   generateSchedule: (isRegen: boolean, regenDates: string[]) => void;
+
+  scheduleParams: ScheduleRequest;
 }
 
 /**
@@ -92,7 +94,8 @@ const BuilderMainStage = ({
   onDeleteDraft,
   onPublishDraft,
   onCurrentDraftData,
-  generateSchedule
+  generateSchedule,
+  scheduleParams
 }: BuilderMainStageProps) => {
   const buttonBG = useColorModeValue("gray.100", "gray.700");
   const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.800");
@@ -329,6 +332,7 @@ const BuilderMainStage = ({
         templates={templates}
         minDaysOff={minDaysOff}
         isSkeletonView={hasSkeleton && !isSavedDraft ? hasSkeleton : false}
+        scheduleParams={scheduleParams}
       />
 
       {/* Full screen timeline view modal */}

@@ -9,7 +9,7 @@
  * Modal for modifying a specific calendar day of a draft.
  */
 
-import { Button, Text, Box, Flex, VStack } from "@chakra-ui/react";
+import {Button, Text, Box, Flex, VStack, Spinner} from "@chakra-ui/react";
 import {
   DialogBackdrop,
   DialogBody,
@@ -22,9 +22,16 @@ import {
 } from "@/components/ui/dialog";
 import { NativeSelectField, NativeSelectRoot } from "@/components/ui/native-select";
 
-import type { ScheduleResponse, ScheduleDraft, Assignment, ShiftTemplateRead } from "@/features/schedule/scheduleApi";
+import {
+  type ScheduleResponse,
+  type ScheduleDraft,
+  type Assignment,
+  type ShiftTemplateRead,
+  validateScheduleDraft,
+  type ScheduleRequest
+} from "@/features/schedule/scheduleApi";
 import type { EmployeeWithTimeOff } from "@/features/personnel/personnelApi";
-import {useMemo} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {toSimpleDate} from "@/utils/timeUtils.ts";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {LuShuffle} from "react-icons/lu";
@@ -46,6 +53,7 @@ export interface DayEditModalProps {
   templates: ShiftTemplateRead[];
   minDaysOff: number;
   isSkeletonView: boolean;
+  scheduleParams: ScheduleRequest;
 }
 
 /**
@@ -64,78 +72,102 @@ export default function DayEditModal({
   positions,
   templates,
   minDaysOff,
-  isSkeletonView = false
+  isSkeletonView = false,
+  scheduleParams
 }: DayEditModalProps) {
 
+  const [isValid, setIsValid] = useState<boolean>(true);
+  const [hardErrors, setHardErrors] = useState<string[]>([]);
+  const [softWarnings, setSoftWarnings] = useState<string[]>([]);
+  const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
+
   /**
-   * Perform checks on the proposed change to see if it violates any
-   * constraints and create warning messages
+   * Get list of all people being displayed in this edit modal
    */
-  const warnings = useMemo(() => {
-    const newWarnings: string[] = [];
+  const relevantPeopleNames = useMemo(() => {
+    const names = new Set<string>();
 
-    if (!selectedDate || !currentDraftData) return newWarnings;
+    // Add everyone currently visible in the modal
+    dayAssignments.forEach(a => names.add(a.watchstander.name));
 
-    const parts = selectedDate.split("-").map(Number);
-    const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-
-    // Create a list of dates that the employee is already working or is within min days off.
-    const forbiddenDates: string[] = [];
-    for (let i = 1; i <= minDaysOff; i++) {
-      const pastDate = new Date(dateObj);
-      pastDate.setDate(pastDate.getDate() - i);
-      forbiddenDates.push(toSimpleDate(pastDate));
-
-      const futureDate = new Date(dateObj);
-      futureDate.setDate(futureDate.getDate() + i);
-      forbiddenDates.push(toSimpleDate(futureDate));
+    // Add everyone who was assigned to this day in the original saved draft
+    if (currentDraftData && selectedDate) {
+      currentDraftData.assignments
+        .filter(a => a.date === selectedDate)
+        .forEach(a => names.add(a.watchstander.name));
     }
 
-    // Grab all shifts in the global schedule that fall on those forbidden dates
-    const windowShifts = currentDraftData.assignments.filter(a => forbiddenDates.includes(a.date));
+    return Array.from(names);
+  }, [dayAssignments, currentDraftData, selectedDate]);
 
-    // Track how many times each employee is working today (for double booking)
-    const employeeCounts: Record<string, number> = {};
-    dayAssignments.forEach(shift => {
-      const empId = shift.watchstander.id.toString();
-      employeeCounts[empId] = (employeeCounts[empId] || 0) + 1;
-    });
+  /**
+   * useEffect for evaluating warnings/errors for the schedule.
+   */
+  useEffect(() => {
+    setIsValid(true);
+    setHardErrors([]);
+    setSoftWarnings([]);
 
-    // Check every currently selected shift for rules
-    dayAssignments.forEach(shift => {
-      const empName = shift.watchstander.name;
-      const empId = shift.watchstander.id;
-      const employee = employees.find(e => e.id === empId);
+    // Do not validate if the modal is closed, if it's just a skeleton, or if data is missing
+    if (!open || !currentDraftData || !selectedDate || isSkeletonView) {
+      setIsEvaluating(false);
+      return;
+    }
 
-      // Check to make sure they aren't already scheduled for this day.
-      if (employeeCounts[empId.toString()] > 1) {
-        const msg = `${empName} is assigned to multiple watchstations today.`;
-        if (!newWarnings.includes(msg)) newWarnings.push(msg);
+    setIsEvaluating(true);
+
+    const validationTimer = setTimeout(async () => {
+      try {
+        // Construct the full proposed schedule (the untouched days + the newly edited day)
+        const otherDays = currentDraftData.assignments.filter(a => a.date !== selectedDate);
+        const fullProposedSchedule = [...otherDays, ...dayAssignments];
+
+        const payloadAssignments = fullProposedSchedule.map(shift => {
+          // Handle unassigned skeleton shifts
+          if (shift.watchstander.id === 0) {
+            return {
+              ...shift,
+              watchstander: { ...shift.watchstander, watchstations: [], offset: 0 }
+            };
+          }
+
+          // Ensure existing shifts have watchstations and offset
+          const emp = employees.find(e => e.id === shift.watchstander.id);
+          return {
+            ...shift,
+            watchstander: {
+              ...shift.watchstander,
+              watchstations: shift.watchstander.watchstations || (emp ? emp.positions.map(p => p.id) : []),
+              offset: shift.watchstander.offset ?? 0
+            }
+          };
+        });
+
+        // Send to backend to grade the schedule
+        const result = await validateScheduleDraft({
+          params: scheduleParams,
+          assignments: payloadAssignments,
+          target_date: selectedDate!,
+          target_person_names: relevantPeopleNames,
+          is_global_audit: false
+        });
+
+        setIsValid(result.is_valid);
+        setHardErrors(result.hard_error);
+        setSoftWarnings(result.soft_warnings);
+      } catch (error) {
+        console.error("Failed to validate schedule:", error);
+        // Fail-safe
+        setIsValid(false);
+        setHardErrors(["Lost connection to validation server."]);
+      } finally {
+        setIsEvaluating(false);
       }
+    }, 100); // 200ms debounce delay
 
-      // Make sure that the employee isn't scheduled for leave for this date.
-      if (employee && employee.time_off_requests) {
-        const hasTimeOff = employee.time_off_requests.some(req =>
-          req.status !== "Denied" && req.start_date <= selectedDate && req.end_date >= selectedDate
-        );
-        if (hasTimeOff) {
-          const msg = `${empName} has requested time off for this day.`;
-          if (!newWarnings.includes(msg)) newWarnings.push(msg);
-        }
-      }
-
-      // Check if they have any conflicting shifts in the time period
-      const conflictingShifts = windowShifts.filter(a => a.watchstander.id === empId);
-
-      if (conflictingShifts.length > 0) {
-        const datesWorking = Array.from(new Set(conflictingShifts.map(s => s.date))).sort().join(", ");
-        const msg = `${empName} violates the ${minDaysOff} Min Days Off constraint. They are also scheduled on: ${datesWorking}.`;
-        if (!newWarnings.includes(msg)) newWarnings.push(msg);
-      }
-    });
-
-      return newWarnings;
-  }, [dayAssignments, selectedDate, currentDraftData, employees, minDaysOff]);
+    // Cleanup function cancels the timer if the user makes another change before 400ms is up
+    return () => clearTimeout(validationTimer);
+  }, [dayAssignments, open, currentDraftData, selectedDate, isSkeletonView, scheduleParams, relevantPeopleNames, employees]);
 
   /**
    * Handle replacing an employee for the specified shift
@@ -145,7 +177,12 @@ export default function DayEditModal({
     if (!emp) return;
 
     const updated = [...dayAssignments];
-    updated[index].watchstander = { id: emp.id, name: `${emp.last_name}, ${emp.first_name}` };
+    updated[index].watchstander = {
+      id: emp.id,
+      name: `${emp.last_name}, ${emp.first_name}`,
+      watchstations: emp.positions.map(p => p.id),
+      offset: 0
+    };
     setDayAssignments(updated);
   };
 
@@ -157,7 +194,11 @@ export default function DayEditModal({
     if (!pos) return;
 
     const updated = [...dayAssignments];
-    updated[index].watchstation = { id: pos.id, name: pos.name, color: pos.color };
+    updated[index].watchstation = {
+      id: pos.id,
+      name: pos.name,
+      color: pos.color
+    };
     setDayAssignments(updated);
   };
 
@@ -194,10 +235,20 @@ export default function DayEditModal({
       }
     }
 
+    const defaultEmp = employees[qualifiedIndex];
+    const defaultTemplate = templates.length > 0 ? templates[0] : null;
+
     const newShift: Assignment = {
       date: selectedDate,
+      start_time: defaultTemplate?.start_time,
+      end_time: defaultTemplate?.end_time,
       watchstation: { id: positions[0].id, name: positions[0].name, color: positions[0].color },
-      watchstander: { id: employees[qualifiedIndex].id, name: `${employees[qualifiedIndex].last_name}, ${employees[qualifiedIndex].first_name}` }
+      watchstander: {
+        id: defaultEmp.id,
+        name: `${defaultEmp.last_name}, ${defaultEmp.first_name}`,
+        watchstations: defaultEmp.positions.map(p => p.id),
+        offset: 0
+      }
     };
 
     setDayAssignments([...dayAssignments, newShift]);
@@ -301,7 +352,12 @@ export default function DayEditModal({
 
     // Add them to the schedule
     const updated = [...dayAssignments];
-    updated[index].watchstander = { id: winner.id, name: `${winner.last_name}, ${winner.first_name}` };
+    updated[index].watchstander = {
+      id: winner.id,
+      name: `${winner.last_name}, ${winner.first_name}`,
+      watchstations: winner.positions.map(p => p.id),
+      offset: 0
+    };
     setDayAssignments(updated);
   };
 
@@ -345,27 +401,41 @@ export default function DayEditModal({
               </Text>
             )}
 
-            {/* Display any warnings if it's not a skeleton view */}
-            {warnings.length > 0 && !isSkeletonView && (
-              <Box
-                p={3}
-                bg="yellow.100"
-                color="yellow.800"
-                _dark={{ bg: "yellow.900", color: "yellow.200" }}
-                borderRadius="md"
-                border="1px solid"
-                borderColor="yellow.300"
-              >
-                <Text fontWeight="bold" mb={1}>Schedule Constraint Warnings:</Text>
-                <VStack align="start" gap={0}>
-                  {warnings.map((warn, i) => (
-                    <Text key={i} fontSize="sm">• {warn}</Text>
-                  ))}
-                </VStack>
+            {!isSkeletonView && (
+              <Box>
+                {/* Hard Errors (Red) */}
+                {!isValid && hardErrors.length > 0 && (
+                  <Box p={3} bg="red.100" color="red.800" _dark={{ bg: "red.900", color: "red.200" }} borderRadius="md" border="1px solid" borderColor="red.300" mb={3}>
+                    <Text fontWeight="bold" mb={1}>Invalid Schedule Action:</Text>
+                    <VStack align="start" gap={0}>
+                      {hardErrors.map((err, i) => (
+                        <Text key={i} fontSize="sm">• {err}</Text>
+                      ))}
+                    </VStack>
+                  </Box>
+                )}
+
+                {/* Soft Warnings (Yellow) */}
+                {isValid && softWarnings.length > 0 && (
+                  <Box p={3} bg="yellow.100" color="yellow.800" _dark={{ bg: "yellow.900", color: "yellow.200" }} borderRadius="md" border="1px solid" borderColor="yellow.300" mb={3}>
+                    <Text fontWeight="bold" mb={1}>Sub-Optimal Changes:</Text>
+                    <VStack align="start" gap={0}>
+                      {softWarnings.map((warn, i) => (
+                        <Text key={i} fontSize="sm">• {warn}</Text>
+                      ))}
+                    </VStack>
+                  </Box>
+                )}
+
+                {/* No Errors (Green) */}
+                {isValid && softWarnings.length === 0 && !isEvaluating && dayAssignments.length > 0 && (
+                  <Box p={2} bg="green.50" color="green.700" _dark={{ bg: "green.900", color: "green.200" }} borderRadius="md" border="1px solid" borderColor="green.300" mb={3}>
+                    <Text fontSize="sm" fontWeight="medium">No errors found.</Text>
+                  </Box>
+                )}
               </Box>
             )}
 
-            {/* Display all assignments for this day */}
             {dayAssignments.map((shift, index) => (
               <Box key={index} p={4} border="1px solid" borderColor="gray.200" borderRadius="md" bg="gray.50" _dark={{ bg: "gray.800", borderColor: "gray.700" }}>
                 <Flex gap={4} align="flex-end">
@@ -381,7 +451,6 @@ export default function DayEditModal({
                     </NativeSelectRoot>
                   </Box>
 
-                  {/* Drop down for assigning the shift template type */}
                   <Box flex="2">
                     <Text fontSize="sm" fontWeight="bold" mb={1}>Template</Text>
                     <NativeSelectRoot bg="white" _dark={{ bg: "gray.900" }}>
@@ -397,10 +466,8 @@ export default function DayEditModal({
                     </NativeSelectRoot>
                   </Box>
 
-                  {/* Only show employee assignment and auto assign if it's not a skeleton */}
                   {!isSkeletonView && (
                     <>
-                      {/* Drop down box for assigning users to a shift. */}
                       <Box flex="2">
                         <Text fontSize="sm" fontWeight="bold" mb={1}>Assignee</Text>
                         <NativeSelectRoot bg="white" _dark={{ bg: "gray.900" }}>
@@ -408,7 +475,6 @@ export default function DayEditModal({
                             value={shift.watchstander.id.toString()}
                             onChange={(e) => handleEmployeeChange(index, e.currentTarget.value)}
                           >
-                            {/* Ensure that only people qualified for this shift will show up. */}
                             {employees.filter(emp => emp.positions.map(p => p.id).includes(shift.watchstation.id)).map(emp => (
                               <option key={emp.id} value={emp.id}>{emp.last_name}, {emp.first_name}</option>)
                             )}
@@ -416,7 +482,6 @@ export default function DayEditModal({
                         </NativeSelectRoot>
                       </Box>
 
-                      {/* Auto assign button. Finds the fairest person for the shift. */}
                       <Button
                       colorPalette="purple"
                       variant="surface"
@@ -427,7 +492,7 @@ export default function DayEditModal({
                       </Button>
                     </>
                   )}
-                  
+
                   <Button colorPalette="red" variant="outline" onClick={() => handleRemoveShift(index)}>
                     Remove
                   </Button>
@@ -443,7 +508,16 @@ export default function DayEditModal({
 
         <DialogFooter borderTopWidth="1px">
           <Button variant="outline" mr={3} onClick={() => onOpenChange({ open: false })}>Cancel</Button>
-          <Button colorPalette="blue" onClick={handleSave}>Save Day</Button>
+
+          {/* Save Button */}
+          <Button
+            colorPalette="blue"
+            onClick={handleSave}
+            disabled={!isValid || isEvaluating}
+            opacity={(!isValid || isEvaluating) ? 0.6 : 1}
+          >
+            {isEvaluating ? <><Spinner size="sm" mr={2} /> Evaluating...</> : "Save Day"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </DialogRoot>

@@ -2,51 +2,64 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
-from typing import Optional, Tuple, List
+
+from typing import Tuple, List
 
 import numpy as np
 
 from .exceptions.IllegalScheduleException import IllegalScheduleException
+from .translator import ScheduleTranslator
 
 
 def is_legal(
     schedule: np.ndarray,
     min_days_off_between_duty: int,
-    max_days_off_between_duty: int,
     qualification_matrix: np.ndarray,
     conflict_matrix: np.ndarray,
-    headcount_matrix: np.ndarray,
     shift_times: List[Tuple[float, float]],
-    frozen_assignments_matrix: list[tuple[int, int, int]] = None
-) -> Tuple[bool, Optional[str]]:
+    translator: ScheduleTranslator,
+    frozen_assignments_matrix: list[tuple[int, int, int]] = None,
+) -> Tuple[bool, List[str]]:
+
     # these should never be violated, so raise if they are
     if not frozen_assignments_matrix:
         frozen_assignments_matrix = []
 
-    # these might be, but should be penalized
-    try:
-        frozen_assignments_constraint(schedule, frozen_assignments_matrix)
+    errors = []
 
-        no_two_watchstations_at_same_time_constraint(
-            schedule,
-            shift_times=shift_times
-        )
-        min_days_off_between_duty_constraint(
-            schedule,
-            min_days_off_between_duty=min_days_off_between_duty
-        )
-        watchstander_qualified_constraint(
-            schedule,
-            qualification_matrix=qualification_matrix,
-        )
-        no_duty_on_conflicts_constraint(
-            schedule,
-            conflict_matrix=conflict_matrix,
-        )
-    except IllegalScheduleException as e:
-        return False, str(e)
-    return True, None
+    frozen_assignments_constraint(
+        schedule=schedule,
+        frozen_coordinates=frozen_assignments_matrix,
+        translator=translator,
+        errors=errors
+    )
 
+    no_two_watchstations_at_same_time_constraint(
+        schedule=schedule,
+        shift_times=shift_times,
+        translator=translator,
+        errors=errors
+    )
+    min_days_off_between_duty_constraint(
+        schedule=schedule,
+        min_days_off_between_duty=min_days_off_between_duty,
+        translator=translator,
+        errors=errors
+    )
+    watchstander_qualified_constraint(
+        schedule=schedule,
+        qualification_matrix=qualification_matrix,
+        translator=translator,
+        errors=errors
+    )
+    no_duty_on_conflicts_constraint(
+        schedule=schedule,
+        conflict_matrix=conflict_matrix,
+        translator=translator,
+        errors=errors
+    )
+
+    return len(errors) == 0, errors
 
 def exact_headcount_constraint(schedule: np.ndarray, headcount_matrix: np.ndarray):
     """Ensures the schedule perfectly matches the dynamic headcount matrix."""
@@ -62,12 +75,17 @@ def exact_headcount_constraint(schedule: np.ndarray, headcount_matrix: np.ndarra
         )
 
 
-def no_overlapping_shifts_constraint(schedule: np.ndarray, shift_times: List[Tuple[float, float]]):
+def no_overlapping_shifts_constraint(
+    schedule: np.ndarray,
+    shift_times: List[Tuple[float, float]],
+    translator: ScheduleTranslator,
+    errors: List[str]
+):
     """Ensures a watchstander is not assigned to two overlapping shifts."""
     n_people, n_days, n_slots = schedule.shape
 
     for w in range(n_people):
-        # 1. Same-day overlaps
+        # Same-day overlaps
         for d in range(n_days):
             worked_slots = np.where(schedule[w, d] == 1)[0]
             for i in range(len(worked_slots)):
@@ -76,9 +94,9 @@ def no_overlapping_shifts_constraint(schedule: np.ndarray, shift_times: List[Tup
                     start1, end1 = shift_times[s1]
                     start2, end2 = shift_times[s2]
                     if max(start1, start2) < min(end1, end2):
-                        raise IllegalScheduleException(f"Person {w} has overlapping shifts on day {d}")
+                        errors.append(f"{translator.get_person(w)} has overlapping shifts on {translator.get_date(d)}.")
 
-        # 2. Cross-midnight overlaps
+        # Cross-midnight overlaps
         for d in range(n_days - 1):
             worked_today = np.where(schedule[w, d] == 1)[0]
             worked_tmrw = np.where(schedule[w, d + 1] == 1)[0]
@@ -87,11 +105,13 @@ def no_overlapping_shifts_constraint(schedule: np.ndarray, shift_times: List[Tup
                     start1, end1 = shift_times[s1]
                     start2, end2 = shift_times[s2]
                     if max(start1, start2 + 24.0) < min(end1, end2 + 24.0):
-                        raise IllegalScheduleException(f"Person {w} has a cross-midnight overlap between day {d} and {d+1}")
+                        errors.append(f"{translator.get_person(w)} has a cross-midnight overlap between {translator.get_date(d)} and {translator.get_date(d+1)}.")
 
 
 def one_shift_per_day_constraint(
     schedule: np.ndarray,
+    translator: ScheduleTranslator,
+    errors: List[str]
 ):
     # Sum along person axis (axis 0) to get counts for each day-station pair
     assignments_per_day_station = np.sum(schedule, axis=0)
@@ -104,15 +124,16 @@ def one_shift_per_day_constraint(
         day, station = violations[0][0], violations[1][0]
         person_count = assignments_per_day_station[day, station]
 
-        raise IllegalScheduleException(
-            f"Day {day}, Station {station} has {person_count} people assigned "
-            f"instead of exactly one person"
+        errors.append(
+            f"{translator.get_station(station)} on {translator.get_date(day)} has {person_count} people assigned instead of exactly one person."
         )
 
 
 def no_two_watchstations_at_same_time_constraint(
     schedule: np.ndarray,
-    shift_times: List[Tuple[float, float]]
+    shift_times: List[Tuple[float, float]],
+    translator: ScheduleTranslator,
+    errors: List[str]
 ):
     n_people, n_days, n_slots = schedule.shape
 
@@ -140,13 +161,16 @@ def no_two_watchstations_at_same_time_constraint(
                 st2, et2 = intervals[(d2, s2)]
 
                 if max(st1, st2) < min(et1, et2):
-                    raise IllegalScheduleException(
-                        f"Person {w} has overlapping shifts: Slot {s1} on Day {d1} and Slot {s2} on Day {d2}")
+                    errors.append(
+                        f"{translator.get_person(w)} has overlapping shifts: {translator.get_station(s1)} on {translator.get_date(d1)} and {translator.get_station(s2)} on {translator.get_date(d2)}."
+                    )
 
 
 def min_days_off_between_duty_constraint(
     schedule: np.ndarray,
     min_days_off_between_duty: int,
+    translator: ScheduleTranslator,
+    errors: List[str]
 ):
     if min_days_off_between_duty == 0:
         return schedule
@@ -176,9 +200,8 @@ def min_days_off_between_duty_constraint(
             day1 = duty_days[violation_idx]
             day2 = duty_days[violation_idx + 1]
 
-            raise IllegalScheduleException(
-                f"Person {person} is scheduled on consecutive days ({day1} and {day2}). "
-                f"At least 1 day off is strictly required."
+            errors.append(
+                f"{translator.get_person(person)} is scheduled on consecutive days ({translator.get_date(day1)} and {translator.get_date(day2)}). At least 1 day off is strictly required."
             )
 
 def max_days_off_between_duty_constraint(
@@ -235,6 +258,8 @@ def max_days_off_between_duty_constraint(
 def watchstander_qualified_constraint(
     schedule: np.ndarray,
     qualification_matrix: np.ndarray,
+    translator: ScheduleTranslator,
+    errors: List[str]
 ):
     # Find all person-day-station assignments
     assignments = np.where(schedule == 1)
@@ -253,15 +278,16 @@ def watchstander_qualified_constraint(
         idx = violations[0]
         person, day, station = persons[idx], days[idx], stations[idx]
 
-        raise IllegalScheduleException(
-            f"Person {person} is assigned to station "
-            f"{station} on day {day} but is not qualified"
+        errors.append(
+            f"{translator.get_person(person)} is assigned to {translator.get_station(station)} on {translator.get_date(day)} but is not qualified."
         )
 
 
 def no_duty_on_conflicts_constraint(
     schedule: np.ndarray,
     conflict_matrix: np.ndarray,
+    translator: ScheduleTranslator,
+    errors: List[str]
 ):
     # Sum across watchstation dimension to get person-day duty assignments
     has_duty = np.sum(schedule, axis=2) > 0
@@ -273,14 +299,13 @@ def no_duty_on_conflicts_constraint(
         # Get the first violation
         person, day = violations[0][0], violations[1][0]
 
-        raise IllegalScheduleException(
-            f"Person {person} is assigned duty on day {day} "
-            "but has a conflict"
-        )
+        errors.append(f"{translator.get_person(person)} is assigned duty on {translator.get_date(day)} but has a conflict.")
 
 def frozen_assignments_constraint(
     schedule: np.ndarray,
-    frozen_coordinates: list[tuple[int, int, int]]
+    frozen_coordinates: list[tuple[int, int, int]],
+    translator: ScheduleTranslator,
+    errors: List[str]
 ):
     """
     Ensures that any shift locked in by the user remains assigned
@@ -290,7 +315,4 @@ def frozen_assignments_constraint(
         # If the schedule matrix at this exact 3D coordinate is 0,
         # the mutator algorithm illegally moved the shift!
         if schedule[w, d, s] == 0:
-            raise IllegalScheduleException(
-                f"Person {w} was removed "
-                f"from Station {s} on Day {d} which is frozen."
-            )
+            errors.append(f"{translator.get_person(w)} was removed from {translator.get_station(s)} on {translator.get_date(d)} which is frozen.")
