@@ -9,7 +9,7 @@
  * Page for building schedules.
  */
 
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {Center, Flex, Spinner, Text, VStack} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
@@ -108,12 +108,14 @@ const BuilderPage = () => {
     }
   }, [isLoadingDraft]);
 
+  const prevDraftRef = useRef(currentDraftData);
+
   /**
    * Automatically validate currently loaded draft
    */
   useEffect(() => {
-    setGlobalHardErrors([]);
-    setGlobalSoftWarnings([]);
+    const isDraftChange = prevDraftRef.current !== currentDraftData;
+    prevDraftRef.current = currentDraftData;
 
     const runGlobalValidation = async () => {
       if (!currentDraftData) {
@@ -137,7 +139,17 @@ const BuilderPage = () => {
       }
     };
 
-    runGlobalValidation();
+    if (isDraftChange) {
+      runGlobalValidation();
+    } else {
+      // Wait 500ms on non-draft changes to prevent rerender.
+      const timeoutId = setTimeout(() => {
+        runGlobalValidation();
+      }, 500);
+
+      // Cancel the timer if they keep typing
+      return () => clearTimeout(timeoutId);
+    }
   }, [
     currentDraftData,
     startDate,
