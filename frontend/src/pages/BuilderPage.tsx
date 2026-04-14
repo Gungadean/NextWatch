@@ -9,7 +9,7 @@
  * Page for building schedules.
  */
 
-import { useState } from "react";
+import {useEffect, useState} from "react";
 import {Center, Flex, Spinner, Text, VStack} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
@@ -20,7 +20,7 @@ import BuilderSidebar from "@/features/schedule/components/BuilderSidebar.tsx";
 import BuilderMainStage from "@/features/schedule/components/BuilderMainStage.tsx";
 import {useScheduleGenerator} from "@/features/schedule/hooks/useScheduleGenerator.ts";
 import {useBuilderData} from "@/features/schedule/hooks/useBuilderData.ts";
-import type {ScheduleRequest} from "@/features/schedule/scheduleApi.ts";
+import {type ScheduleRequest, validateScheduleDraft} from "@/features/schedule/scheduleApi.ts";
 
 const BuilderPage = () => {
   const [viewMode, setViewMode] = useState<string>("calendar");
@@ -56,6 +56,11 @@ const BuilderPage = () => {
     return new Date(today.getFullYear(), today.getMonth() + 1, 1);
   });
 
+  // States for handling validation indicator icons
+  const [globalHardErrors, setGlobalHardErrors] = useState<string[]>([]);
+  const [globalSoftWarnings, setGlobalSoftWarnings] = useState<string[]>([]);
+  const [isScheduleLoading, setIsScheduleLoading] = useState<boolean>(false);
+
   const {
     employees,
     positions,
@@ -79,8 +84,70 @@ const BuilderPage = () => {
     genProgress
   } = useScheduleGenerator(setDraftSummaries, setCalendarViewDate, setStartDate, setEndDate);
 
+  /**
+   * Get current schedule parameters to help validate draft schedule.
+   */
+  const currentScheduleParams: ScheduleRequest = {
+    start_date: startDate,
+    end_date: endDate,
+    position_ids: selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number),
+    ignore_pending_timeoff: selectIgnorePending,
+    min_days_off: minDaysOff === "" ? 1 : Number(minDaysOff),
+    max_days_off: maxDaysOff === "" ? 1 : Number(maxDaysOff),
+    max_steps: Number(maxSteps) || 10000,
+  };
+
   const mainBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
+
+  const joinedSelectedIds = selectedPositionIds.join(',');
+
+  useEffect(() => {
+    if (isLoadingDraft) {
+      setIsScheduleLoading(true);
+    }
+  }, [isLoadingDraft]);
+
+  /**
+   * Automatically validate currently loaded draft
+   */
+  useEffect(() => {
+    setGlobalHardErrors([]);
+    setGlobalSoftWarnings([]);
+
+    const runGlobalValidation = async () => {
+      if (!currentDraftData) {
+        setIsScheduleLoading(false);
+        return;
+      }
+
+      try {
+        const result = await validateScheduleDraft({
+          params: currentScheduleParams,
+          assignments: currentDraftData.assignments,
+          is_global_audit: true
+        });
+
+        setGlobalHardErrors(result.hard_error || []);
+        setGlobalSoftWarnings(result.soft_warnings || []);
+      } catch (error) {
+        console.error("Global validation failed:", error);
+      } finally {
+        setIsScheduleLoading(false);
+      }
+    };
+
+    runGlobalValidation();
+  }, [
+    currentDraftData,
+    startDate,
+    endDate,
+    minDaysOff,
+    maxDaysOff,
+    selectIgnorePending,
+    selectAllPositions,
+    joinedSelectedIds
+  ]);
 
   /**
    * Wrap the hook's generate function to grab from the current form state.
@@ -224,19 +291,6 @@ const BuilderPage = () => {
     );
   }
 
-  /**
-   * Get current schedule parameters to help validate draft schedule.
-   */
-  const currentScheduleParams: ScheduleRequest = {
-    start_date: startDate,
-    end_date: endDate,
-    position_ids: selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number),
-    ignore_pending_timeoff: selectIgnorePending,
-    min_days_off: minDaysOff === "" ? 1 : Number(minDaysOff),
-    max_days_off: maxDaysOff === "" ? 1 : Number(maxDaysOff),
-    max_steps: Number(maxSteps) || 10000,
-  };
-
   return (
     <Flex h="calc(100vh - 64px)" overflow="hidden" borderRadius="md">
       {/* Left Sidebar: Config and History */}
@@ -282,7 +336,7 @@ const BuilderPage = () => {
         endDate={endDate}
         viewMode={viewMode}
         genProgress={genProgress}
-        isLoadingDraft={isLoadingDraft}
+        isScheduleLoading={isScheduleLoading}
         isGenerating={isGenerating}
         calendarViewDate={calendarViewDate}
         navMonth={navMonth}
@@ -292,6 +346,8 @@ const BuilderPage = () => {
         onCurrentDraftData={updateCurrentDraft}
         generateSchedule={handleGenerate}
         scheduleParams={currentScheduleParams}
+        globalHardErrors={globalHardErrors}
+        globalSoftWarnings={globalSoftWarnings}
       />
 
       {/* Modals */}

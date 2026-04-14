@@ -55,7 +55,7 @@ interface BuilderMainStageProps {
 
   viewMode: string;
   genProgress: number;
-  isLoadingDraft: boolean;
+  isScheduleLoading: boolean;
   isGenerating: boolean;
 
   calendarViewDate: Date;
@@ -68,6 +68,8 @@ interface BuilderMainStageProps {
   generateSchedule: (isRegen: boolean, regenDates: string[]) => void;
 
   scheduleParams: ScheduleRequest;
+  globalHardErrors: string[];
+  globalSoftWarnings: string[];
 }
 
 /**
@@ -86,7 +88,7 @@ const BuilderMainStage = ({
   endDate,
   viewMode,
   genProgress,
-  isLoadingDraft,
+  isScheduleLoading,
   isGenerating,
   calendarViewDate,
   navMonth,
@@ -95,7 +97,9 @@ const BuilderMainStage = ({
   onPublishDraft,
   onCurrentDraftData,
   generateSchedule,
-  scheduleParams
+  scheduleParams,
+  globalHardErrors,
+  globalSoftWarnings
 }: BuilderMainStageProps) => {
   const buttonBG = useColorModeValue("gray.100", "gray.700");
   const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.800");
@@ -245,7 +249,7 @@ const BuilderMainStage = ({
       {/* Content Area */}
       <Box flex="1" overflow="hidden" position="relative" display="flex" flexDirection="column">
         <Box flex="1" overflow="auto" p={6}>
-          {isLoadingDraft ? (
+          {(isScheduleLoading) ? (
             <Flex h="100%" justify="center" align="center" direction="column">
               <Spinner size="xl" mb={4} />
               <Text color="gray.500">Loading Schedule...</Text>
@@ -266,6 +270,8 @@ const BuilderMainStage = ({
               onDayClick={handleDayClick}
               selectedRegenDates={selectedRegenDates}
               onToggleRegenDate={handleToggleRegenDate}
+              globalHardErrors={globalHardErrors}
+              globalSoftWarnings={globalSoftWarnings}
             />
           ) : (
             <TimelineGrid

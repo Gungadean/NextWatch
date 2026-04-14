@@ -9,13 +9,14 @@
  * Renders a calendar month layout for displaying events.
  */
 
-import {Box, Grid, Text, Flex, Stack} from "@chakra-ui/react";
+import {Box, Grid, Text, Flex, Stack, VStack, Icon} from "@chakra-ui/react";
 import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {parseISODate, toSimpleDate} from "@/utils/timeUtils.ts";
 import type {Assignment} from "@/features/schedule/scheduleApi.ts";
 import {Checkbox} from "@/components/ui/checkbox.tsx";
 import {useEffect, useRef, useState} from "react";
 import React from "react";
+import { LuCircleAlert, LuTriangleAlert } from "react-icons/lu";
 import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
 import {Tooltip} from "@/components/ui/tooltip.tsx";
 
@@ -49,6 +50,9 @@ interface CalendarGridProps {
   onDayClick?: (dateStr: string) => void;
   selectedRegenDates?: string[];
   onToggleRegenDate?: (dateStr: string) => void;
+
+  globalHardErrors?: string[];
+  globalSoftWarnings?: string[];
 }
 
 /**
@@ -67,6 +71,8 @@ export const CalendarGrid = ({
    onDayClick,
    selectedRegenDates = [],
    onToggleRegenDate,
+   globalHardErrors = [],
+   globalSoftWarnings = []
 }: CalendarGridProps) => {
   const [expandedWeekIndex, setExpandedWeekIndex] = useState<number | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -78,6 +84,10 @@ export const CalendarGrid = ({
   const hoverBg = useColorModeValue("gray.50", "gray.800");
   const emptyBg = useColorModeValue("gray.50", "gray.900");
   const expandedBg = useColorModeValue("gray.50", "gray.800");
+  const tooltipBg = useColorModeValue("white", "gray.800");
+  const tooltipBorder = useColorModeValue("gray.200", "gray.700");
+  const hardErrorText = useColorModeValue("red.600", "red.300");
+  const softWarningText = useColorModeValue("yellow.600", "yellow.300");
 
   // Calculate the number of days in the month
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -144,6 +154,21 @@ export const CalendarGrid = ({
     }
   };
 
+  /**
+   *
+   * @param dateStr
+   */
+  const getPythonDateString = (dateStr: string) => {
+    // Assuming dateStr is "YYYY-MM-DD"
+    const parts = dateStr.split("-").map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    const month = monthNames[d.getMonth()];
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${month} ${day}`;
+  };
+
   return (
     <Grid
       templateColumns="repeat(7, 1fr)"
@@ -208,8 +233,18 @@ export const CalendarGrid = ({
 
           const dayEvents = eventsByDay[day] || [];
 
+          const pythonDateStr = getPythonDateString(dateStr); // e.g., "2026-03-01" -> "Mar 01"
+
+          // 2. Filter the global arrays for errors belonging to THIS day
+          const dayHardErrors = globalHardErrors.filter(err => err.includes(pythonDateStr));
+          const daySoftWarnings = globalSoftWarnings.filter(warn => warn.includes(pythonDateStr));
+
+          const hasErrors = dayHardErrors.length > 0;
+          const hasWarnings = daySoftWarnings.length > 0;
+
           CellContent = (
             <Box
+              position="relative"
               minH={cellHeight}
               transition="min-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s"
               borderRight="1px solid" borderBottom={isExpanded ? "none" : "1px solid"}
@@ -220,14 +255,55 @@ export const CalendarGrid = ({
               onClick={(e) => handleCellClick(e, weekIndex, dateStr)}
               _hover={{ bg: isSelected ? "blue.100" : hoverBg }}
             >
-              <Flex justify="space-between" align="center" mb={isCompressed ? 0 : 1}>
+              <Flex justify="space-between" align="center" mb={isCompressed ? 0 : 1} position="relative" minH="24px">
+                {/* Left: Date */}
                 <Text fontSize={isCompressed ? "xs" : "sm"} color={isSelected ? "blue.600" : "gray.500"} fontWeight="bold" transition="font-size 0.3s">
                   {day}
                 </Text>
 
-                {/* Set blue color palette for cells selected for regen. */}
+                {/* Center: Validation Icon (Absolute Centered) */}
+                {(hasErrors || hasWarnings) && (
+                  <Box position="absolute" left="50%" transform="translateX(-50%)" zIndex={2}>
+                    <Tooltip
+                      content={
+                        <VStack
+                          align="start" gap={1} p={2} maxW="250px"
+                        >
+                          {dayHardErrors.map((err, i) => (
+                            <Text key={`hard-${i}`} color={hardErrorText} fontSize="xs" fontWeight="bold">• {err}</Text>
+                          ))}
+                          {daySoftWarnings.map((warn, i) => (
+                            <Text key={`soft-${i}`} color={softWarningText} fontSize="xs">• {warn}</Text>
+                          ))}
+                        </VStack>
+                      }
+                      openDelay={100}
+                      positioning={{ placement: "top" }}
+                      showArrow
+                      contentProps={{
+                        bg: tooltipBg,
+                        borderColor: tooltipBorder,
+                        borderWidth: "1px",
+                        shadow: "xl",
+                        borderRadius: "md",
+                        p: 2
+                      }}
+                    >
+                      <Box cursor="help" display="flex" alignItems="center">
+                        <Icon
+                          color={hasErrors ? "red.500" : "yellow.500"}
+                          size="md"
+                        >
+                          {hasErrors ? <LuCircleAlert /> : <LuTriangleAlert />}
+                        </Icon>
+                      </Box>
+                    </Tooltip>
+                  </Box>
+                )}
+
+                {/* Right: Checkbox - Set blue color palette for cells selected for regen. */}
                 {!isCompressed && onToggleRegenDate && (
-                  <Box onClick={(e) => e.stopPropagation()}>
+                  <Box onClick={(e) => e.stopPropagation()} zIndex={2}>
                     <Checkbox checked={isSelected} onCheckedChange={() => onToggleRegenDate(dateStr)} colorPalette="blue" size="sm" />
                   </Box>
                 )}
