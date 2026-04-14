@@ -14,7 +14,7 @@ import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {parseISODate, toSimpleDate} from "@/utils/timeUtils.ts";
 import type {Assignment} from "@/features/schedule/scheduleApi.ts";
 import {Checkbox} from "@/components/ui/checkbox.tsx";
-import {useEffect, useRef, useState} from "react";
+import {memo, useEffect, useRef, useState} from "react";
 import React from "react";
 import { LuCircleAlert, LuTriangleAlert } from "react-icons/lu";
 import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
@@ -61,7 +61,7 @@ interface CalendarGridProps {
  * Renders a standard 7-column month view, automatically handling
  * padding days for the start of the month.
  */
-export const CalendarGrid = ({
+export const CalendarGrid = memo(({
    year,
    month,
    events,
@@ -538,4 +538,14 @@ export const CalendarGrid = ({
       })}
     </Grid>
   );
-};
+}, (prevProps: CalendarGridProps, nextProps: CalendarGridProps) => {
+  return (
+    prevProps.month === nextProps.month &&
+    prevProps.year === nextProps.year &&
+    prevProps.isSkeletonView === nextProps.isSkeletonView &&
+    // Safely compare arrays by stringifying them so new references don't trigger renders
+    JSON.stringify(prevProps.selectedRegenDates) === JSON.stringify(nextProps.selectedRegenDates) &&
+    JSON.stringify(prevProps.globalHardErrors) === JSON.stringify(nextProps.globalHardErrors) &&
+    JSON.stringify(prevProps.globalSoftWarnings) === JSON.stringify(nextProps.globalSoftWarnings)
+  );
+});
