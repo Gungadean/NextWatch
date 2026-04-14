@@ -302,11 +302,11 @@ export const TimelineGrid = ({
 
   if (!gridData) return null;
 
-  const { allDays, totalDays } = gridData;
+  const { allDays } = gridData;
 
 return (
     <Box overflowX="auto" border="1px solid" borderColor={borderColor} borderRadius="md" shadow="sm">
-      <Box minW={`${Math.max(1000, totalDays * 50)}px`}>
+      <Box w="100%" minW="1000px">
 
         {/* Header Row (Dates) */}
         <Flex borderBottom="1px solid" borderColor={borderColor} bg={headerBg} align="stretch">
@@ -317,7 +317,7 @@ return (
             align="center"
             pl={4}
             pr={2}
-            py={2}
+            py={1}
             position="sticky"
             left={0}
             bg={headerBg}
@@ -406,7 +406,7 @@ return (
         {/* Data Rows */}
         {rows.map((row, index) => {
           const rowLanes = maxLanesPerRow[row.id] || 1;
-          const rowHeight = Math.max(48, rowLanes * 36 + 12);
+          const rowHeight = Math.max(36, rowLanes * 26 + 10);
 
           return (
           <Flex key={row.id} borderBottom="1px solid" borderColor={borderColor} align="stretch" minH={`${rowHeight}px`} _hover={{ bg: "blackAlpha.50" }}>
@@ -432,7 +432,7 @@ return (
                 const { left, width } = getBoxDimensions(item.start, item.end);
                 if (width <= 0) return null;
 
-                const topOffset = 6 + (lane * 36);
+                const topOffset = 5 + (lane * 26);
 
                 const displayText = item.shortLabel || item.label;
 
@@ -443,7 +443,7 @@ return (
                       left={`calc(${left}% + 1px)`}
                       width={`calc(${width}% - 1px)`}
                       top={`${topOffset}px`}
-                      height="28px"
+                      height="20px"
                       bg={item.color}
                       opacity={0.9}
                       zIndex={1}
@@ -451,13 +451,13 @@ return (
                       cursor="pointer"
                       align="center"
                       justify="center" // Center the text perfectly
-                      px={2}
+                      px={1}
                       overflow="hidden"
                       _hover={{ filter: "brightness(0.8)", zIndex: 2 }}
                       onClick={(e) => handleBarClick(e, item.start, item.end)}
                     >
                     <Text
-                        fontSize="xs"
+                        fontSize="10px"
                         fontWeight="bold"
                         color="white"
                         whiteSpace="nowrap"
