@@ -36,6 +36,7 @@ import {approveRequest, denyRequest, getRequests, type TimeOffResponse} from "@/
 import {type Employee, getEmployees} from "@/features/personnel/personnelApi.ts";
 import {useCurrentUser} from "@/hooks/useAuth.ts";
 import AddRequestModal from "@/features/requests/components/AddRequestModal.tsx";
+import ConfirmRequestDenialModal from "@/features/requests/components/ConfirmRequestDenialModal.tsx";
 import {toaster} from "@/components/ui/toaster.tsx";
 import {toSimpleDate} from "@/utils/timeUtils.ts";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
@@ -50,6 +51,11 @@ const RequestPage = () => {
   const user = useCurrentUser();
 
   const [isSubmitRequestModalOpen, setIsSubmitRequestModalOpen] = useState(false);
+
+  const [isDenyModalOpen, setIsDenyModalOpen] = useState(false);
+  const [requestToDeny, setRequestToDeny] = useState<number | null>(null);
+  const [employeeNameToDeny, setEmployeeNameToDeny] = useState("");
+
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
 
   const [viewDate, setViewDate] = useState(new Date());
@@ -388,6 +394,21 @@ const RequestPage = () => {
                                             </Button>
                                         </Tooltip>
                                     </HStack>
+                                ) : request.status === "Approved" && (user.role === 'admin' || user.role === 'manager') ? (
+                                    <Tooltip content="Rescind Approved Request">
+                                        <Button
+                                          size="xs"
+                                          colorPalette="orange"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setRequestToDeny(request.id);
+                                            setEmployeeNameToDeny(`${request.employee.first_name} ${request.employee.last_name}`);
+                                            setIsDenyModalOpen(true);
+                                          }}
+                                        >
+                                          Rescind
+                                        </Button>
+                                    </Tooltip>
                                 ) : (
                                     <Text fontSize="xs" color="gray.400">
                                       {request.status === "Pending" ? "Pending Review" : "Archived"}
@@ -432,6 +453,21 @@ const RequestPage = () => {
         employees={employees}
         requests={requests}
         onRequestsChange={setRequests}
+      />
+
+      <ConfirmRequestDenialModal
+        isOpen={isDenyModalOpen}
+        onOpenChange={(e) => setIsDenyModalOpen(e.open)}
+        requestId={requestToDeny}
+        employeeName={employeeNameToDeny}
+        onDenialSuccess={() => {
+          // Optimistically update the UI
+          if (requestToDeny) {
+            setRequests(prev => prev.map(req =>
+              req.id === requestToDeny ? { ...req, status: "Denied" } : req
+            ));
+          }
+        }}
       />
     </Box>
   );
