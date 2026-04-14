@@ -37,6 +37,11 @@ jobs:
 
             # Pull the latest code using the Deploy Key
             cd $PROJECT_DIR
+
+            # Add github to know hosts
+            mkdir -p ~/.ssh
+            ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+            
             git fetch origin main
             git reset --hard origin/main
 
