@@ -147,7 +147,7 @@ export const useScheduleGenerator = (
   /**
    * Loads a specific draft from history into the main view.
    */
-  const selectDraft = async (id: string) => {
+  const selectDraft = async (id: string): Promise<ScheduleDraft | undefined> => {
     if (id === selectedDraftId) return; // Don't reload if already selected
 
     setSelectedDraftId(id);
@@ -161,6 +161,8 @@ export const useScheduleGenerator = (
       setStartDate(draft_data.start_date);
       setEndDate(draft_data.end_date);
       setCalendarViewDate(parseDate(draft_data.start_date));
+
+      return draft_data;
     } catch {
       toaster.create({ title: "Could not load draft details", type: "error" });
     } finally {

@@ -101,6 +101,7 @@ export const useScheduleViewData = (
             start: req.start_date,
             end: req.end_date,
             label: `Time-Off: ${req.request_type} ${req.status}`,
+            shortLabel: req.request_type,
             color: req.status === "Approved" ? "green" : "gray"
           });
       });
@@ -108,30 +109,39 @@ export const useScheduleViewData = (
 
     // Add standard shifts
     normalizedData.forEach((data) => {
-      let startStr = data.date;
-      let endStr = data.date;
-
       if (data.employeeId !== null && data.employeeId !== undefined) {
-        if (data.startTime && data.endTime) {
-          startStr = `${data.date}T${data.startTime}`;
+        // Build the string that goes into the centered label
+        let timePeriod = "Shift";
 
-          // Determine if the shift goes into the next day
-          if (data.endTime < data.startTime) {
-            const nextDay = new Date(data.date);
-            nextDay.setDate(nextDay.getDate() + 1);
-            const nextDayStr = nextDay.toISOString().split('T')[0];
-            endStr = `${nextDayStr}T${data.endTime}`;
-          } else {
-            endStr = `${data.date}T${data.endTime}`;
+        if (data.startTime && data.endTime) {
+          const safeStart = data.startTime.includes('T') ? data.startTime.split('T')[1] : data.startTime;
+          const safeEnd = data.endTime.includes('T') ? data.endTime.split('T')[1] : data.endTime;
+
+          // Split the strings and convert to numbers (handles "08:00:00" or "08:00")
+          const [sHours, sMins] = safeStart.split(':').map(Number);
+          const [eHours, eMins] = safeEnd.split(':').map(Number);
+
+          // Convert to decimal hours
+          const startDec = sHours + (sMins / 60);
+          const endDec = eHours + (eMins / 60);
+
+          let duration = Math.round(endDec - startDec);
+
+          // If duration is <= 0, the shift crosses midnight or is exactly 24 hours
+          if (duration <= 0) {
+            duration += 24;
           }
+
+          timePeriod = `${duration}`;
         }
 
         items.push({
           id: `shift-${data.id}`,
           rowId: data.employeeId,
-          start: startStr,
-          end: endStr,
+          start: data.date,
+          end: data.date,
           label: `${data.roleName}: (${data.startTime} - ${data.endTime})`,
+          shortLabel: timePeriod,
           color: data.roleColor
         });
       }

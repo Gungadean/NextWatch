@@ -2,9 +2,12 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
+
 from typing import List, Tuple, Dict, Set
 
 import numpy as np
+
+from ewatchbill.logic.translator import ScheduleTranslator
 
 ILLEGAL_SCHEDULE_PENALTY = 1000000
 
@@ -77,6 +80,129 @@ def get_exponential_gap_penalty(gap_size: int, max_days_off: int) -> float:
         total_penalty += count * weight
 
     return float(total_penalty)
+
+
+def get_score_breakdown(
+        schedule: np.ndarray,
+        holiday_mask: np.ndarray,
+        offset_matrix: np.ndarray,
+        min_days_off: int,
+        max_days_off: int,
+        headcount_matrix: np.ndarray,
+        conflict_matrix: np.ndarray,
+        shift_times: List[Tuple[float, float]],
+        translator: ScheduleTranslator
+) -> Tuple[Dict[str, float], List[str]]:
+    """
+    Create breakdown of fairness results and create a list of any warnings/violations encountered.
+    """
+    breakdown = {
+        "Base Fairness (Std Dev)": 0.0,
+        "Headcount (Empty Shifts)": 0.0,
+        "Fatigue (Min Days Off)": 0.0,
+        "Engagement (Max Days Off)": 0.0,
+        "Utilization (Benched)": 0.0,
+        "Total Score": 0.0
+    }
+
+    detailed_warnings = []
+    n_people, n_days, n_slots = schedule.shape
+
+    badness = badness_array(schedule, holiday_mask)
+    badness = badness - offset_matrix
+    breakdown["Base Fairness (Std Dev)"] = round(float(np.std(badness)), 2)
+
+    # Headcount Penalties
+    if headcount_matrix is not None:
+        assignments_per_day_station = np.sum(schedule, axis=0)
+        for d in range(n_days):
+            for s in range(n_slots):
+                required = int(headcount_matrix[d, s])
+                if required == -1: continue
+
+                if required > 0:
+                    shortfall = required - int(assignments_per_day_station[d, s])
+                    if shortfall > 0:
+                        # Clean translation!
+                        detailed_warnings.append(
+                            f"Headcount: Missing {shortfall} person(s) for {translator.get_station(s)} on {translator.get_date(d)}.")
+
+                        for i in range(shortfall):
+                            if i == 0:
+                                breakdown["Headcount (Empty Shifts)"] += 100000
+                            elif i == 1:
+                                breakdown["Headcount (Empty Shifts)"] += 10000
+                            else:
+                                breakdown["Headcount (Empty Shifts)"] += 1000
+
+    # Fatigue AND Double Booking Penalties
+    if min_days_off > 0:
+        person_duty_shifts = np.sum(schedule, axis=2)
+
+        for p in range(n_people):
+            shifts_per_day = person_duty_shifts[p]
+
+            # Double Bookings
+            double_booked_days = np.where(shifts_per_day > 1)[0]
+            for d in double_booked_days:
+                detailed_warnings.append(
+                    f"Double Booking: {translator.get_person(p)} is assigned to {shifts_per_day[d]} shifts on {translator.get_date(d)}.")
+                breakdown["Fatigue (Min Days Off)"] += 500000
+
+            # Consecutive Fatigue Check
+            duty_days = np.where(shifts_per_day > 0)[0]
+            if len(duty_days) > 1:
+                gaps = np.diff(duty_days)
+
+                consecutive_indices = np.where(gaps == 1)[0]
+                for idx in consecutive_indices:
+                    d1, d2 = int(duty_days[idx]), int(duty_days[idx + 1])
+                    s1_arr = np.where(schedule[p, d1] == 1)[0]
+                    s2_arr = np.where(schedule[p, d2] == 1)[0]
+
+                    for s1 in s1_arr:
+                        for s2 in s2_arr:
+                            st1, et1 = shift_times[s1]
+                            st2, et2 = shift_times[s2]
+
+                            abs_end1 = d1 * 24.0 + et1
+                            if st1 >= et1 and not (st1 == 0.0 and et1 == 24.0): abs_end1 += 24.0
+                            abs_start2 = d2 * 24.0 + st2
+
+                            if (abs_start2 - abs_end1) <= 0:
+                                detailed_warnings.append(
+                                    f"CRITICAL FATIGUE: {translator.get_person(p)} has zero rest between {translator.get_date(d1)} and {translator.get_date(d2)}.")
+                                breakdown["Fatigue (Min Days Off)"] += 500000
+                            else:
+                                detailed_warnings.append(
+                                    f"Fatigue: {translator.get_person(p)} works back-to-back safely on {translator.get_date(d1)} and {translator.get_date(d2)}.")
+                                breakdown["Fatigue (Min Days Off)"] += 10000
+
+                for idx, gap in enumerate(gaps):
+                    if 1 < gap <= min_days_off:
+                        d_viol = int(duty_days[idx + 1])
+                        detailed_warnings.append(
+                            f"Fatigue: {translator.get_person(p)} was assigned on {translator.get_date(d_viol)} without full {min_days_off}-day rest.")
+                        breakdown["Fatigue (Min Days Off)"] += 500
+
+    # Engagement Penalties
+    if 0 < max_days_off < n_days:
+        person_duty_days = np.sum(schedule, axis=2) > 0
+        for p in range(n_people):
+            active_mask = person_duty_days[p] | (conflict_matrix[p] == 1)
+            active_days = np.where(active_mask)[0]
+
+            if len(active_days) > 1:
+                gaps = np.diff(active_days) - 1
+                for idx, gap in enumerate(gaps):
+                    if gap > max_days_off:
+                        gap_start = int(active_days[idx])
+                        detailed_warnings.append(
+                            f"Engagement: {translator.get_person(p)} is benched for {gap} days after {translator.get_date(gap_start)} (Max allowed: {max_days_off}).")
+                        breakdown["Engagement (Max Days Off)"] += get_exponential_gap_penalty(gap, max_days_off)
+
+    breakdown["Total Score"] = round(sum(breakdown.values()), 2)
+    return breakdown, detailed_warnings
 
 
 class DeltaScorer:

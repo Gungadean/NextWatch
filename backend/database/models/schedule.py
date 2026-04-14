@@ -23,6 +23,7 @@ class ScheduleDraft(SQLModel, table=True):
     start_date: date
     end_date: date
     score: float # Optimization score (lower/higher depending on fitness function)
+    parameters: dict = Field(default={}, sa_column=Column(JSON))
 
     # Stores the raw schedule matrix/assignments.
     # Uses SQLAlchemy JSON column type to store Python dicts/lists directly.

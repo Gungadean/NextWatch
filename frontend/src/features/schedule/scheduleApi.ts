@@ -106,7 +106,18 @@ export interface ScheduleDraft {
   start_date: string;
   end_date: string;
   score: number;
+  parameters: ScheduleRequest;
   assignments: Assignment[];
+}
+
+/**
+ * Result returned from the backend validation endpoint
+ */
+export interface ValidationResult {
+  is_valid: boolean;
+  hard_error: string[];
+  soft_warnings: string[];
+  score_breakdown: Record<string, number>;
 }
 
 /**
@@ -118,9 +129,9 @@ export interface ScheduleRequest {
   end_date: string;
   position_ids: number[];
   ignore_pending_timeoff: boolean;
-  min_days_off?: number;
-  max_days_off?: number;
-  max_steps?: number;
+  min_days_off: number;
+  max_days_off: number;
+  max_steps: number;
   manual_conflicts?: Array<Record<string, unknown>>;
   holidays?: string[];
   frozen_assignments?: Assignment[];
@@ -326,6 +337,26 @@ export const deleteDraft = async (uuid: string) => {
     return response.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Draft Publishing Failed"));
+  }
+}
+
+/**
+ * Validates a modified schedule against the backend constraints.
+ */
+export const validateScheduleDraft = async (
+  requestData: {
+    params: ScheduleRequest;
+    assignments: Assignment[];
+    target_date?: string;
+    target_person_names?: string[];
+    is_global_audit: boolean;
+  }
+): Promise<ValidationResult> => {
+  try {
+    const response = await axiosInstance.post<ValidationResult>('/schedule/validate', requestData);
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Validation Request Failed"));
   }
 }
 
