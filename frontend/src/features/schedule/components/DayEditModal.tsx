@@ -513,7 +513,7 @@ export default function DayEditModal({
           <Button
             colorPalette="blue"
             onClick={handleSave}
-            disabled={!isValid || isEvaluating}
+            disabled={isEvaluating}
             opacity={(!isValid || isEvaluating) ? 0.6 : 1}
           >
             {isEvaluating ? <><Spinner size="sm" mr={2} /> Evaluating...</> : "Save Day"}
