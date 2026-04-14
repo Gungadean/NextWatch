@@ -19,7 +19,8 @@ import {
   LuUsers,
   LuSettings,
   LuMenu,
-  LuAward
+  LuAward,
+  LuPinOff
 } from "react-icons/lu";
 import {useState} from "react";
 import {Footer} from "@/components/Footer.tsx";
@@ -48,70 +49,89 @@ const LINK_ITEMS = [
  * Main application sidebar navigation with collapsible state.
  */
 const Sidebar = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isPinned, setIsPinned] = useState(false); // Defaults to slim mode
+  const [isHovered, setIsHovered] = useState(false);
+
+  const isExpanded = isPinned || isHovered;
 
   const background = useColorModeValue("white", "gray.900");
   const borderColor = useColorModeValue("gray.200", "gray.700");
 
   return (
     <Box
-      width={isCollapsed ? "80px" : "240px"}
+      width={isPinned ? "240px" : "80px"}
       transition="width 0.2s ease"
       height="100%"
-      background={background}
-      padding="4"
-      borderRight="1px solid"
-      borderColor={borderColor}
-      overflowX="hidden">
+      flexShrink={0}
+      position="relative"
+      zIndex={100}
+    >
+      <Box
+        position="absolute"
+        top={0}
+        left={0}
+        height="100%"
+        width={isExpanded ? "240px" : "80px"}
+        transition="width 0.2s ease"
+        background={background}
+        padding="4"
+        borderRight="1px solid"
+        borderColor={borderColor}
+        overflowX="hidden"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        boxShadow={!isPinned && isHovered ? "xl" : "none"}
+      >
 
-      <Flex direction="column" h="100%" px={2}>
+        <Flex direction="column" h="100%" px={2}>
 
-        {/* Header Section: Logo & Toggle Button */}
-        <Flex
-          align="stretch"
-          justify={isCollapsed ? "center" : "space-between"}
-          marginBottom={8}
-          paddingX={isCollapsed ? 0 : 2}>
-          {!isCollapsed && (
-            <Text fontSize="xl" fontWeight="extrabold" color="blue.500">
-              NextWatch
-            </Text>
-          )}
+          {/* Header Section: Logo & Toggle Button */}
+          <Flex
+            align="stretch"
+            justify={isExpanded ? "space-between" : "center"}
+            marginBottom={8}
+            paddingX={isExpanded ? 2 : 0}>
+            {isExpanded && (
+              <Text fontSize="xl" fontWeight="extrabold" color="blue.500" whiteSpace="nowrap">
+                NextWatch
+              </Text>
+            )}
 
-          <IconButton
-            aria-label="Toggle Sidebar"
-            size="sm"
-            variant="ghost"
-            onClick={() => setIsCollapsed(!isCollapsed)}>
-            <LuMenu />
-          </IconButton>
+            <IconButton
+              aria-label={isPinned ? "Unpin Sidebar" : "Pin Sidebar"}
+              size="sm"
+              variant="ghost"
+              onClick={() => setIsPinned(!isPinned)}>
+              {isPinned ? <LuPinOff /> : <LuMenu />}
+            </IconButton>
+          </Flex>
+
+          {/* Navigation Links */}
+          <VStack align="stretch" gap={2}>
+            {LINK_ITEMS.map((link) => (
+              <SidebarItem
+                key={link.name}
+                icon={link.icon}
+                to={link.path}
+                subItems={link.subItems}
+                isCollapsed={!isExpanded}
+                onExpandSidebar={() => setIsPinned(true)}
+              >
+                {link.name}
+              </SidebarItem>
+            ))}
+          </VStack>
+
+          {/* Footer Section */}
+          <Box mt="auto" p={4} overflow="hidden">
+
+            {/* Only render the full footer if the sidebar is open */}
+            {isExpanded && (
+                <Footer />
+            )}
+          </Box>
         </Flex>
-
-        {/* Navigation Links */}
-        <VStack align="stretch" gap={2}>
-          {LINK_ITEMS.map((link) => (
-            <SidebarItem
-              key={link.name}
-              icon={link.icon}
-              to={link.path}
-              subItems={link.subItems}
-              isCollapsed={isCollapsed}
-              onExpandSidebar={() => setIsCollapsed(false)}
-            >
-              {link.name}
-            </SidebarItem>
-          ))}
-        </VStack>
-
-        {/* Footer Section */}
-        <Box mt="auto" p={4} overflow="hidden">
-
-          {/* Only render the full footer if the sidebar is open */}
-          {!isCollapsed && (
-              <Footer />
-          )}
-        </Box>
-      </Flex>
+      </Box>
     </Box>
   )
 };
