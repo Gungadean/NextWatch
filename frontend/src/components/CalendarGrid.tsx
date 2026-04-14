@@ -564,7 +564,10 @@ export const CalendarGrid = memo(({
     prevProps.month === nextProps.month &&
     prevProps.year === nextProps.year &&
     prevProps.isSkeletonView === nextProps.isSkeletonView &&
-    // Safely compare arrays by stringifying them so new references don't trigger renders
+
+    prevProps.events === nextProps.events &&
+    prevProps.timelineItems === nextProps.timelineItems &&
+
     JSON.stringify(prevProps.selectedRegenDates) === JSON.stringify(nextProps.selectedRegenDates) &&
     JSON.stringify(prevProps.globalHardErrors) === JSON.stringify(nextProps.globalHardErrors) &&
     JSON.stringify(prevProps.globalSoftWarnings) === JSON.stringify(nextProps.globalSoftWarnings)

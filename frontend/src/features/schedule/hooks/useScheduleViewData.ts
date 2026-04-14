@@ -114,9 +114,12 @@ export const useScheduleViewData = (
         let timePeriod = "Shift";
 
         if (data.startTime && data.endTime) {
+          const safeStart = data.startTime.includes('T') ? data.startTime.split('T')[1] : data.startTime;
+          const safeEnd = data.endTime.includes('T') ? data.endTime.split('T')[1] : data.endTime;
+
           // Split the strings and convert to numbers (handles "08:00:00" or "08:00")
-          const [sHours, sMins] = data.startTime.split(':').map(Number);
-          const [eHours, eMins] = data.endTime.split(':').map(Number);
+          const [sHours, sMins] = safeStart.split(':').map(Number);
+          const [eHours, eMins] = safeEnd.split(':').map(Number);
 
           // Convert to decimal hours
           const startDec = sHours + (sMins / 60);
