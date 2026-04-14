@@ -11,7 +11,7 @@ a list of errors/warnings to return to the frontend for display.
 from datetime import datetime
 
 import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict
 
 from pydantic import BaseModel
 
@@ -48,7 +48,7 @@ def evaluate_draft_schedule(
     target_person_names: List[str] = None,
     published_buffers: List[Dict] = None,
     is_global_audit: bool = False
-) -> Dict[str, Any]:
+) -> ValidationResponse:
     """
     Acts as a Single Source of Truth for frontend validation.
     Converts a drafted schedule into a matrix and audits it against the core math engine.
@@ -70,39 +70,6 @@ def evaluate_draft_schedule(
     num_people = len(watchbill_params.watchstanders)
     num_days = (watchbill_params.end - watchbill_params.start).days + 1
     num_watchstations = len(unique_shift_slots)
-
-    schedule_array = np.zeros((num_people, num_days, num_watchstations), dtype=int)
-
-    # Normalize the slots so they match the frontend perfectly ---
-    slot_to_index = {}
-    for idx, slot in enumerate(unique_shift_slots):
-        ws_id, st, et = slot
-        norm_key = (ws_id, _normalize_time(st), _normalize_time(et))
-        slot_to_index[norm_key] = idx
-
-    person_to_index = {ws.id: idx for idx, ws in enumerate(watchbill_params.watchstanders)}
-
-    for assignment in draft_assignments:
-        p_idx = person_to_index.get(assignment.watchstander.id)
-        d_idx = (assignment.date - watchbill_params.start).days
-
-        # Normalize the incoming assignment times
-        norm_key = (
-            assignment.watchstation.id,
-            _normalize_time(assignment.start_time),
-            _normalize_time(assignment.end_time)
-        )
-        s_idx = slot_to_index.get(norm_key)
-
-        if s_idx is None:
-            for idx, slot in enumerate(unique_shift_slots):
-                if slot[0] == assignment.watchstation.id:
-                    s_idx = idx
-                    break
-
-        if p_idx is not None and 0 <= d_idx < num_days and s_idx is not None:
-            # Use += 1 so double bookings stack up instead of overwriting! ---
-            schedule_array[p_idx, d_idx, s_idx] += 1
 
     translator = ScheduleTranslator(
         watchstanders=watchbill_params.watchstanders,
@@ -166,12 +133,12 @@ def evaluate_draft_schedule(
     )
 
     if is_global_audit:
-        return {
-            "is_valid": is_valid_math,
-            "hard_error": all_hard_errors,
-            "soft_warnings": detailed_warnings,
-            "score_breakdown": breakdown
-        }
+        return ValidationResponse(
+            is_valid=is_valid_math,
+            hard_error=all_hard_errors,
+            soft_warnings=detailed_warnings,
+            score_breakdown=breakdown
+        )
 
     if target_person_names is None: target_person_names = []
     if published_buffers is None: published_buffers = []
