@@ -25,6 +25,6 @@ dist-ssr
 *.sw?
 .env
 __pycache__
-/backend/database.db
 data
 docker-compose.yml
+database*.db

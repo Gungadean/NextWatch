@@ -2,8 +2,7 @@
 #  Write-up on original code: https://carlkolon.com/2022/02/22/watchbillplanning/
 #
 #  Copyright (c). Carl Kolon
-
-from typing import Callable
+from typing import List, Tuple, Dict, Set
 
 import numpy as np
 
@@ -56,136 +55,174 @@ def badness_array(
 
     return badness_array
 
-
-def calculate_soft_penalties(
-        schedule: np.ndarray,
-        min_days_off: int,
-        max_days_off: int,
-        headcount_matrix: np.ndarray,
-        conflict_matrix: np.ndarray
-) -> float:
+def get_exponential_gap_penalty(gap_size: int, max_days_off: int) -> float:
     """
-    Calculates penalties
+    Apply exponential penalty for an increasing window size above max
+    days off.
     """
-    penalty = 0.0
-    n_people, n_days, n_slots = schedule.shape
+    excess = gap_size - max_days_off
+    if excess <= 0:
+        return 0.0
 
-    # Headcount Penalties
-    if headcount_matrix is not None:
-        assignments_per_day_station = np.sum(schedule, axis=0)
-        shortfalls = headcount_matrix - assignments_per_day_station
+    total_penalty = 0.0
+    for k in range(1, excess + 1):
+        window_size = max_days_off + k
+        # Calculate how many times this specific window size fits inside the total gap
+        count = gap_size - window_size + 1
 
-        for d in range(n_days):
-            for s in range(n_slots):
-                shortfall = int(shortfalls[d, s])
-                if shortfall > 0:
-                    for i in range(shortfall):
-                        if i == 0:
-                            penalty += 100000
-                        elif i == 1:
-                            penalty += 10000
-                        else:
-                            penalty += 1000
+        weight = int(10 * (2 ** (k - 1)))
+        if weight > 50000:
+            weight = 50000
 
-    # Min Days Off Penalties
-    if min_days_off > 0:
-        person_duty_days = np.sum(schedule, axis=2) > 0
-        for person in range(n_people):
-            duty_days = np.where(person_duty_days[person])[0]
+        total_penalty += count * weight
+
+    return float(total_penalty)
+
+
+class DeltaScorer:
+    """
+    Lightning-fast objective evaluator. Caches the initial schedule scores
+    and only recalculates the exact individuals modified during a perturbation.
+    """
+
+    def __init__(self, schedule: np.ndarray, holiday_mask: np.ndarray, offset_matrix: np.ndarray,
+                 min_days_off: int, max_days_off: int, headcount_matrix: np.ndarray,
+                 conflict_matrix: np.ndarray, qualification_matrix: np.ndarray, shift_times: List[Tuple[float, float]]):
+        self.schedule = schedule
+        self.holiday_mask = holiday_mask
+        self.offset_matrix = offset_matrix
+        self.min_days_off = min_days_off
+        self.max_days_off = max_days_off
+        self.headcount_matrix = headcount_matrix
+        self.conflict_matrix = conflict_matrix
+        self.qualification_matrix = qualification_matrix
+        self.shift_times = shift_times
+
+        self.n_people, self.n_days, self.n_slots = schedule.shape
+
+        # Cache
+        self.person_badness = np.zeros(self.n_people)
+        self.person_penalties = np.zeros(self.n_people)
+        self.headcount_penalty = self._calculate_global_headcount()
+
+        # Initial Population of the Cache
+        for p in range(self.n_people):
+            self.person_badness[p] = self._calc_person_badness(p)
+            self.person_penalties[p] = self._calc_person_penalty(p)
+
+    def get_total_score(self) -> float:
+        """Instantly calculates the global score using cached arrays"""
+        std_dev = np.std(self.person_badness)
+        total_soft = np.sum(self.person_penalties)
+        return round(float(std_dev + total_soft + self.headcount_penalty), 2)
+
+    def apply_changes_and_score(self, receipt: List[Tuple[int, int, int, int]]) -> Tuple[float, Set[int], Dict, Dict]:
+        """Applies an in-place mutation, recalculates ONLY the affected people, and returns the new score."""
+        affected_people = {r[0] for r in receipt}
+
+        # Save old cached scores for rollback
+        old_badness = {p: self.person_badness[p] for p in affected_people}
+        old_penalties = {p: self.person_penalties[p] for p in affected_people}
+
+        # Recalculate ONLY the affected people
+        for p in affected_people:
+            self.person_badness[p] = self._calc_person_badness(p)
+            self.person_penalties[p] = self._calc_person_penalty(p)
+
+        return self.get_total_score(), affected_people, old_badness, old_penalties
+
+    def rollback(self, receipt: List[Tuple[int, int, int, int]], affected_people: Set[int], old_badness: Dict,
+                 old_penalties: Dict):
+        """Instantly reverts a rejected mutation without copying arrays."""
+        # Inverse the receipt
+        for p, d, s, old_val in receipt:
+            self.schedule[p, d, s] = old_val
+
+            # Restore the cache
+        for p in affected_people:
+            self.person_badness[p] = old_badness[p]
+            self.person_penalties[p] = old_penalties[p]
+
+    def _calculate_global_headcount(self) -> float:
+        """Runs ONCE on initialization. Normal shift swaps do not change total headcount"""
+        penalty = 0.0
+        if self.headcount_matrix is not None:
+            assignments_per_day_station = np.sum(self.schedule, axis=0)
+            shortfalls = self.headcount_matrix - assignments_per_day_station
+            for d in range(self.n_days):
+                for s in range(self.n_slots):
+                    shortfall = int(shortfalls[d, s])
+                    if shortfall > 0:
+                        for i in range(shortfall):
+                            if i == 0:
+                                penalty += 100000
+                            elif i == 1:
+                                penalty += 10000
+                            else:
+                                penalty += 1000
+        return penalty
+
+    def _calc_person_badness(self, p: int) -> float:
+        """Calculates Base Fairness for a single person"""
+        single_person_schedule = self.schedule[p:p + 1, :, :]
+        badness = badness_array(single_person_schedule, self.holiday_mask)[0]
+        return badness - self.offset_matrix[p]
+
+    def _calc_person_penalty(self, p: int) -> float:
+        """Calculates Fatigue, Engagement, and Benchwarmer penalties for ONE person"""
+        penalty = 0.0
+
+        # Min Days Off / Fatigue Penalties
+        if self.min_days_off > 0:
+            person_duty_days = np.sum(self.schedule[p], axis=1) > 0
+            duty_days = np.where(person_duty_days)[0]
+
             if len(duty_days) > 1:
                 gaps = np.diff(duty_days)
-                violations = np.sum(gaps <= min_days_off)
-                penalty += violations * 500
 
-    # Max Days Off Penalties
-    if 0 < max_days_off < n_days:
-        person_duty_days = np.sum(schedule, axis=2) > 0
-        for person in range(n_people):
-            active_mask = person_duty_days[person] | (conflict_matrix[person] == 1)
+                # Normal calendar violations
+                normal_violations = np.sum((gaps > 1) & (gaps <= self.min_days_off))
+                penalty += normal_violations * 500
+
+                # Physical Rest Violations (Consecutive calendar days)
+                consecutive_indices = np.where(gaps == 1)[0]
+                for idx in consecutive_indices:
+                    d1, d2 = duty_days[idx], duty_days[idx + 1]
+                    s1_arr = np.where(self.schedule[p, d1] == 1)[0]
+                    s2_arr = np.where(self.schedule[p, d2] == 1)[0]
+
+                    for s1 in s1_arr:
+                        for s2 in s2_arr:
+                            st1, et1 = self.shift_times[s1]
+                            st2, et2 = self.shift_times[s2]
+
+                            abs_end1 = d1 * 24.0 + et1
+                            if st1 >= et1 and not (st1 == 0.0 and et1 == 24.0):
+                                abs_end1 += 24.0
+                            abs_start2 = d2 * 24.0 + st2
+
+                            rest_hours = abs_start2 - abs_end1
+
+                            if rest_hours <= 0:
+                                penalty += 500000  # Penalty for zero rest
+                            else:
+                                penalty += 10000  # High penalty for back-to-back safely
+
+        # Max Days Off / Engagement Penalties
+        if 0 < self.max_days_off < self.n_days:
+            person_duty_days = np.sum(self.schedule[p], axis=1) > 0
+            active_mask = person_duty_days | (self.conflict_matrix[p] == 1)
             active_days = np.where(active_mask)[0]
-
-            if len(active_days) == 0:
-                if n_days > max_days_off: penalty += 50
-                continue
-
-            if active_days[0] > max_days_off: penalty += 50
 
             if len(active_days) > 1:
                 gaps = np.diff(active_days) - 1
-                violations = np.sum(gaps > max_days_off)
-                penalty += violations * 50
+                violations = gaps[gaps > self.max_days_off]
+                for gap in violations:
+                    penalty += get_exponential_gap_penalty(gap, self.max_days_off)
 
-            trailing_days = (n_days - 1) - active_days[-1]
-            if trailing_days > max_days_off: penalty += 50
+        # Fair Utilization (Anti-Benchwarmer)
+        # Add penalty if a qualified and available person isn't schedule for any shifts.
+        if np.sum(self.schedule[p, :, :]) == 0:
+            penalty += 5000
 
-    return penalty
-
-
-def days_between_watches_reciprocals(schedule: np.ndarray) -> np.ndarray:
-    person_duty_days = np.sum(schedule, axis=2) > 0
-    n_people = person_duty_days.shape[0]
-    gap_reciprocals = np.zeros(n_people)
-
-    for person in range(n_people):
-        duty_days = np.where(person_duty_days[person])[0]
-        if len(duty_days) <= 1:
-            continue
-
-        # Calculate gaps between consecutive duty days
-        gaps = np.diff(duty_days)
-        sum_gap_reciprocals = np.sum(1.0 / gaps) if len(gaps) > 0 else 0.0
-        gap_reciprocals[person] = sum_gap_reciprocals
-
-    return gap_reciprocals
-
-
-def badness_standard_deviation_objective(
-    schedule: np.ndarray,
-    holiday_mask: np.ndarray,
-    is_legal: Callable[[np.ndarray], bool],
-    offset_matrix: np.ndarray,
-    min_days_off: int,
-    max_days_off: int,
-    headcount_matrix: np.ndarray,
-    conflict_matrix: np.ndarray
-) -> float:
-    badness = badness_array(schedule, holiday_mask)
-    if np.isnan(badness).any():
-        raise ValueError("Badness calculation resulted in NaN.")
-
-    badness = badness - offset_matrix
-
-    badness_standard_deviation = np.std(badness)
-
-    soft_penalties = calculate_soft_penalties(
-        schedule, min_days_off, max_days_off, headcount_matrix, conflict_matrix
-    )
-
-    is_legal_schedule = is_legal(schedule)
-
-    return round(
-        badness_standard_deviation + soft_penalties
-        + (0 if is_legal_schedule else ILLEGAL_SCHEDULE_PENALTY),
-        2,
-    )
-
-
-def badness_days_between_watches_objective(
-    schedule: np.ndarray,
-    is_legal: Callable[[np.ndarray], bool],
-) -> float:
-    gap_reciprocals = days_between_watches_reciprocals(schedule)
-    if np.isnan(gap_reciprocals).any():
-        raise ValueError("Gap reciprocals calculation resulted in NaN.")
-
-    gap_reciprocals = gap_reciprocals
-
-    gap_reciprocal_std = np.std(gap_reciprocals)
-
-    is_legal_schedule = is_legal(schedule)
-
-    return round(
-        gap_reciprocal_std
-        + (0 if is_legal_schedule else ILLEGAL_SCHEDULE_PENALTY),
-        2,
-    )
+        return penalty
