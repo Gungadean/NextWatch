@@ -452,6 +452,20 @@ export const CalendarGrid = memo(({
                               const c = shift.color || "blue";
                               const isHex = c.startsWith("#");
 
+                              const fullName = shift.text || "Unassigned";
+                              const lastName = fullName.split(',')[0] || fullName;
+                              const firstName = fullName.split(',')[1]?.trim().split(' ')[0] || "";
+
+                              let displayText = shift.initials || "UN"; // Default to initials
+
+                              if (fullName !== "Unassigned") {
+                                if (isFullDay) {
+                                  displayText = firstName ? `${lastName}, ${firstName}` : lastName;
+                                } else if (row.length === 2) {
+                                  displayText = lastName;
+                                }
+                              }
+
                               return (
                                 <Tooltip key={`${shift.id || 'shift'}-${rowIndex}-${colIndex}`} content={tooltipContent} showArrow>
                                   <Flex
@@ -466,9 +480,16 @@ export const CalendarGrid = memo(({
                                     justify="center"
                                     _hover={{ bg: isHex ? `${c}66` : `${c}.200`, _dark: { bg: isHex ? `${c}88` : `${c}.700` }}}
                                     transition="background 0.2s"
+                                    overflow="hidden"
                                   >
-                                    <Text fontSize="2xs" fontWeight="bold" lineClamp={1}>
-                                      {shift.initials || "UN"}
+                                    <Text
+                                      fontSize="2xs"
+                                      fontWeight="bold"
+                                      whiteSpace="nowrap"
+                                      textOverflow="ellipsis"
+                                      overflow="hidden"
+                                    >
+                                      {displayText}
                                     </Text>
                                   </Flex>
                                 </Tooltip>
