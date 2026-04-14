@@ -106,6 +106,7 @@ export interface ScheduleDraft {
   start_date: string;
   end_date: string;
   score: number;
+  parameters: ScheduleRequest;
   assignments: Assignment[];
 }
 
@@ -128,9 +129,9 @@ export interface ScheduleRequest {
   end_date: string;
   position_ids: number[];
   ignore_pending_timeoff: boolean;
-  min_days_off?: number;
-  max_days_off?: number;
-  max_steps?: number;
+  min_days_off: number;
+  max_days_off: number;
+  max_steps: number;
   manual_conflicts?: Array<Record<string, unknown>>;
   holidays?: string[];
   frozen_assignments?: Assignment[];

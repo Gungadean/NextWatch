@@ -184,6 +184,32 @@ const BuilderPage = () => {
   };
 
   /**
+   * Wrap the draftSelect to apply draft parameters to sidebar.
+   */
+  const handleDraftSelect = async (draftId: string) => {
+    const loadedDraft = await selectDraft(draftId);
+
+    if (loadedDraft && loadedDraft.parameters) {
+      const params = loadedDraft.parameters;
+
+      setMinDaysOff(params.min_days_off);
+      setMaxDaysOff(params.max_days_off);
+      setMaxSteps(params.max_steps);
+      setIgnorePending(params.ignore_pending_timeoff);
+
+      // Handle the Position Checkboxes
+      if (params.position_ids.length === 0 ||
+        params.position_ids.length === positions.length) {
+        setSelectAllPositions(true);
+      } else {
+        setSelectAllPositions(false);
+        // Map numbers back to strings for the CheckboxGroup value
+        setSelectedPositionIds(params.position_ids.map(String));
+      }
+    }
+  };
+
+  /**
    * Navigates the Calendar view by month.
    */
   const navMonth = (dir: number) => {
@@ -317,7 +343,7 @@ const BuilderPage = () => {
         isGenerating={isGenerating}
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
-        onDraftSelect={selectDraft}
+        onDraftSelect={handleDraftSelect}
         onBuildSkeleton={handleBuildSkeleton}
         currentDraftData={currentDraftData}
       />

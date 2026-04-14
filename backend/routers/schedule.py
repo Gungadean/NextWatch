@@ -46,7 +46,7 @@ class ValidationRequest(BaseModel):
     target_person_names: List[str] = []
 
 
-async def sse_generator(generator, params, regen_uuid: str = None):
+async def sse_generator(generator, params, request_data, regen_uuid: str = None):
     """
     Wraps the schedule generator to format output as Server-Sent Events (SSE).
 
@@ -58,6 +58,7 @@ async def sse_generator(generator, params, regen_uuid: str = None):
     Args:
         generator: An asynchronous generator yielding schedule updates.
         params: The parameters used for schedule generation (start/end dates).
+        request_data: ScheduleRequest object to be serialized into the Draft sql object.
         regen_uuid: The uuid of the existing draft to regenerate.
 
     Yields:
@@ -86,11 +87,14 @@ async def sse_generator(generator, params, regen_uuid: str = None):
                         if not draft:
                             print("WARNING: Draft not found for regeneration.")
                             break
+
+
                     else:
                         draft = ScheduleDraft(
                             score=final_score,
                             start_date=params.start,
                             end_date=params.end,
+                            parameters=request_data.model_dump(mode="json", exclude={"skeleton", "frozen_assignments"}),
                             assignments=draft_data["assignments"]
                         )
 
@@ -164,7 +168,7 @@ async def generate_schedule(
 
     # Stream the output via SSE
     return StreamingResponse(
-        sse_generator(logic_stream, params),
+        sse_generator(logic_stream, params, request_data),
         media_type="text/event-stream"
     )
 
@@ -379,7 +383,7 @@ async def regenerate_schedule(
 
     # Stream the output via SSE
     return StreamingResponse(
-        sse_generator(logic_stream, params, regen_uuid=uuid_str),
+        sse_generator(logic_stream, params, request_data, regen_uuid=uuid_str),
         media_type="text/event-stream"
     )
 
