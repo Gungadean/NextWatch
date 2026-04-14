@@ -12,6 +12,7 @@ from .exceptions.IllegalScheduleException import IllegalScheduleException
 from .get_initial_schedule import OrOptimizer
 from .objectives import DeltaScorer
 from .simulated_annealing import AnnealingOptimizer
+from .translator import ScheduleTranslator
 
 
 def make_schedule(
@@ -25,6 +26,7 @@ def make_schedule(
     conflict_matrix: np.ndarray,
     holiday_mask: np.ndarray,
     offset_matrix: np.ndarray,
+    translator: ScheduleTranslator,
     headcount_matrix: np.ndarray = None,
     shift_times: list = None,
     frozen_assignments_matrix: list = None
@@ -52,6 +54,7 @@ def make_schedule(
             qualification_matrix=qualification_matrix,
             conflict_matrix=conflict_matrix,
             shift_times=shift_times,
+            translator=translator,
             frozen_assignments_matrix=frozen_assignments_matrix
         )
         return is_legal_bool
@@ -77,6 +80,7 @@ def make_schedule(
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
         shift_times=shift_times,
+        translator=translator,
         frozen_assignments_matrix=frozen_assignments_matrix
     )
 

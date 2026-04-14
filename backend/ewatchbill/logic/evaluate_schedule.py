@@ -108,7 +108,6 @@ def evaluate_draft_schedule(
         if p_idx is not None and 0 <= d_idx < num_days and s_idx is not None:
             schedule_array[p_idx, d_idx, s_idx] += 1
 
-    # Pass the translator down!
     is_valid_math, all_hard_errors = is_legal(
         schedule_array,
         min_days_off_between_duty=min_days_off,
@@ -119,7 +118,6 @@ def evaluate_draft_schedule(
         translator=translator
     )
 
-    # Pass the translator down!
     breakdown, detailed_warnings = get_score_breakdown(
         schedule_array,
         holiday_mask=holiday_mask,

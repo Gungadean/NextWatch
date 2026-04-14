@@ -15,6 +15,7 @@ from .encoding.from_watchbill_request import from_watchbill_request
 from .encoding.to_watchbill_response import to_watchbill_response
 from .logic.make_schedule import make_schedule
 from .logic.exceptions.IllegalScheduleException import IllegalScheduleException
+from .logic.translator import ScheduleTranslator
 from .models import WatchbillParams, WatchbillResponse
 
 
@@ -42,6 +43,13 @@ async def schedule_message_generator(
     total_steps = watchbill_params.max_iteration_steps
 
     try:
+        translator = ScheduleTranslator(
+            watchstanders=watchbill_params.watchstanders,
+            watchstations=watchbill_params.watchstations,
+            unique_shift_slots=unique_shift_slots,
+            start_date=watchbill_params.start
+        )
+
         for i, (schedule, schedule_score, is_legal) in enumerate(
                 make_schedule(
                     num_people=len(watchbill_params.watchstanders),
@@ -57,6 +65,7 @@ async def schedule_message_generator(
                     offset_matrix=offset_matrix,
                     headcount_matrix=headcount_matrix,
                     shift_times=shift_times,
+                    translator=translator,
                     frozen_assignments_matrix=frozen_assignments_matrix
                 )
         ):
