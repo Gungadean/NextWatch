@@ -105,8 +105,10 @@ const BuilderPage = () => {
   useEffect(() => {
     if (isLoadingDraft) {
       setIsScheduleLoading(true);
+    } else if (!currentDraftData) {
+      setIsScheduleLoading(false);
     }
-  }, [isLoadingDraft]);
+  }, [isLoadingDraft, currentDraftData]);
 
   const prevDraftRef = useRef(currentDraftData);
 
@@ -118,10 +120,7 @@ const BuilderPage = () => {
     prevDraftRef.current = currentDraftData;
 
     const runGlobalValidation = async () => {
-      if (!currentDraftData) {
-        setIsScheduleLoading(false);
-        return;
-      }
+      if (!currentDraftData) return;
 
       try {
         const result = await validateScheduleDraft({
