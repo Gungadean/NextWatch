@@ -27,6 +27,7 @@ export interface TimelineItem {
   start: string;
   end: string;
   label: string;
+  shortLabel?: string;
   color: string;
 }
 
@@ -145,69 +146,25 @@ export const TimelineGrid = ({
   /**
    * Calculate the dimensions for the box based on the start and end strings.
    */
- const getBoxDimensions = useCallback((startStr: string, endStr: string) => {
+  const getBoxDimensions = useCallback((startStr: string, endStr: string) => {
     if (!gridData) return { left: 0, width: 0 };
 
-    const startIdx = getDayIndex(startStr);
-    const hasTime = startStr.includes("T") || startStr.includes(":");
+    const startIdx = getDayIndex(startStr.split('T')[0]);
+    const endIdx = getDayIndex(endStr.split('T')[0]);
 
-    // Determine if the date has time included in the date
-    if (!hasTime) {
-      const endIdx = getDayIndex(endStr);
+    // Clip the dates to the visible boundaries of the grid
+    const visibleStart = Math.max(0, startIdx);
+    const visibleEnd = Math.min(gridData.totalDays - 1, endIdx);
 
-      // Safely clip the dates to the visible boundaries of the grid
-      const visibleStart = Math.max(0, startIdx);
-      const visibleEnd = Math.min(gridData.totalDays - 1, endIdx);
+    // Calculate how many days actually survive the clip
+    const visibleSpan = visibleEnd - visibleStart + 1;
 
-      // Calculate how many days actually survive the clip
-      const visibleSpan = visibleEnd - visibleStart + 1;
+    if (visibleSpan <= 0) return { left: 0, width: 0 };
 
-      if (visibleSpan <= 0) return { left: 0, width: 0 };
-
-      return {
-          left: (visibleStart / gridData.totalDays) * 100,
-          width: (visibleSpan / gridData.totalDays) * 100
-      };
-    }
-
-    // If the single-day shift is outside the viewing window, hide it
-    if (startIdx < 0 || startIdx >= gridData.totalDays) {
-        return { left: 0, width: 0 };
-    }
-
-    const sMatch = startStr.match(/(\d{2}):(\d{2})/);
-    const eMatch = endStr.match(/(\d{2}):(\d{2})/);
-    if (!sMatch || !eMatch) return { left: 0, width: 0 };
-
-    const sH = parseInt(sMatch[1], 10) + parseInt(sMatch[2], 10) / 60;
-    const eH = parseInt(eMatch[1], 10) + parseInt(eMatch[2], 10) / 60;
-    let dur = Math.round(eH - sH);
-    if (dur <= 0) dur += 24;
-
-    let offsetPct;
-    let widthPct;
-
-    if (dur >= 20) {
-        // 24 Hour Shift
-        offsetPct = 0; widthPct = 100;
-    } else if (dur >= 10 && dur <= 14) {
-        // 12 Hour Shifts
-        widthPct = 50; offsetPct = (sH < 12) ? 0 : 50;
-    } else if (dur >= 6 && dur <= 10) {
-        // 8 Hour Shifts
-        widthPct = 33.333;
-        if (sH < 8) offsetPct = 0;
-        else if (sH < 16) offsetPct = 33.333;
-        else offsetPct = 66.666;
-    } else {
-        widthPct = (dur / 24) * 100;
-        offsetPct = (sH / 24) * 100;
-    }
-
-    const left = ((startIdx + (offsetPct / 100)) / gridData.totalDays) * 100;
-    const width = ((widthPct / 100) / gridData.totalDays) * 100;
-
-    return { left, width };
+    return {
+        left: (visibleStart / gridData.totalDays) * 100,
+        width: (visibleSpan / gridData.totalDays) * 100
+    };
   }, [getDayIndex, gridData]);
 
   /**
@@ -270,13 +227,10 @@ export const TimelineGrid = ({
     e.stopPropagation();
     if (!gridData) return;
 
-    const startIdx = getDayIndex(itemStart);
-    const hasTime = itemStart.includes(":");
+    const startIdx = getDayIndex(itemStart.split('T')[0]);
+    const endIdx = getDayIndex(itemEnd.split('T')[0]);
 
-    let span = 1;
-    if (!hasTime) {
-        span = Math.max(1, getDayIndex(itemEnd) - startIdx + 1);
-    }
+    const span = Math.max(1, endIdx - startIdx + 1);
 
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -475,15 +429,16 @@ return (
 
               {/* Mapped Timeline Blocks */}
               {(groupedItems[row.id] || []).map(({ item, lane }, i) => {
-                // Call the abstract dimension engine once!
                 const { left, width } = getBoxDimensions(item.start, item.end);
                 if (width <= 0) return null;
 
                 const topOffset = 6 + (lane * 36);
 
+                const displayText = item.shortLabel || item.label;
+
                 return (
                   <Tooltip key={i} content={item.label}>
-                    <Box
+                    <Flex
                       position="absolute"
                       left={`calc(${left}% + 1px)`}
                       width={`calc(${width}% - 1px)`}
@@ -494,9 +449,24 @@ return (
                       zIndex={1}
                       borderRadius="sm"
                       cursor="pointer"
+                      align="center"
+                      justify="center" // Center the text perfectly
+                      px={2}
+                      overflow="hidden"
                       _hover={{ filter: "brightness(0.8)", zIndex: 2 }}
                       onClick={(e) => handleBarClick(e, item.start, item.end)}
-                    />
+                    >
+                    <Text
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="white"
+                        whiteSpace="nowrap"
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                      >
+                        {displayText}
+                      </Text>
+                    </Flex>
                   </Tooltip>
                 );
               })}
