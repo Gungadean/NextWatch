@@ -225,6 +225,10 @@ export const CalendarGrid = memo(({
             borderColor={isSelected ? "blue.500" : borderColor}
             bg={isSelected ? "blue.50" : cellBg}
             _dark={{ bg: isSelected ? "blue.900" : cellBg }}
+            outline={isSelected ? "2px solid" : "none"}
+            outlineColor={isSelected ? "blue.500" : "transparent"}
+            outlineOffset="-2px"
+            zIndex={isSelected ? 1 : 0}
             p={2}
             cursor="pointer"
             onClick={(e) => handleCellClick(e, dateStr)}
