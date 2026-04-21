@@ -140,6 +140,17 @@ export interface ScheduleRequest {
 }
 
 /**
+ * Request payload for live schedule regeneration.
+ */
+export interface RegenLiveRequest {
+  dates: string[];
+  min_days_off: number;
+  max_days_off: number;
+  max_steps: number;
+  ignore_pending_timeoff: boolean;
+}
+
+/**
  * Progress update payload from the SSE stream.
  * Matches backend/ewatchbill/schedule_message_generator.py -> yield progress_data
  */
@@ -358,7 +369,7 @@ export const updateOfficialDay = async (dateStr: string, assignments: Assignment
  * Accepts an optional callback to stream progress percentages to the UI.
  */
 export const regenerateLiveDays = async (
-  dates: string[],
+  requestData: RegenLiveRequest, // <-- Updated signature here!
   onProgress: (data: GenerationProgress) => void,
   onComplete: (data: ScheduleResponse) => void,
   onError: (err: StreamError) => void
@@ -367,7 +378,7 @@ export const regenerateLiveDays = async (
   let buffer = "";
 
   try {
-    await axiosInstance.post('/schedule/live/regen', { dates }, {
+    await axiosInstance.post('/schedule/live/regen', requestData, {
       onDownloadProgress: (progressEvent) => {
         const xhr = progressEvent.event?.target;
         const response = xhr?.response || "";

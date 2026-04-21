@@ -12,7 +12,19 @@
  */
 
 import {useEffect, useMemo, useState} from "react";
-import {Box, Button, Flex, Heading, HStack, Tabs, Text, VStack} from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Flex,
+  Heading,
+  HStack,
+  Tabs,
+  Text,
+  VStack,
+  Input,
+  createListCollection,
+  Select
+} from "@chakra-ui/react";
 import {
   type Assignment,
   getMonthlySchedule,
@@ -39,6 +51,18 @@ import {toSimpleDate} from "@/utils/timeUtils.ts";
 import {getPositionList, type PositionWithRequirementsRead} from "@/features/position/positionApi.ts";
 import {useCurrentUser} from "@/hooks/useAuth.ts";
 import ConfirmModal from "@/components/ConfirmModal.tsx";
+import {Checkbox} from "@/components/ui/checkbox.tsx";
+
+/**
+ * Max step optimization levels for dropdown.
+ */
+const optimizationEfforts = createListCollection({
+  items: [
+    { label: "Quick Draft (Faster)", value: "10000" },
+    { label: "Standard", value: "50000" },
+    { label: "Deep Search (Better Score)", value: "100000" },
+  ],
+});
 
 /**
  * Main calendar layout for displaying schedule calendar.
@@ -71,6 +95,12 @@ const CalendarPage = () => {
   const [isConfirmSaveOpen, setIsConfirmSaveOpen] = useState(false);
   const [pendingSaveData, setPendingSaveData] = useState<ScheduleResponse | ScheduleDraft | null>(null);
   const [isConfirmRegenOpen, setIsConfirmRegenOpen] = useState(false);
+
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [regenMinDaysOff, setRegenMinDaysOff] = useState<number | string>(1);
+  const [regenMaxDaysOff, setRegenMaxDaysOff] = useState<number | string>(7);
+  const [regenMaxSteps, setRegenMaxSteps] = useState<number | string>(10000);
+  const [regenIgnorePending, setRegenIgnorePending] = useState<boolean>(false);
 
   const [regenProgress, setRegenProgress] = useState(0);
   const [regenMessage, setRegenMessage] = useState("");
@@ -158,22 +188,23 @@ const CalendarPage = () => {
 
   /**
    * Mock schedule parameters to satisfy the backend validation endpoint.
+   * Use current constraints for validation.
    */
   const mockScheduleParams: ScheduleRequest = useMemo(() => ({
     start_date: startDate,
     end_date: endDate,
     position_ids: positions.map(p => p.id),
-    ignore_pending_timeoff: false,
-    min_days_off: 1,
-    max_days_off: 7,
-    max_steps: 10000
-  }), [startDate, endDate, positions]);
+    ignore_pending_timeoff: regenIgnorePending,
+    min_days_off: Number(regenMinDaysOff) || 1,
+    max_days_off: Number(regenMaxDaysOff) || 7,
+    max_steps: Number(regenMaxSteps) || 10000
+  }), [startDate, endDate, positions, regenIgnorePending, regenMinDaysOff, regenMaxDaysOff, regenMaxSteps]);
 
   /**
    * Runs validation against the month when edit mode is active
    * to display error icons on the Calendar Grid.
    */
-useEffect(() => {
+  useEffect(() => {
     if (!isEditMode || employees.length === 0 || liveAssignments.length === 0) {
       setHardErrors([]);
       setSoftWarnings([]);
@@ -253,6 +284,43 @@ useEffect(() => {
   };
 
   /**
+   * Constraint Change Handlers
+   */
+  const handleMinDaysOffChange = (rawDays: string) => {
+    if (rawDays === "") {
+      setRegenMinDaysOff("");
+      return;
+    }
+    const days = Number(rawDays);
+    if (days > 10 || days < 0) {
+      toaster.create({ title: "Invalid Input", description: "Min Days off must be between 0 and 10.", type: "error" });
+      return;
+    }
+    setRegenMinDaysOff(days);
+  };
+
+  const handleMaxDaysOffChange = (rawDays: string) => {
+    if (rawDays === "") {
+      setRegenMaxDaysOff("");
+      return;
+    }
+    const days = Number(rawDays);
+    if (days > 10 || days < 0) {
+      toaster.create({ title: "Invalid Input", description: "Max Days off must be between 0 and 10.", type: "error" });
+      return;
+    }
+    setRegenMaxDaysOff(days);
+  };
+
+  const handleMaxStepsChange = (rawSteps: string) => {
+    if (rawSteps === "") {
+      setRegenMaxSteps("");
+      return;
+    }
+    setRegenMaxSteps(Number(rawSteps));
+  };
+
+  /**
    * Executes the actual save to the live database
    */
   const executeLiveSave = async () => {
@@ -280,17 +348,23 @@ useEffect(() => {
     }
   };
 
-/**
- * Executes the regeneration of selected days.
- */
-const executeRegeneration = async () => {
+  /**
+   * Executes the regeneration of selected days
+   */
+  const executeRegeneration = async () => {
     setIsProcessing(true);
     setRegenProgress(0);
     setRegenMessage("Initializing regeneration...");
 
     try {
       await regenerateLiveDays(
-        selectedRegenDates,
+        {
+          dates: selectedRegenDates,
+          min_days_off: Number(regenMinDaysOff) || 1,
+          max_days_off: Number(regenMaxDaysOff) || 7,
+          max_steps: Number(regenMaxSteps) || 10000,
+          ignore_pending_timeoff: regenIgnorePending
+        },
         // onProgress Callback
         (progressData) => {
           setRegenProgress(progressData.percent || 0);
@@ -298,14 +372,13 @@ const executeRegeneration = async () => {
         },
         // onComplete Callback
         async () => {
-          // Fetch fresh schedule after successful regeneration
           const scheduleData = await getMonthlySchedule(selectedYear, selectedMonth);
           setShifts(scheduleData);
 
           toaster.create({ title: "Days Regenerated", description: "The live schedule has been updated with new shifts.", type: "success" });
           setSelectedRegenDates([]);
           setIsConfirmRegenOpen(false);
-          setIsProcessing(false); // Clear processing ONLY when the fetch is done
+          setIsProcessing(false);
         },
         // onError Callback
         (err) => {
@@ -314,11 +387,10 @@ const executeRegeneration = async () => {
             description: err.message,
             type: "error"
           });
-          setIsProcessing(false); // Clear processing on error
+          setIsProcessing(false);
         }
       );
     } catch (error: unknown) {
-      // This catches synchronous errors like network failures before the stream connects
       toaster.create({
         title: "Regeneration Failed",
         description: getErrorMessage(error, "Failed to connect to generation server."),
@@ -369,7 +441,17 @@ const executeRegeneration = async () => {
             </Button>
           )}
 
-          {/* Edit Button */}
+          {isEditMode && (
+            <Button
+              size="sm"
+              variant="surface"
+              colorPalette="gray"
+              onClick={() => setIsSettingsModalOpen(true)}
+            >
+              Constraints
+            </Button>
+          )}
+
           {canEdit && (
             <Button
               size="sm"
@@ -449,11 +531,70 @@ const executeRegeneration = async () => {
           employees={employees}
           positions={positions}
           templates={templates}
-          minDaysOff={1}
+          minDaysOff={Number(regenMinDaysOff) || 1}
           isSkeletonView={false}
           scheduleParams={mockScheduleParams}
         />
       )}
+
+      {/* Constraint Modal */}
+      <ConfirmModal
+        isOpen={isSettingsModalOpen}
+        onOpenChange={(e) => setIsSettingsModalOpen(e.open)}
+        title="Constraint Editing"
+        confirmText="Save Constraints"
+        confirmColorPalette="blue"
+        onConfirm={() => setIsSettingsModalOpen(false)}
+        isProcessing={false}
+      >
+        <VStack align="flex-start" gap={4} w="100%">
+          <Text fontSize="sm" color="gray.500">
+            Adjust the algorithm rules for live schedule validation and regeneration.
+          </Text>
+
+          <Box w="100%">
+            <Text fontSize="sm" fontWeight="bold" mb={1}>Min Days Off Between Shifts</Text>
+            <Input type="number" value={regenMinDaysOff} onChange={(e) => handleMinDaysOffChange(e.target.value)} />
+          </Box>
+
+          <Box w="100%">
+            <Text fontSize="sm" fontWeight="bold" mb={1}>Max Consecutive Work Days</Text>
+            <Input type="number" value={regenMaxDaysOff} onChange={(e) => handleMaxDaysOffChange(e.target.value)} />
+          </Box>
+
+          <Box w="100%">
+            <Text fontSize="sm" fontWeight="bold" mb={1}>Optimization Effort</Text>
+            <Select.Root
+              size="sm"
+              collection={optimizationEfforts}
+              value={[String(regenMaxSteps)]} // Force string for the Select value
+              onValueChange={(e) => handleMaxStepsChange(e.value[0])}
+              border="2px solid"
+              borderColor={borderColor}
+              borderRadius="sm"
+            >
+              <Select.Trigger>
+                <Select.ValueText placeholder="Select effort" />
+              </Select.Trigger>
+              <Select.Positioner>
+                <Select.Content>
+                  {optimizationEfforts.items.map((item) => (
+                    <Select.Item item={item} key={item.value}>
+                      {item.label}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Positioner>
+            </Select.Root>
+          </Box>
+
+          <Box w="100%" pt={2}>
+            <Checkbox checked={regenIgnorePending} onCheckedChange={(e) => setRegenIgnorePending(!!e.checked)} colorPalette="blue">
+              <Text fontSize="sm" fontWeight="bold">Ignore Pending Time-Off</Text>
+            </Checkbox>
+          </Box>
+        </VStack>
+      </ConfirmModal>
 
       {/* Manual Save Confirmation */}
       <ConfirmModal
@@ -512,6 +653,7 @@ const executeRegeneration = async () => {
           )}
         </VStack>
       </ConfirmModal>
+
     </Box>
   );
 };

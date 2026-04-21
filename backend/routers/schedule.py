@@ -49,9 +49,13 @@ class ValidationRequest(BaseModel):
 
 class LiveRegenRequest(BaseModel):
     """
-    Dates to be regenerated for a published schedule.
+    Dates and constraints to be regenerated for a published schedule.
     """
     dates: List[str]
+    min_days_off: int = 1
+    max_days_off: int = 7
+    max_steps: int = 10000
+    ignore_pending_timeoff: bool = False
 
 
 async def sse_generator(
@@ -619,10 +623,10 @@ async def regenerate_live_days(
         start_date=start_date,
         end_date=end_date,
         position_ids=position_ids,
-        ignore_pending_timeoff=False,
-        min_days_off=1,
-        max_days_off=7,
-        max_steps=10000,
+        ignore_pending_timeoff=request_data.ignore_pending_timeoff,
+        min_days_off=request_data.min_days_off,
+        max_days_off=request_data.max_days_off,
+        max_steps=request_data.max_steps,
         frozen_assignments=frozen_assignments,
         skeleton=skeleton_assignments
     )
