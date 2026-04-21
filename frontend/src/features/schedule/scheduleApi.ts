@@ -341,6 +341,72 @@ export const deleteDraft = async (uuid: string) => {
 }
 
 /**
+ * Overwrites the official schedule for a single day.
+ */
+export const updateOfficialDay = async (dateStr: string, assignments: Assignment[]) => {
+  try {
+    const response = await axiosInstance.put(`/schedule/live/${dateStr}`, assignments);
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to update schedule day"));
+  }
+}
+
+/**
+ * Tells the backend to run the generation engine on specific live dates.
+ * Accepts an optional callback to stream progress percentages to the UI.
+ */
+export const regenerateLiveDays = async (
+  dates: string[],
+  onProgress: (data: GenerationProgress) => void,
+  onComplete: (data: ScheduleResponse) => void,
+  onError: (err: StreamError) => void
+) => {
+  let seenBytes = 0;
+  let buffer = "";
+
+  try {
+    await axiosInstance.post('/schedule/live/regen', { dates }, {
+      onDownloadProgress: (progressEvent) => {
+        const xhr = progressEvent.event?.target;
+        const response = xhr?.response || "";
+
+        // Extract only the new part of the response
+        const newChunk = response.substring(seenBytes);
+        seenBytes = response.length;
+
+        buffer += newChunk;
+
+        // SSE messages are separated by double newlines
+        const parts = buffer.split("\n\n");
+
+        // Loop through all parts except the last one (which might be incomplete)
+        for (let i = 0; i < parts.length - 1; i++) {
+          const line = parts[i];
+          if (line.startsWith("data: ")) {
+            const jsonStr = line.replace("data: ", "");
+            try {
+              const payload = JSON.parse(jsonStr);
+              if (payload.type === "progress") onProgress(payload);
+              if (payload.type === "result") onComplete(payload.payload);
+              if (payload.type === "error") onError({type: "error", message: payload.payload.error});
+            } catch (e) {
+              console.error("Stream parse error:", e);
+            }
+          }
+        }
+
+        // Keep the last part in the buffer for the next chunk
+        buffer = parts[parts.length - 1];
+      }
+    });
+  } catch (error: unknown) {
+    const errorMessage = getErrorMessage(error, "Schedule Generation Failed");
+    onError({ type: "error", message: errorMessage });
+  }
+}
+
+/**
  * Validates a modified schedule against the backend constraints.
  */
 export const validateScheduleDraft = async (

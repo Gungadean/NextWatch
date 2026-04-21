@@ -21,10 +21,11 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select, extract
 
 from database.database import get_session, engine
-from database.models import ScheduleDraft, User, Shift
+from database.models import ScheduleDraft, User, Shift, Position
 from ewatchbill.logic.evaluate_schedule import evaluate_draft_schedule, ValidationResponse
 from ewatchbill.logic.exceptions.IllegalScheduleException import IllegalScheduleException
-from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest
+from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest, \
+    DraftWatchstation, DraftWatchstander, DraftAssignment
 from utils.auth.auth_users_utils import get_current_active_user
 from utils.schedule.schedule_builder import build_watchbill_params
 from ewatchbill.schedule_message_generator import schedule_message_generator
@@ -38,7 +39,7 @@ schedule_cache: dict[str, WatchbillResponse] = {}
 
 class ValidationRequest(BaseModel):
     """
-    A draft from the frontend to be validated against the application contraint model
+    A draft from the frontend to be validated against the application constraint model
     """
     params: ScheduleRequest
     assignments: List[Assignment]
@@ -46,20 +47,36 @@ class ValidationRequest(BaseModel):
     target_person_names: List[str] = []
 
 
-async def sse_generator(generator, params, request_data, regen_uuid: str = None):
+class LiveRegenRequest(BaseModel):
+    """
+    Dates to be regenerated for a published schedule.
+    """
+    dates: List[str]
+
+
+async def sse_generator(
+        generator,
+        params=None,
+        request_data=None,
+        regen_uuid: str = None,
+        is_live: bool = False,
+        target_dates: list = None
+):
     """
     Wraps the schedule generator to format output as Server-Sent Events (SSE).
 
     This function acts as a middleware between the algorithmic generator and the HTTP response.
 
     When the generator yields a result (final schedule), this function intercepts it
-    and saves it to the database as a ScheduleDraft automatically.
+    and saves it to either the live schedule database or the ScheduleDraft database automatically.
 
     Args:
         generator: An asynchronous generator yielding schedule updates.
         params: The parameters used for schedule generation (start/end dates).
         request_data: ScheduleRequest object to be serialized into the Draft sql object.
         regen_uuid: The uuid of the existing draft to regenerate.
+        is_live: Boolean flag indicating if the result should be saved directly to the live schedule.
+        target_dates: List of specific dates to overwrite if saving to the live schedule.
 
     Yields:
         str: Server-Sent Events formatted string (e.g., "data: {...}\n\n").
@@ -68,48 +85,83 @@ async def sse_generator(generator, params, request_data, regen_uuid: str = None)
         try:
             payload = json.loads(item['data'])
 
-            # Intercept if final result and save to draft database.
+            # Intercept if final result and save to the live or draft database.
             if payload.get("type") == "result":
                 draft_data = payload["payload"]
 
                 with Session(engine) as session:
-                    # Extract score history to find the final fitness score
-                    history = draft_data.get("score_history", [])
-                    final_score = history[-1] if history else 0
+                    if is_live and target_dates:
+                        # Clean up existing shifts for the regenerated dates
+                        delete_stmt = delete(Shift).where(Shift.shift_date.in_(target_dates))
+                        session.exec(delete_stmt)
 
-                    if not history:
-                        print("WARNING: Score history missing from generator output.")
+                        new_shifts = []
+                        for assignment in draft_data["assignments"]:
+                            date_val = datetime.fromisoformat(assignment['date']).date()
 
-                    if regen_uuid:
-                        stmt = select(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(regen_uuid))
-                        draft = session.exec(stmt).one_or_none()
+                            # Only save shifts that fall on our requested target dates
+                            if date_val in target_dates:
+                                # Attempt to extract start/end time if exists. Otherwise, default to 8-16
+                                if "start_time" in assignment and assignment['start_time']:
+                                    parsed_start = time.fromisoformat(assignment['start_time'])
+                                    start_time = datetime.combine(date_val, parsed_start)
+                                else:
+                                    start_time = datetime.combine(date_val, time(8, 0))
 
-                        if not draft:
-                            print("WARNING: Draft not found for regeneration.")
-                            break
+                                if "end_time" in assignment and assignment['end_time']:
+                                    parsed_end = time.fromisoformat(assignment['end_time'])
+                                    end_time = datetime.combine(date_val, parsed_end)
+                                else:
+                                    end_time = datetime.combine(date_val, time(16, 0))
 
+                                new_shifts.append(Shift(
+                                    employee_id=assignment['watchstander']['id'],
+                                    position_id=assignment['watchstation']['id'],
+                                    shift_date=date_val,
+                                    start_time=start_time,
+                                    end_time=end_time,
+                                ))
+
+                        session.add_all(new_shifts)
+                        session.commit()
 
                     else:
-                        draft = ScheduleDraft(
-                            score=final_score,
-                            start_date=params.start,
-                            end_date=params.end,
-                            parameters=request_data.model_dump(mode="json", exclude={"skeleton", "frozen_assignments"}),
-                            assignments=draft_data["assignments"]
-                        )
+                        # Extract score history to find the final fitness score
+                        history = draft_data.get("score_history", [])
+                        final_score = history[-1] if history else 0
 
-                    session.add(draft)
-                    session.commit()
-                    session.refresh(draft)
+                        if not history:
+                            print("WARNING: Score history missing from generator output.")
 
-                    # Inject the new Draft ID back into the payload so the frontend knows it was saved
-                    draft_data["draft_id"] = str(draft.public_id)
-                    draft_data["created_at"] = draft.created_at.isoformat()
-                    draft_data["final_score"] = final_score
+                        if regen_uuid:
+                            stmt = select(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(regen_uuid))
+                            draft = session.exec(stmt).one_or_none()
 
-                    # Re-serialize the modified payload
-                    payload["payload"] = draft_data
-                    item['data'] = json.dumps(payload, default=str)
+                            if not draft:
+                                print("WARNING: Draft not found for regeneration.")
+                                break
+
+                        else:
+                            draft = ScheduleDraft(
+                                score=final_score,
+                                start_date=params.start,
+                                end_date=params.end,
+                                parameters=request_data.model_dump(mode="json", exclude={"skeleton", "frozen_assignments"}),
+                                assignments=draft_data["assignments"]
+                            )
+
+                        session.add(draft)
+                        session.commit()
+                        session.refresh(draft)
+
+                        # Inject the new Draft ID back into the payload so the frontend knows it was saved
+                        draft_data["draft_id"] = str(draft.public_id)
+                        draft_data["created_at"] = draft.created_at.isoformat()
+                        draft_data["final_score"] = final_score
+
+                        # Re-serialize the modified payload
+                        payload["payload"] = draft_data
+                        item['data'] = json.dumps(payload, default=str)
 
         except json.JSONDecodeError:
             # If data isn't JSON, just pass it through as a raw string message
@@ -135,6 +187,7 @@ async def generate_schedule(
     Args:
         request_data (ScheduleRequest): The schedule generation parameters.
         request (Request): The incoming request object.
+        user (User): The current active user object.
 
     Returns:
         StreamingResponse: A stream of SSE events.
@@ -405,6 +458,195 @@ async def route_delete_draft(
     delete_statement = delete(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(uuid_str))
     session.exec(delete_statement)
     session.commit()
+
+
+@router.put("/schedule/live/{date_str}")
+async def update_live_schedule_day(
+        date_str: str,
+        assignments: list[dict],
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
+    """
+    Overwrites specific date on the official schedule.
+
+    Args:
+        date_str (str): Date string for the day to be replaced.
+        assignments (list[dict]): The list of new assignments for that day.
+        user (User): The currently authenticated user.
+        session (Session): Database session dependency.
+    """
+    target_date = datetime.fromisoformat(date_str).date()
+
+    # Delete all existing shifts for this specific day
+    delete_stmt = delete(Shift).where(Shift.shift_date == target_date)
+    session.exec(delete_stmt)
+
+    # Insert the updated shifts
+    new_shifts = []
+    for assignment in assignments:
+        date = datetime.fromisoformat(assignment['date'])
+
+        # Parse start_time and end_time, default to 0800-1600 if missing
+        if "start_time" in assignment and assignment['start_time']:
+            parsed_start = time.fromisoformat(assignment['start_time'])
+            start_time = datetime.combine(date.date(), parsed_start)
+        else:
+            start_time = datetime.combine(date.date(), time(8, 0))
+
+        if "end_time" in assignment and assignment['end_time']:
+            parsed_end = time.fromisoformat(assignment['end_time'])
+            end_time = datetime.combine(date.date(), parsed_end)
+        else:
+            end_time = datetime.combine(date.date(), time(16, 0))
+
+        new_shifts.append(Shift(
+            employee_id=assignment['watchstander']['id'],
+            position_id=assignment['watchstation']['id'],
+            shift_date=date.date(),
+            start_time=start_time,
+            end_time=end_time,
+        ))
+
+    session.add_all(new_shifts)
+    session.commit()
+    return {"message": "Success"}
+
+
+@router.post("/schedule/live/regen")
+async def regenerate_live_days(
+        request_data: LiveRegenRequest,
+        request: Request,
+        user: User = Depends(get_current_active_user),
+        session: Session = Depends(get_session)
+):
+    """
+    Regenerates specific dates on the live schedule.
+    Freezes all other dates in the bounding range to maintain constraints.
+
+    Args:
+        request_data (LiveRegenRequest): Dates to be regenerated.
+        request (Request): The incoming request object.
+        user (User): The currently authenticated user.
+        session (Session): Database session dependency.
+
+    Returns:
+        StreamingResponse: A stream of SSE events.
+
+    Raises:
+        HTTPException (400): If no qualified members are found.
+        HTTPException (500): If an error occurs during parameter building.
+    """
+    if not request_data.dates:
+        return {"message": "No dates provided"}
+
+    target_dates = [datetime.fromisoformat(d).date() for d in request_data.dates]
+    start_date = min(target_dates) - timedelta(days=7)
+    end_date = max(target_dates) + timedelta(days=7)
+
+    # Get all active positions
+    positions = session.exec(select(Position).where(Position.is_active == True)).all()
+    position_ids = [p.id for p in positions]
+
+    # Get all existing shifts in the bounding range
+    existing_shifts = session.exec(
+        select(Shift).where(
+            Shift.shift_date >= start_date,
+            Shift.shift_date <= end_date
+        ).options(selectinload(Shift.employee), selectinload(Shift.position))
+    ).all()
+
+    frozen_assignments = []
+    skeleton_assignments = []
+
+    # Sort existing shifts into frozen (surrounding days) and skeleton (target days)
+    for s in existing_shifts:
+        start_str = s.start_time.time().isoformat() if s.start_time else None
+        end_str = s.end_time.time().isoformat() if s.end_time else None
+
+        if s.shift_date not in target_dates:
+            frozen_assignments.append(DraftAssignment(
+                date=s.shift_date,
+                watchstander=DraftWatchstander(
+                    id=s.employee.id,
+                    name=f"{s.employee.last_name}, {s.employee.first_name}",
+                    watchstations=[],
+                    offset=0
+                ),
+                watchstation=DraftWatchstation(
+                    id=s.position.id,
+                    name=s.position.name,
+                    color=s.position.color
+                ),
+                start_time=start_str,
+                end_time=end_str
+            ))
+            skeleton_assignments.append(DraftAssignment(
+                date=s.shift_date,
+                watchstander=DraftWatchstander(
+                    id=0,
+                    name="Unassigned",
+                    watchstations=[],
+                    offset=0
+                ),
+                watchstation=DraftWatchstation(
+                    id=s.position.id,
+                    name=s.position.name,
+                    color=s.position.color
+                ),
+                start_time=start_str,
+                end_time=end_str
+            ))
+        else:
+            skeleton_assignments.append(DraftAssignment(
+                date=s.shift_date,
+                watchstander=DraftWatchstander(
+                    id=0,
+                    name="Unassigned",
+                    watchstations=[],
+                    offset=0
+                ),
+                watchstation=DraftWatchstation(
+                    id=s.position.id,
+                    name=s.position.name,
+                    color=s.position.color
+                ),
+                start_time=start_str,
+                end_time=end_str
+            ))
+
+    sched_req = ScheduleRequest(
+        start_date=start_date,
+        end_date=end_date,
+        position_ids=position_ids,
+        ignore_pending_timeoff=False,
+        min_days_off=1,
+        max_days_off=7,
+        max_steps=10000,
+        frozen_assignments=frozen_assignments,
+        skeleton=skeleton_assignments
+    )
+
+    try:
+        params = build_watchbill_params(sched_req)
+        if not params.watchstanders:
+            raise HTTPException(status_code=400, detail="No qualified members found.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error building parameters: {str(e)}")
+
+    # Initialize the generator logic
+    logic_stream = schedule_message_generator(
+        public_id=str(uuid.uuid4()),
+        cache=schedule_cache,
+        request=request,
+        watchbill_params=params
+    )
+
+    # Stream the output using the unified SSE interceptor (is_live=True)
+    return StreamingResponse(
+        sse_generator(logic_stream, is_live=True, target_dates=target_dates),
+        media_type="text/event-stream"
+    )
 
 
 @router.post("/schedule/validate", response_model=ValidationResponse)
