@@ -189,8 +189,6 @@ export const CalendarGrid = memo(({
               borderColor={borderColor}
               bg={emptyBg}
               p={2}
-              cursor="pointer"
-              onClick={(e) => handleCellClick(e, cell.dateStr)}
               _hover={{ bg: hoverBg }}
             >
                 <Text fontSize="sm" color="gray.400" fontWeight="bold">
