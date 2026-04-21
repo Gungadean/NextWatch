@@ -443,7 +443,7 @@ export default function DayEditModal({
                     <Text fontSize="sm" fontWeight="bold" mb={1}>Role</Text>
                     <NativeSelectRoot bg="white" _dark={{ bg: "gray.900" }}>
                       <NativeSelectField
-                        value={shift.watchstation.id.toString()}
+                        value={shift.watchstation.id?.toString() || ""}
                         onChange={(e) => handlePositionChange(index, e.currentTarget.value)}
                       >
                         {positions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
