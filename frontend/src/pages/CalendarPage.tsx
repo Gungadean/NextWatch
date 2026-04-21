@@ -403,9 +403,6 @@ const executeRegeneration = async () => {
               year={selectedYear}
               month={selectedMonth}
               events={events}
-              timelineRows={timelineRows}
-              timelineItems={timelineItems}
-              isSkeletonView={isEditMode}
               onDayClick={handleDayClick}
               selectedRegenDates={selectedRegenDates}
               onToggleRegenDate={isEditMode ? handleToggleRegenDate : undefined}
