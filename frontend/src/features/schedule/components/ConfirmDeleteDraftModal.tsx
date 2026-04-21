@@ -10,16 +10,16 @@
  * Handles the API call and cleans up the parent state upon success.
  */
 
-import {Button, CloseButton, Dialog, Portal} from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster.tsx";
-import type {Dispatch, SetStateAction} from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   deleteDraft,
   type DraftSummary,
   type ScheduleDraft,
   type ScheduleResponse
 } from "@/features/schedule/scheduleApi.ts";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
+import ConfirmModal from "@/components/ConfirmModal.tsx";
 
 /**
  * Props for the Draft Deletion Modal.
@@ -38,11 +38,14 @@ interface ConfirmDeletionModalProps {
 /**
  * Modal that prompts the user to confirm they want to delete a specific schedule draft.
  */
-const ConfirmDeletionModalProps = ({ isOpen, onOpenChange, draft_id, drafts, onDraftChange, onDraftViewChange, onSelectedChange, onSetViewChange }: ConfirmDeletionModalProps) => {
+const ConfirmDeleteDraftModal = ({ isOpen, onOpenChange, draft_id, drafts, onDraftChange, onDraftViewChange, onSelectedChange, onSetViewChange }: ConfirmDeletionModalProps) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+
   /**
    * Handle submitting form data.
    */
   const handleClick = async () => {
+    setIsProcessing(true);
     try {
       await deleteDraft(draft_id);
 
@@ -64,40 +67,23 @@ const ConfirmDeletionModalProps = ({ isOpen, onOpenChange, draft_id, drafts, onD
       // Delete published draft.
       onDraftChange(drafts.filter(item => item.public_id !== draft_id))
       onDraftViewChange(null);
+      setIsProcessing(false);
     }
   };
 
   return (
-    <Dialog.Root
-      role="alertdialog"
-      open={isOpen}
+    <ConfirmModal
+      isOpen={isOpen}
       onOpenChange={onOpenChange}
-      placement="center"
-      motionPreset="slide-in-top">
-      <Portal>
-        <Dialog.Backdrop />
-        <Dialog.Positioner>
-          <Dialog.Content>
-            <Dialog.Header>
-              <Dialog.Title>Delete Draft?</Dialog.Title>
-            </Dialog.Header>
-            <Dialog.Body>
-              <p>Are you sure you would like to delete this draft? This action is irreversible.</p>
-            </Dialog.Body>
-            <Dialog.Footer>
-              <Dialog.ActionTrigger asChild>
-                <Button variant="outline">Cancel</Button>
-              </Dialog.ActionTrigger>
-              <Button onClick={handleClick} colorPalette="red">Delete</Button>
-            </Dialog.Footer>
-            <Dialog.CloseTrigger asChild>
-              <CloseButton size="sm" />
-            </Dialog.CloseTrigger>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Portal>
-    </Dialog.Root>
+      title="Delete Draft?"
+      confirmText="Delete"
+      confirmColorPalette="red"
+      onConfirm={handleClick}
+      isProcessing={isProcessing}
+    >
+      <p>Are you sure you would like to delete this draft? This action is irreversible.</p>
+    </ConfirmModal>
   );
 }
 
-export default ConfirmDeletionModalProps;
+export default ConfirmDeleteDraftModal;

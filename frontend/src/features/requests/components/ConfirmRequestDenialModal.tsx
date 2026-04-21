@@ -9,20 +9,12 @@
  * Modal to confirm rescinding an approved leave request.
  */
 
-import { Button, Text, VStack } from "@chakra-ui/react";
-import {
-  DialogActionTrigger,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogRoot,
-  DialogTitle,
-} from "@/components/ui/dialog.tsx";
+import { Text, VStack } from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster.tsx";
 import { useState } from "react";
 import { denyRequest } from "../requestsApi";
 import {getErrorMessage} from "@/utils/errorUtils.ts";
+import ConfirmModal from "@/components/ConfirmModal";
 
 interface ConfirmRequestDenialModalProps {
   isOpen: boolean;
@@ -66,37 +58,24 @@ const ConfirmRequestDenialModal = ({
   };
 
   return (
-    <DialogRoot open={isOpen} onOpenChange={onOpenChange} placement="center">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Rescind Time-Off Request</DialogTitle>
-        </DialogHeader>
-
-        <DialogBody>
-          <VStack align="flex-start" gap={3}>
-            <Text>
-              Are you sure you want to rescind the approved time-off request for <strong>{employeeName}</strong>?
-            </Text>
-            <Text color="orange.500" fontSize="sm" fontWeight="bold">
-              This will change the status to "Denied" and instantly free up this employee to be scheduled on all drafts.
-            </Text>
-          </VStack>
-        </DialogBody>
-
-        <DialogFooter>
-          <DialogActionTrigger asChild>
-            <Button variant="outline" disabled={isProcessing}>Cancel</Button>
-          </DialogActionTrigger>
-          <Button
-            colorPalette="orange"
-            onClick={handleDeny}
-            loading={isProcessing}
-          >
-            Rescind Request
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </DialogRoot>
+    <ConfirmModal
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      title="Rescind Time-Off Request"
+      confirmText="Rescind Request"
+      confirmColorPalette="orange"
+      onConfirm={handleDeny}
+      isProcessing={isProcessing}
+    >
+      <VStack align="flex-start" gap={3}>
+        <Text>
+          Are you sure you want to rescind the approved time-off request for <strong>{employeeName}</strong>?
+        </Text>
+        <Text color="orange.500" fontSize="sm" fontWeight="bold">
+          This will change the status to "Denied" and instantly free up this employee to be scheduled on all drafts.
+        </Text>
+      </VStack>
+    </ConfirmModal>
   );
 };
 

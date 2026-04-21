@@ -10,11 +10,12 @@
  * It lists the names of the employees to be removed so the user can verify their selection.
  */
 
-import {Button, CloseButton, Dialog, List, Portal} from "@chakra-ui/react";
-import {toaster} from "@/components/ui/toaster.tsx";
-import type {Dispatch, SetStateAction} from "react";
-import {deleteEmployees, type Employee, type EmployeeDeleteRequest} from "../personnelApi.ts";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { List } from "@chakra-ui/react";
+import { toaster } from "@/components/ui/toaster.tsx";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { deleteEmployees, type Employee, type EmployeeDeleteRequest } from "../personnelApi.ts";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
+import ConfirmModal from "@/components/ConfirmModal.tsx";
 
 /**
  * Props for the Deletion Confirmation Modal.
@@ -31,10 +32,13 @@ interface ConfirmEmployeeDeletionModalProps {
  * Modal that prompts the user to confirm they want to delete the selected employees.
  */
 const ConfirmEmployeeDeletionModal = ({ isOpen, onOpenChange, selection, employees, onEmployeesChange }: ConfirmEmployeeDeletionModalProps) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+
   /**
    * Handle call to backend for deleting one or a list of employees.
    */
   const handleClick = async () => {
+    setIsProcessing(true);
     try {
       const selectionList: EmployeeDeleteRequest[] = selection.map(id => {
         return {
@@ -57,49 +61,33 @@ const ConfirmEmployeeDeletionModal = ({ isOpen, onOpenChange, selection, employe
         description: getErrorMessage(error, "Unable to delete employee"),
         type: "error"
       })
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   return (
-    <Dialog.Root
-      role="alertdialog"
-      open={isOpen}
+    <ConfirmModal
+      isOpen={isOpen}
       onOpenChange={onOpenChange}
-      placement="center"
-      motionPreset="slide-in-top">
-      <Portal>
-        <Dialog.Backdrop />
-        <Dialog.Positioner>
-          <Dialog.Content>
-            <Dialog.Header>
-              <Dialog.Title>{selection.length === 1 ? "Delete Employee?" : "Delete Employees?"}</Dialog.Title>
-            </Dialog.Header>
-            <Dialog.Body>
-              <p>Are you sure you would like to delete the following employee(s)? This action is irreversible.</p>
-              {/* List of employees to be deleted. */}
-              <List.Root paddingTop={3} paddingLeft={5}>
-                {selection.map((selectionId) => {
-                  const deleteItem = employees.find((item) => item.id === selectionId);
+      title={selection.length === 1 ? "Delete Employee?" : "Delete Employees?"}
+      confirmText="Delete"
+      confirmColorPalette="red"
+      onConfirm={handleClick}
+      isProcessing={isProcessing}
+    >
+      <p>Are you sure you would like to delete the following employee(s)? This action is irreversible.</p>
+      {/* List of employees to be deleted. */}
+      <List.Root paddingTop={3} paddingLeft={5}>
+        {selection.map((selectionId) => {
+          const deleteItem = employees.find((item) => item.id === selectionId);
 
-                  return deleteItem ? (
-                    <List.Item key={deleteItem.id}>{deleteItem.last_name}, {deleteItem.first_name} {deleteItem.middle_name}</List.Item>
-                  ): null;
-                })}
-              </List.Root>
-            </Dialog.Body>
-            <Dialog.Footer>
-              <Dialog.ActionTrigger asChild>
-                <Button variant="outline">Cancel</Button>
-              </Dialog.ActionTrigger>
-              <Button onClick={handleClick} colorPalette="red">Delete</Button>
-            </Dialog.Footer>
-            <Dialog.CloseTrigger asChild>
-              <CloseButton size="sm" />
-            </Dialog.CloseTrigger>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Portal>
-    </Dialog.Root>
+          return deleteItem ? (
+            <List.Item key={deleteItem.id}>{deleteItem.last_name}, {deleteItem.first_name} {deleteItem.middle_name}</List.Item>
+          ): null;
+        })}
+      </List.Root>
+    </ConfirmModal>
   );
 }
 
