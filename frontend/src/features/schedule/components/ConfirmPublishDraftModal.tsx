@@ -10,16 +10,16 @@
  * Warns the user about potential data overwrites.
  */
 
-import {Button, CloseButton, Dialog,Portal} from "@chakra-ui/react";
-import {toaster} from "@/components/ui/toaster.tsx";
+import { toaster } from "@/components/ui/toaster.tsx";
 import {
   type DraftSummary,
   publishDraft,
   type ScheduleDraft,
   type ScheduleResponse
 } from "@/features/schedule/scheduleApi.ts";
-import type {Dispatch, SetStateAction} from "react";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
+import ConfirmModal from "@/components/ConfirmModal.tsx";
 
 /**
  * Props for the Publish Confirmation Modal.
@@ -39,8 +39,11 @@ interface ConfirmPublishModalProps {
  * overwrites any existing shifts for the target date range.
  */
 const ConfirmPublishDraftModal = ({ isOpen, onOpenChange, draft_id, drafts, onDraftChange, onDraftViewChange }: ConfirmPublishModalProps) => {
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // Handle call to backend for deleting one or a list of qualifications.
   const handleClick = async () => {
+    setIsProcessing(true);
     try {
       await publishDraft(draft_id);
 
@@ -59,40 +62,24 @@ const ConfirmPublishDraftModal = ({ isOpen, onOpenChange, draft_id, drafts, onDr
         description: getErrorMessage(error, "Unable to publish draft"),
         type: "error"
       })
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   return (
-    <Dialog.Root
-      role="alertdialog"
-      open={isOpen}
+    <ConfirmModal
+      isOpen={isOpen}
       onOpenChange={onOpenChange}
-      placement="center"
-      motionPreset="slide-in-top">
-      <Portal>
-        <Dialog.Backdrop />
-        <Dialog.Positioner>
-          <Dialog.Content>
-            <Dialog.Header>
-              <Dialog.Title>Publish Draft?</Dialog.Title>
-            </Dialog.Header>
-            <Dialog.Body>
-              <p>Are you sure you would like to publish this draft?
-                This action will overwrite any existing shifts during this time period.</p>
-            </Dialog.Body>
-            <Dialog.Footer>
-              <Dialog.ActionTrigger asChild>
-                <Button variant="outline">Cancel</Button>
-              </Dialog.ActionTrigger>
-              <Button onClick={handleClick} colorPalette="blue">Confirm</Button>
-            </Dialog.Footer>
-            <Dialog.CloseTrigger asChild>
-              <CloseButton size="sm" />
-            </Dialog.CloseTrigger>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Portal>
-    </Dialog.Root>
+      title="Publish Draft?"
+      confirmText="Confirm"
+      confirmColorPalette="blue"
+      onConfirm={handleClick}
+      isProcessing={isProcessing}
+    >
+      <p>Are you sure you would like to publish this draft?
+        This action will overwrite any existing shifts during this time period.</p>
+    </ConfirmModal>
   );
 }
 

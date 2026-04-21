@@ -34,7 +34,7 @@ import type {Position} from "@/features/personnel/personnelApi.ts";
  */
 
 /**
- *
+ * Max step optimization levels for dropdown.
  */
 const optimizationEfforts = createListCollection({
   items: [

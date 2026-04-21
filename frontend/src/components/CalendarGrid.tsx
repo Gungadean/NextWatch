@@ -14,10 +14,9 @@ import {useColorModeValue} from "@/components/ui/color-mode.tsx";
 import {parseISODate, toSimpleDate} from "@/utils/timeUtils.ts";
 import type {Assignment} from "@/features/schedule/scheduleApi.ts";
 import {Checkbox} from "@/components/ui/checkbox.tsx";
-import {memo, useEffect, useRef, useState} from "react";
+import {memo} from "react";
 import React from "react";
 import { LuCircleAlert, LuTriangleAlert } from "react-icons/lu";
-import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
 import {Tooltip} from "@/components/ui/tooltip.tsx";
 
 /**
@@ -43,10 +42,6 @@ interface CalendarGridProps {
   month: number; // 1-12
   events: CalendarEvent[];
 
-  timelineRows?: TimelineRow[];
-  timelineItems?: TimelineItem[];
-  isSkeletonView?: boolean;
-
   onDayClick?: (dateStr: string) => void;
   selectedRegenDates?: string[];
   onToggleRegenDate?: (dateStr: string) => void;
@@ -65,17 +60,12 @@ export const CalendarGrid = memo(({
    year,
    month,
    events,
-   timelineRows = [],
-   timelineItems = [],
-   isSkeletonView = false,
    onDayClick,
    selectedRegenDates = [],
    onToggleRegenDate,
    globalHardErrors = [],
    globalSoftWarnings = []
 }: CalendarGridProps) => {
-  const [expandedWeekIndex, setExpandedWeekIndex] = useState<number | null>(null);
-  const drawerRef = useRef<HTMLDivElement>(null);
 
   // Dynamic colors for light/dark mode
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -83,7 +73,6 @@ export const CalendarGrid = memo(({
   const headerBg = useColorModeValue("gray.100", "gray.700");
   const hoverBg = useColorModeValue("gray.50", "gray.800");
   const emptyBg = useColorModeValue("gray.50", "gray.900");
-  const expandedBg = useColorModeValue("gray.50", "gray.800");
   const tooltipBg = useColorModeValue("white", "gray.800");
   const tooltipBorder = useColorModeValue("gray.200", "gray.700");
   const hardErrorText = useColorModeValue("red.600", "red.300");
@@ -94,15 +83,6 @@ export const CalendarGrid = memo(({
 
   // Calculate the first day of the month
   const firstDayOfMonth = new Date(year, month - 1, 1).getDay(); // 0=Sun
-
-  // Handle transition when expanding a week drawer
-  useEffect(() => {
-    if (expandedWeekIndex !== null && drawerRef.current) {
-      setTimeout(() => {
-        drawerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 100);
-    }
-  }, [expandedWeekIndex]);
 
   // Group Events by Day (1-31) and sort them by start time
   const eventsByDay: Record<number, CalendarEvent[]> = {};
@@ -138,19 +118,19 @@ export const CalendarGrid = memo(({
     })
   ];
 
-  // Handle logic for clicking on cells
-  const handleCellClick = (e: React.MouseEvent, weekIndex: number, dateStr?: string) => {
+  /**
+   * Handle logic for clicking on cells
+   */
+  const handleCellClick = (e: React.MouseEvent, dateStr?: string) => {
     // Toggle status in regen list if ctrl is being held down
     if (e.ctrlKey && dateStr && onToggleRegenDate) {
       onToggleRegenDate(dateStr);
       return;
     }
 
-    // If is skeleton view, show day editor, otherwise expand week.
-    if (onDayClick && isSkeletonView) {
-      if (dateStr) onDayClick(dateStr);
-    } else {
-      setExpandedWeekIndex(expandedWeekIndex === weekIndex ? null : weekIndex);
+    // If the day exists, open the day editor.
+    if (onDayClick && dateStr) {
+      onDayClick(dateStr);
     }
   };
 
@@ -196,365 +176,297 @@ export const CalendarGrid = memo(({
 
       {/* Generate Grid Cells */}
       {gridCells.map((cell, index) => {
-        const weekIndex = Math.floor(index / 7);
-        const isEndOfRow = (index + 1) % 7 === 0;
 
-        const isExpanded = expandedWeekIndex === weekIndex;
-        const isCompressed = expandedWeekIndex !== null && !isExpanded;
-
-        const cellHeight = isCompressed ? "40px" : "120px";
-
-        let CellContent;
         {/* Create Padding Cells */}
         if (cell.type === "padding") {
-          CellContent = (
+          return (
             <Box
-              minH={cellHeight}
-              transition="min-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s"
+              key={index}
+              minH="120px"
+              transition="background 0.2s"
               borderRight="1px solid"
-              borderBottom={isExpanded ? "none" : "1px solid"}
+              borderBottom="1px solid"
               borderColor={borderColor}
-              bg={isExpanded ? hoverBg : emptyBg}
+              bg={emptyBg}
               p={2}
-              cursor="pointer"
-              onClick={(e) => handleCellClick(e, weekIndex, cell.dateStr)}
               _hover={{ bg: hoverBg }}
             >
-                <Text fontSize={isCompressed ? "xs" : "sm"} color="gray.400" fontWeight="bold" transition="font-size 0.3s">
+                <Text fontSize="sm" color="gray.400" fontWeight="bold">
                   {cell.dateStr ? parseInt(cell.dateStr.split('-')[2], 10) : ''}
                 </Text>
             </Box>
           )
-        } else {
-          {/* Create Day Cells */}
-          const day = cell.dayNumber!;
-          const dateStr = cell.dateStr!;
-          const isSelected = selectedRegenDates.includes(dateStr);
-
-          const dayEvents = eventsByDay[day] || [];
-
-          const pythonDateStr = getPythonDateString(dateStr); // e.g., "2026-03-01" -> "Mar 01"
-
-          // 2. Filter the global arrays for errors belonging to THIS day
-          const dayHardErrors = globalHardErrors.filter(err => err.includes(pythonDateStr));
-          const daySoftWarnings = globalSoftWarnings.filter(warn => warn.includes(pythonDateStr));
-
-          const hasErrors = dayHardErrors.length > 0;
-          const hasWarnings = daySoftWarnings.length > 0;
-
-          CellContent = (
-            <Box
-              position="relative"
-              minH={cellHeight}
-              transition="min-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s"
-              borderRight="1px solid" borderBottom={isExpanded ? "none" : "1px solid"}
-              borderColor={isSelected ? "blue.500" : borderColor}
-              bg={isSelected ? "blue.50" : (isExpanded ? hoverBg : cellBg)}
-              _dark={{ bg: isSelected ? "blue.900" : (isExpanded ? hoverBg : cellBg) }}
-              p={2} cursor="pointer"
-              onClick={(e) => handleCellClick(e, weekIndex, dateStr)}
-              _hover={{ bg: isSelected ? "blue.100" : hoverBg }}
-            >
-              <Flex justify="space-between" align="center" mb={isCompressed ? 0 : 1} position="relative" minH="24px">
-                {/* Left: Date */}
-                <Text fontSize={isCompressed ? "xs" : "sm"} color={isSelected ? "blue.600" : "gray.500"} fontWeight="bold" transition="font-size 0.3s">
-                  {day}
-                </Text>
-
-                {/* Center: Validation Icon (Absolute Centered) */}
-                {(hasErrors || hasWarnings) && (
-                  <Box position="absolute" left="50%" transform="translateX(-50%)" zIndex={2}>
-                    <Tooltip
-                      content={
-                        <VStack
-                          align="start" gap={1} p={2} maxW="250px"
-                        >
-                          {dayHardErrors.map((err, i) => (
-                            <Text key={`hard-${i}`} color={hardErrorText} fontSize="xs" fontWeight="bold">• {err}</Text>
-                          ))}
-                          {daySoftWarnings.map((warn, i) => (
-                            <Text key={`soft-${i}`} color={softWarningText} fontSize="xs">• {warn}</Text>
-                          ))}
-                        </VStack>
-                      }
-                      openDelay={100}
-                      positioning={{ placement: "top" }}
-                      showArrow
-                      contentProps={{
-                        bg: tooltipBg,
-                        borderColor: tooltipBorder,
-                        borderWidth: "1px",
-                        shadow: "xl",
-                        borderRadius: "md",
-                        p: 2
-                      }}
-                    >
-                      <Box cursor="help" display="flex" alignItems="center">
-                        <Icon
-                          color={hasErrors ? "red.500" : "yellow.500"}
-                          size="md"
-                        >
-                          {hasErrors ? <LuCircleAlert /> : <LuTriangleAlert />}
-                        </Icon>
-                      </Box>
-                    </Tooltip>
-                  </Box>
-                )}
-
-                {/* Right: Checkbox - Set blue color palette for cells selected for regen. */}
-                {!isCompressed && onToggleRegenDate && (
-                  <Box onClick={(e) => e.stopPropagation()} zIndex={2}>
-                    <Checkbox checked={isSelected} onCheckedChange={() => onToggleRegenDate(dateStr)} colorPalette="blue" size="sm" />
-                  </Box>
-                )}
-              </Flex>
-
-              {/* Hide shifts when the view is compressed to save space. */}
-              {isCompressed ? (
-                <Flex gap="2px" mt={1} wrap="wrap" justify="flex-start" overflow="hidden" maxH="16px" px={1}>
-                  {dayEvents.slice(0, 8).map((evt, i) => (
-                    <Box key={i} w="6px" h="6px" borderRadius="full" bg={evt.color ? `${evt.color}.500` : "blue.500"} opacity={0.8} />
-                  ))}
-                  {dayEvents.length > 8 && <Text fontSize="7px" color="gray.400" lineHeight="6px">+{dayEvents.length - 8}</Text>}
-                </Flex>
-              ) : (
-                <Stack gap={1} opacity={isCompressed ? 0 : 1} transition="opacity 0.2s">
-                  {/* Handle creating shift rows and columns for shifts */}
-                  {(() => {
-                    /**
-                     * Extract the time from an ISO datetime string.
-                     */
-                    const extractTime = (timeStr?: string): string => {
-                      if (!timeStr) return "00:00";
-                      return timeStr.includes('T') ? timeStr.split('T')[1] : timeStr;
-                    };
-
-                    /**
-                     * Convert timeStr to minutes
-                     */
-                    const parseTimeToMinutes = (timeStr?: string): number => {
-                      const timeOnly = extractTime(timeStr);
-                      const [hours, minutes] = timeOnly.split(':').map(Number);
-                      return hours * 60 + minutes;
-                    };
-
-                    /**
-                     * Get the total minute duration of the shift
-                     */
-                    const getShiftDuration = (shift: CalendarEvent): number => {
-                      if (shift.startTime === shift.endTime || extractTime(shift.startTime) === extractTime(shift.endTime)) return 1440;
-                      const startMinutes = parseTimeToMinutes(shift.startTime);
-                      const endMinutes = parseTimeToMinutes(shift.endTime);
-                      if (endMinutes < startMinutes) return (1440 - startMinutes) + endMinutes;
-                      return endMinutes - startMinutes;
-                    };
-
-                    /**
-                     * Check if a shift is for 24hrs
-                     */
-                    const isFullDayShift = (shift: CalendarEvent): boolean => {
-                      return shift.startTime === shift.endTime || extractTime(shift.startTime) === extractTime(shift.endTime);
-                    };
-
-                    /**
-                     * Group shifts by positions
-                     */
-                    const groupedByPosition = dayEvents.reduce((acc, event) => {
-                      const baseName = event.label.split(' (')[0];
-                      if (!acc[baseName]) acc[baseName] = [];
-                      acc[baseName].push(event);
-                      return acc;
-                    }, {} as Record<string, typeof dayEvents>);
-
-                    /**
-                     * Process each group of positions
-                     */
-                    return Object.entries(groupedByPosition).map(([positionName, shifts]) => {
-                      const finalRenderRows: (CalendarEvent | null)[][] = [];
-                      const fullDayShifts = shifts.filter(isFullDayShift);
-                      const partialDayShifts = shifts.filter(s => !isFullDayShift(s));
-
-                      // Each full-day shift gets its own row.
-                      fullDayShifts.forEach(shift => finalRenderRows.push([shift]));
-
-                      // Group partial shifts by their duration to separate patterns
-                      if (partialDayShifts.length > 0) {
-                        const shiftsByDuration = partialDayShifts.reduce((acc, shift) => {
-                          const duration = getShiftDuration(shift);
-                          if (!acc[duration]) acc[duration] = [];
-                          acc[duration].push(shift);
-                          return acc;
-                        }, {} as Record<string, CalendarEvent[]>);
-
-                        // For each duration, create the necessary rows and slots.
-                        for (const duration in shiftsByDuration) {
-                          const patternShifts = shiftsByDuration[duration];
-                          const numSlots = Math.round(1440 / parseInt(duration)) || 1;
-                          const slotDuration = 1440 / numSlots;
-
-                          // Place shifts of the same duration into non-overlapping rows
-                          const patternRows: CalendarEvent[][] = [];
-                          patternShifts.sort((a, b) => extractTime(a.startTime).localeCompare(extractTime(b.startTime)));
-                          patternShifts.forEach(shift => {
-                            let placed = false;
-                            for (const row of patternRows) {
-                              const lastShiftInRow = row[row.length - 1];
-
-                              if (extractTime(shift.startTime) >= extractTime(lastShiftInRow.endTime)) {
-                                row.push(shift);
-                                placed = true;
-                                break;
-                              }
-                            }
-                            if (!placed) {
-                              patternRows.push([shift]);
-                            }
-                          });
-
-                          // For each created row, generate the final slotted layout
-                          patternRows.forEach(row => {
-                            const displaySlots: (CalendarEvent | null)[] = Array(numSlots).fill(null);
-                            row.forEach(shift => {
-                              const startMinutes = parseTimeToMinutes(shift.startTime);
-                              const slotIndex = Math.floor(startMinutes / slotDuration);
-                              if (slotIndex >= 0 && slotIndex < numSlots) {
-                                displaySlots[slotIndex] = shift;
-                              }
-                            });
-                            finalRenderRows.push(displaySlots);
-                          });
-                        }
-                      }
-
-                      return finalRenderRows.map((row, rowIndex) => {
-                        if (row.length === 0) return null;
-
-                        // Determine if this row is a single, full-day shift
-                        const isFullDay = row.length === 1 && row[0] && isFullDayShift(row[0]);
-
-                        // Set columns: 1 column for full day, or evenly divided for partial days
-                        const gridColumns = isFullDay ? "1fr" : `repeat(${row.length}, 1fr)`;
-
-                        return (
-                          <Grid key={`${positionName}-row-${rowIndex}`} w="100%" templateColumns={gridColumns} gap="2px">
-                            {row.map((shift, colIndex) => {
-                              // Handle empty slots in partial-day rows
-                              if (!shift) {
-                                  return <Box key={`spacer-${rowIndex}-${colIndex}`} />;
-                              }
-
-                              const formatDisplay = (ts?: string) => extractTime(ts).substring(0, 5);
-
-                              // Set the time text based on the shift type
-                              const timeText = isFullDay ? "(24 Hr)" : `(${formatDisplay(shift.startTime)} - ${formatDisplay(shift.endTime)})`;
-                              const tooltipContent = `${shift.label}: ${shift.text} ${timeText}`;
-
-                              const c = shift.color || "blue";
-                              const isHex = c.startsWith("#");
-
-                              const fullName = shift.text || "Unassigned";
-                              const lastName = fullName.split(',')[0] || fullName;
-                              const firstName = fullName.split(',')[1]?.trim().split(' ')[0] || "";
-
-                              let displayText = shift.initials || "UN"; // Default to initials
-
-                              if (fullName !== "Unassigned") {
-                                if (isFullDay) {
-                                  displayText = firstName ? `${lastName}, ${firstName}` : lastName;
-                                } else if (row.length === 2) {
-                                  displayText = lastName;
-                                }
-                              }
-
-                              return (
-                                <Tooltip key={`${shift.id || 'shift'}-${rowIndex}-${colIndex}`} content={tooltipContent} showArrow>
-                                  <Flex
-                                    bg={isHex ? `${c}44` : `${c}.100`}
-                                    border="1px solid"
-                                    borderColor={isHex ? `${c}55` : `${c}.300`}
-                                    _dark={{ bg: isHex ? `${c}66` : `${c}.800`, borderColor: isHex ? `${c}88` : `${c}.600` }}
-                                    borderRadius="sm"
-                                    px={1}
-                                    py={0.5}
-                                    align="center"
-                                    justify="center"
-                                    _hover={{ bg: isHex ? `${c}66` : `${c}.200`, _dark: { bg: isHex ? `${c}88` : `${c}.700` }}}
-                                    transition="background 0.2s"
-                                    overflow="hidden"
-                                  >
-                                    <Text
-                                      fontSize="2xs"
-                                      fontWeight="bold"
-                                      whiteSpace="nowrap"
-                                      textOverflow="ellipsis"
-                                      overflow="hidden"
-                                    >
-                                      {displayText}
-                                    </Text>
-                                  </Flex>
-                                </Tooltip>
-                              );
-                            })}
-                          </Grid>
-                        );
-                      });
-                    });
-                  })()}
-                </Stack>
-              )}
-            </Box>
-          );
         }
 
-        // Calculate bounds for the embedded timeline
-        let rowStartStr = null;
-        let rowEndStr = null;
+        {/* Create Day Cells */}
+        const day = cell.dayNumber!;
+        const dateStr = cell.dateStr!;
+        const isSelected = selectedRegenDates.includes(dateStr);
 
-        if (isEndOfRow && isExpanded) {
-           const sundayObj = new Date(year, month - 1, 1 - firstDayOfMonth + (weekIndex * 7));
-           const saturdayObj = new Date(year, month - 1, 1 - firstDayOfMonth + (weekIndex * 7) + 6);
+        const dayEvents = eventsByDay[day] || [];
 
-           rowStartStr = toSimpleDate(sundayObj);
-           rowEndStr = toSimpleDate(saturdayObj);
-        }
+        const pythonDateStr = getPythonDateString(dateStr); // e.g., "2026-03-01" -> "Mar 01"
+
+        // Filter the global arrays for errors belonging to this day
+        const dayHardErrors = globalHardErrors.filter(err => err.includes(pythonDateStr));
+        const daySoftWarnings = globalSoftWarnings.filter(warn => warn.includes(pythonDateStr));
+
+        const hasErrors = dayHardErrors.length > 0;
+        const hasWarnings = daySoftWarnings.length > 0;
 
         return (
-          <React.Fragment key={index}>
-            {CellContent}
+          <Box
+            key={index}
+            position="relative"
+            minH="120px"
+            transition="background 0.2s"
+            borderRight="1px solid"
+            borderBottom="1px solid"
+            borderColor={isSelected ? "blue.500" : borderColor}
+            bg={isSelected ? "blue.50" : cellBg}
+            _dark={{ bg: isSelected ? "blue.900" : cellBg }}
+            outline={isSelected ? "2px solid" : "none"}
+            outlineColor={isSelected ? "blue.500" : "transparent"}
+            outlineOffset="-2px"
+            zIndex={isSelected ? 1 : 0}
+            p={2}
+            cursor="pointer"
+            onClick={(e) => handleCellClick(e, dateStr)}
+            _hover={{ bg: isSelected ? "blue.100" : hoverBg }}
+          >
+            <Flex justify="space-between" align="center" mb={1} position="relative" minH="24px">
+              {/* Left: Date */}
+              <Text fontSize="sm" color={isSelected ? "blue.600" : "gray.500"} fontWeight="bold">
+                {day}
+              </Text>
 
-            {/* Create Timeline View when a week is expanded. */}
-            {isEndOfRow && isExpanded && rowStartStr && rowEndStr && (
-              <Box
-                ref={drawerRef}
-                gridColumn="1 / -1"
-                bg={expandedBg}
-                borderBottom="1px solid"
-                borderColor={borderColor}
-                p={4}
-                boxShadow="inset 0px 4px 6px -4px rgba(0, 0, 0, 0.1)"
-                animation="fadeIn 1s ease-in-out"
-              >
-                <Flex justify="space-between" align="center" mb={4}>
-                  <Text fontWeight="bold" fontSize="lg">Detailed Week View</Text>
-                  <Text fontSize="sm" color="gray.500">
-                    {rowStartStr} to {rowEndStr}
-                  </Text>
-                </Flex>
-
-                <Box border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
-                  <TimelineGrid
-                    rangeStart={rowStartStr}
-                    rangeEnd={rowEndStr}
-                    rows={timelineRows}
-                    items={timelineItems}
-                    showConflicts={false}
-                    enableHighlight={false}
-                    onDayClick={onDayClick}
-                  />
+              {/* Center: Validation Icon (Absolute Centered) */}
+              {(hasErrors || hasWarnings) && (
+                <Box position="absolute" left="50%" transform="translateX(-50%)" zIndex={2}>
+                  <Tooltip
+                    content={
+                      <VStack align="start" gap={1} p={2} maxW="250px">
+                        {dayHardErrors.map((err, i) => (
+                          <Text key={`hard-${i}`} color={hardErrorText} fontSize="xs" fontWeight="bold">• {err}</Text>
+                        ))}
+                        {daySoftWarnings.map((warn, i) => (
+                          <Text key={`soft-${i}`} color={softWarningText} fontSize="xs">• {warn}</Text>
+                        ))}
+                      </VStack>
+                    }
+                    openDelay={100}
+                    positioning={{ placement: "top" }}
+                    showArrow
+                    contentProps={{
+                      bg: tooltipBg,
+                      borderColor: tooltipBorder,
+                      borderWidth: "1px",
+                      shadow: "xl",
+                      borderRadius: "md",
+                      p: 2
+                    }}
+                  >
+                    <Box cursor="help" display="flex" alignItems="center">
+                      <Icon color={hasErrors ? "red.500" : "yellow.500"} size="md">
+                        {hasErrors ? <LuCircleAlert /> : <LuTriangleAlert />}
+                      </Icon>
+                    </Box>
+                  </Tooltip>
                 </Box>
-              </Box>
-            )}
-          </React.Fragment>
+              )}
+
+              {/* Right: Checkbox - Set blue color palette for cells selected for regen. */}
+              {onToggleRegenDate && (
+                <Box onClick={(e) => e.stopPropagation()} zIndex={2}>
+                  <Checkbox checked={isSelected} onCheckedChange={() => onToggleRegenDate(dateStr)} colorPalette="blue" size="sm" />
+                </Box>
+              )}
+            </Flex>
+
+            <Stack gap={1}>
+              {/* Handle creating shift rows and columns for shifts */}
+              {(() => {
+                /**
+                 * Extract the time from an ISO datetime string.
+                 */
+                const extractTime = (timeStr?: string): string => {
+                  if (!timeStr) return "00:00";
+                  return timeStr.includes('T') ? timeStr.split('T')[1] : timeStr;
+                };
+
+                /**
+                 * Convert timeStr to minutes
+                 */
+                const parseTimeToMinutes = (timeStr?: string): number => {
+                  const timeOnly = extractTime(timeStr);
+                  const [hours, minutes] = timeOnly.split(':').map(Number);
+                  return hours * 60 + minutes;
+                };
+
+                /**
+                 * Get the total minute duration of the shift
+                 */
+                const getShiftDuration = (shift: CalendarEvent): number => {
+                  if (shift.startTime === shift.endTime || extractTime(shift.startTime) === extractTime(shift.endTime)) return 1440;
+                  const startMinutes = parseTimeToMinutes(shift.startTime);
+                  const endMinutes = parseTimeToMinutes(shift.endTime);
+                  if (endMinutes < startMinutes) return (1440 - startMinutes) + endMinutes;
+                  return endMinutes - startMinutes;
+                };
+
+                /**
+                 * Check if a shift is for 24hrs
+                 */
+                const isFullDayShift = (shift: CalendarEvent): boolean => {
+                  return shift.startTime === shift.endTime || extractTime(shift.startTime) === extractTime(shift.endTime);
+                };
+
+                /**
+                 * Group shifts by positions
+                 */
+                const groupedByPosition = dayEvents.reduce((acc, event) => {
+                  const baseName = event.label.split(' (')[0];
+                  if (!acc[baseName]) acc[baseName] = [];
+                  acc[baseName].push(event);
+                  return acc;
+                }, {} as Record<string, typeof dayEvents>);
+
+                /**
+                 * Process each group of positions
+                 */
+                return Object.entries(groupedByPosition).map(([positionName, shifts]) => {
+                  const finalRenderRows: (CalendarEvent | null)[][] = [];
+                  const fullDayShifts = shifts.filter(isFullDayShift);
+                  const partialDayShifts = shifts.filter(s => !isFullDayShift(s));
+
+                  // Each full-day shift gets its own row.
+                  fullDayShifts.forEach(shift => finalRenderRows.push([shift]));
+
+                  // Group partial shifts by their duration to separate patterns
+                  if (partialDayShifts.length > 0) {
+                    const shiftsByDuration = partialDayShifts.reduce((acc, shift) => {
+                      const duration = getShiftDuration(shift);
+                      if (!acc[duration]) acc[duration] = [];
+                      acc[duration].push(shift);
+                      return acc;
+                    }, {} as Record<string, CalendarEvent[]>);
+
+                    // For each duration, create the necessary rows and slots.
+                    for (const duration in shiftsByDuration) {
+                      const patternShifts = shiftsByDuration[duration];
+                      const numSlots = Math.round(1440 / parseInt(duration)) || 1;
+                      const slotDuration = 1440 / numSlots;
+
+                      // Place shifts of the same duration into non-overlapping rows
+                      const patternRows: CalendarEvent[][] = [];
+                      patternShifts.sort((a, b) => extractTime(a.startTime).localeCompare(extractTime(b.startTime)));
+                      patternShifts.forEach(shift => {
+                        let placed = false;
+                        for (const row of patternRows) {
+                          const lastShiftInRow = row[row.length - 1];
+
+                          if (extractTime(shift.startTime) >= extractTime(lastShiftInRow.endTime)) {
+                            row.push(shift);
+                            placed = true;
+                            break;
+                          }
+                        }
+                        if (!placed) {
+                          patternRows.push([shift]);
+                        }
+                      });
+
+                      // For each created row, generate the final slotted layout
+                      patternRows.forEach(row => {
+                        const displaySlots: (CalendarEvent | null)[] = Array(numSlots).fill(null);
+                        row.forEach(shift => {
+                          const startMinutes = parseTimeToMinutes(shift.startTime);
+                          const slotIndex = Math.floor(startMinutes / slotDuration);
+                          if (slotIndex >= 0 && slotIndex < numSlots) {
+                            displaySlots[slotIndex] = shift;
+                          }
+                        });
+                        finalRenderRows.push(displaySlots);
+                      });
+                    }
+                  }
+
+                  return finalRenderRows.map((row, rowIndex) => {
+                    if (row.length === 0) return null;
+
+                    // Determine if this row is a single, full-day shift
+                    const isFullDay = row.length === 1 && row[0] && isFullDayShift(row[0]);
+
+                    // Set columns: 1 column for full day, or evenly divided for partial days
+                    const gridColumns = isFullDay ? "1fr" : `repeat(${row.length}, 1fr)`;
+
+                    return (
+                      <Grid key={`${positionName}-row-${rowIndex}`} w="100%" templateColumns={gridColumns} gap="2px">
+                        {row.map((shift, colIndex) => {
+                          // Handle empty slots in partial-day rows
+                          if (!shift) {
+                              return <Box key={`spacer-${rowIndex}-${colIndex}`} />;
+                          }
+
+                          const formatDisplay = (ts?: string) => extractTime(ts).substring(0, 5);
+
+                          // Set the time text based on the shift type
+                          const timeText = isFullDay ? "(24 Hr)" : `(${formatDisplay(shift.startTime)} - ${formatDisplay(shift.endTime)})`;
+                          const tooltipContent = `${shift.label}: ${shift.text} ${timeText}`;
+
+                          const c = shift.color || "blue";
+                          const isHex = c.startsWith("#");
+
+                          const fullName = shift.text || "Unassigned";
+                          const lastName = fullName.split(',')[0] || fullName;
+                          const firstName = fullName.split(',')[1]?.trim().split(' ')[0] || "";
+
+                          let displayText = shift.initials || "UN"; // Default to initials
+
+                          if (fullName !== "Unassigned") {
+                            if (isFullDay) {
+                              displayText = firstName ? `${lastName}, ${firstName}` : lastName;
+                            } else if (row.length === 2) {
+                              displayText = lastName;
+                            }
+                          }
+
+                          return (
+                            <Tooltip key={`${shift.id || 'shift'}-${rowIndex}-${colIndex}`} content={tooltipContent} showArrow>
+                              <Flex
+                                bg={isHex ? `${c}44` : `${c}.100`}
+                                border="1px solid"
+                                borderColor={isHex ? `${c}55` : `${c}.300`}
+                                _dark={{ bg: isHex ? `${c}66` : `${c}.800`, borderColor: isHex ? `${c}88` : `${c}.600` }}
+                                borderRadius="sm"
+                                px={1}
+                                py={0.5}
+                                align="center"
+                                justify="center"
+                                _hover={{ bg: isHex ? `${c}66` : `${c}.200`, _dark: { bg: isHex ? `${c}88` : `${c}.700` }}}
+                                transition="background 0.2s"
+                                overflow="hidden"
+                              >
+                                <Text
+                                  fontSize="2xs"
+                                  fontWeight="bold"
+                                  whiteSpace="nowrap"
+                                  textOverflow="ellipsis"
+                                  overflow="hidden"
+                                >
+                                  {displayText}
+                                </Text>
+                              </Flex>
+                            </Tooltip>
+                          );
+                        })}
+                      </Grid>
+                    );
+                  });
+                });
+              })()}
+            </Stack>
+          </Box>
         );
       })}
     </Grid>
@@ -563,10 +475,8 @@ export const CalendarGrid = memo(({
   return (
     prevProps.month === nextProps.month &&
     prevProps.year === nextProps.year &&
-    prevProps.isSkeletonView === nextProps.isSkeletonView &&
 
     prevProps.events === nextProps.events &&
-    prevProps.timelineItems === nextProps.timelineItems &&
 
     JSON.stringify(prevProps.selectedRegenDates) === JSON.stringify(nextProps.selectedRegenDates) &&
     JSON.stringify(prevProps.globalHardErrors) === JSON.stringify(nextProps.globalHardErrors) &&

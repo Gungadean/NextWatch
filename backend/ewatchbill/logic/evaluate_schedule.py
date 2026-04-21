@@ -8,7 +8,7 @@ Module accepting a draft schedule and validating its fairness while generating
 a list of errors/warnings to return to the frontend for display.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 from typing import List, Dict
@@ -117,6 +117,22 @@ def evaluate_draft_schedule(
         frozen_assignments_matrix=frozen_assignments_matrix,
         translator=translator
     )
+
+    for p_idx in range(num_people):
+        for d_idx in range(num_days):
+            if conflict_matrix[p_idx, d_idx] == 1:
+                # If the person has a shift assigned on this day
+                if np.sum(schedule_array[p_idx, d_idx, :]) > 0:
+                    person_name = watchbill_params.watchstanders[p_idx].name
+                    date_val = watchbill_params.start + timedelta(days=d_idx)
+                    date_str = date_val.strftime("%b %d")
+                    err_msg = f"Conflict: {person_name} is scheduled on {date_str} but has approved time-off or a recorded conflict."
+
+                    # Ensure to not duplicate errors that is_legal already caught
+                    if err_msg not in all_hard_errors:
+                        all_hard_errors.append(err_msg)
+
+    is_valid_math = len(all_hard_errors) == 0
 
     breakdown, detailed_warnings = get_score_breakdown(
         schedule_array,
