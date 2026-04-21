@@ -126,8 +126,8 @@ const CalendarPage = () => {
       const startPart = s.start_time?.includes('T') ? s.start_time.split('T')[1].substring(0,8) : s.start_time;
       const endPart = s.end_time?.includes('T') ? s.end_time.split('T')[1].substring(0,8) : s.end_time;
 
-      const posId = s.position_id ?? (s.position as any)?.id ?? 0;
-      const empId = s.employee?.id ?? (s as any).employee_id ?? 0;
+      const posId = s.position_id ?? s.position?.id ?? 0;
+      const empId = s.employee?.id ?? s.employee_id ?? 0;
 
       return {
         date: datePart,

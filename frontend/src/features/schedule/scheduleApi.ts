@@ -28,7 +28,7 @@ export interface ShiftTemplateRead extends ShiftTemplateCreate {
  */
 export interface Shift {
   id: number;
-  member_id: number;
+  employee_id: number;
   position_id: number;
   shift_date: string;
   start_time: string;
@@ -40,6 +40,7 @@ export interface Shift {
     middle_name: string;
   };
   position?: {
+    id: number;
     name: string;
     color: string;
   };
