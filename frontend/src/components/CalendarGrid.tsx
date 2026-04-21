@@ -475,11 +475,12 @@ export const CalendarGrid = memo(({
   return (
     prevProps.month === nextProps.month &&
     prevProps.year === nextProps.year &&
-
     prevProps.events === nextProps.events &&
-
     JSON.stringify(prevProps.selectedRegenDates) === JSON.stringify(nextProps.selectedRegenDates) &&
     JSON.stringify(prevProps.globalHardErrors) === JSON.stringify(nextProps.globalHardErrors) &&
-    JSON.stringify(prevProps.globalSoftWarnings) === JSON.stringify(nextProps.globalSoftWarnings)
+    JSON.stringify(prevProps.globalSoftWarnings) === JSON.stringify(nextProps.globalSoftWarnings) &&
+
+    // Check if the toggle prop switched between undefined (view mode) and defined (edit mode)
+    !!prevProps.onToggleRegenDate === !!nextProps.onToggleRegenDate
   );
 });
