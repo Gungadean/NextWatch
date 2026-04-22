@@ -3,11 +3,13 @@
 **NextWatch** is an open-source, self-hosted web application for managing shift work scheduling.
 
 ![License](https://img.shields.io/github/license/gungadean/nextwatch)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.0-blue)
 
 ## Features
-- **Shift Scheduling:** Automated drafting and publishing of schedules.
-- **User Management:** Role-based access for Admins and Employees.
+- **Shift Scheduling:** Automated drafting and publishing of schedules using an advanced Simulated Annealing optimizer.
+- **Draft Tweaking:** Fine-tune generated schedules using Frozen Assignments and smart auto-assign features.
+- **Schedule Templating:** Quickly generate schedules using customizable baseline templates.
+- **User Management:** Role-based access for Admins and Employees with integrated time-off requests.
 - **Self-Hosted:** Full Docker support for easy deployment.
 
 ## Quick Start (Docker)
@@ -20,33 +22,32 @@ git clone [https://github.com/gungadean/nextwatch.git](https://github.com/gungad
 cd nextwatch
 ```
 
-**3. Generate Secret Keys**
-To ensure your authentication system is secure, you must generate unique, random keys for the SECRET_ACCESS and SECRET_REFRESH variables in your .env file.
+**2. Generate Secret Keys**
+To ensure your authentication system is secure, you must generate unique, random keys for the `SECRET_ACCESS` and `SECRET_REFRESH` variables in your `.env` file.
 
-You can generate secure 64-cahracter hex strings on Linux or macOS using openssl. Run the following command in your terminal twice (once for each key):
+You can generate secure 64-character hex strings on Linux or macOS using `openssl`. Run the following command in your terminal twice (once for each key):
 ```bash
 openssl rand -hex 32
 ```
 
-If you're on Windows or do not have openssl installed, you can use Docker to generate the keys using the following command:
+If you're on Windows or do not have `openssl` installed, you can use Docker to generate the keys using the following command:
 ```bash
 docker run --rm alpine/openssl rand -hex 32
 ```
 
-**4. Configure Environment Variables**
+**3. Configure Environment Variables**
 NextWatch comes with a template configuration file. Create your local production config by copying the example:
 ```bash
 cp backend/.env.example backend/.env
 ```
+*(Make sure to open your new `backend/.env` file and paste in the secret keys you generated in step 2!)*
 
-
-
-**5. Start the application**
+**4. Start the application**
 ```bash
 docker-compose up -d
 ```
 
-**6. Access the App**
+**5. Access the App**
 - **Frontend (App):** http://localhost
 - **Backend (API Docs):** http://localhost:8000/docs
 
@@ -67,7 +68,11 @@ If you prefer to run the services without Docker, follow these steps.
    ```bash
    pip install -r requirements.txt
    ```
-4. Run the server:
+4. Run the database migrations:
+   ```bash
+   alembic upgrade head
+   ```
+5. Run the server:
    ```bash
    uvicorn main:app --reload
    ```
@@ -77,17 +82,21 @@ If you prefer to run the services without Docker, follow these steps.
    ```bash
    cd frontend
    ```
-2. Install dependencies:
+2. Set up your environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+3. Install dependencies:
    ```bash
    npm install
    ```
-3. Run the development server:
+4. Run the development server:
    ```bash
    npm run dev
    ```
 
 ## Configuration
-All application configuration is securely handled via the backend/.env file. This file controls your database connection string, JWT security tokens, CORS settings, and host configuration. See backend/.env.example for all available options.
+All backend application configuration is securely handled via the `backend/.env` file. This file controls your database connection string, JWT security tokens, CORS settings, and host configuration. See `backend/.env.example` for all available options.
 
 ## License
 Distributed under the GNU General Public License v3.0. See `LICENSE` for more information.
