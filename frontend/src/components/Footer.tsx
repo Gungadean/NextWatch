@@ -15,8 +15,6 @@ import {Box, Text} from "@chakra-ui/react";
  * Main footer component
  */
 export const Footer = () => {
-  // In Vite: import.meta.env
-  // In Create-React-App: process.env
   const version = import.meta.env.VITE_APP_VERSION;
 
   return (
