@@ -34,7 +34,6 @@ numpy==2.4.4
 ortools==9.15.6755
 packaging==26.1
 pandas==3.0.2
-protobuf==7.34.1
 psycopg2-binary==2.9.12
 pycparser==3.0
 pydantic==2.13.3
@@ -51,7 +50,6 @@ regex==2026.4.4
 requests==2.33.1
 rich==15.0.0
 ruamel.yaml==0.19.1
-safety-schemas==0.0.16
 shellingham==1.5.4
 six==1.17.0
 SQLAlchemy==2.0.49
