@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     # Dev
     debug: bool = False
-    version: str = "0.1.0"
+    version: str = "0.2.0"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

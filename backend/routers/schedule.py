@@ -338,7 +338,7 @@ async def route_publish_draft(
         new_shifts.append(Shift(
             employee_id=assignment['watchstander']['id'],
             position_id=assignment['watchstation']['id'],
-            shift_date=date,
+            shift_date=date.date(),
             start_time = start_time,
             end_time = end_time,
         ))
