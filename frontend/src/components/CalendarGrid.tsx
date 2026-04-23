@@ -397,8 +397,24 @@ export const CalendarGrid = memo(({
                     // Determine if this row is a single, full-day shift
                     const isFullDay = row.length === 1 && row[0] && isFullDayShift(row[0]);
 
-                    // Set columns: 1 column for full day, or evenly divided for partial days
-                    const gridColumns = isFullDay ? "1fr" : `repeat(${row.length}, 1fr)`;
+                    const shiftCount = row.filter(s => s !== null).length;
+
+                    // Dynamically set columns to expand isolated shifts
+                    let gridColumns = "1fr";
+                    if (!isFullDay) {
+                        if (shiftCount === 1 && row.length === 3) {
+                            // For 3 slots (8-hr shifts), a 1-4-1 ratio gives the center ~66% width
+                            gridColumns = row.map(s => s !== null ? "4fr" : "1fr").join(" ");
+                        } else if (shiftCount === 1 && row.length === 2) {
+                            // For 2 slots (12-hr shifts), a 3-1 ratio gives the shift 75% width
+                            gridColumns = row.map(s => s !== null ? "3fr" : "1fr").join(" ");
+                        } else if (shiftCount < row.length) {
+                            // Generalized: Give occupied slots twice the space of empty ones
+                            gridColumns = row.map(s => s !== null ? "2fr" : "1fr").join(" ");
+                        } else {
+                            gridColumns = `repeat(${row.length}, 1fr)`;
+                        }
+                    }
 
                     return (
                       <Grid key={`${positionName}-row-${rowIndex}`} w="100%" templateColumns={gridColumns} gap="2px">
@@ -424,10 +440,16 @@ export const CalendarGrid = memo(({
                           let displayText = shift.initials || "UN"; // Default to initials
 
                           if (fullName !== "Unassigned") {
-                            if (isFullDay) {
+                            // If the shift is isolated and was expanded, show the full name!
+                            if (isFullDay || shiftCount === 1) {
                               displayText = firstName ? `${lastName}, ${firstName}` : lastName;
-                            } else if (row.length === 2) {
+                            } else if (row.length <= 3) {
                               displayText = lastName;
+                            }
+                          } else {
+                            // If Unassigned and wide enough, spell out Unassigned instead of UN
+                            if (isFullDay || shiftCount === 1) {
+                                displayText = "Unassigned";
                             }
                           }
 
