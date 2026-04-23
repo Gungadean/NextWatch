@@ -148,10 +148,17 @@ def no_two_watchstations_at_same_time_constraint(
             intervals[(d, s)] = (abs_st, abs_et)
 
     for w in range(n_people):
-        # Find all shifts assigned to this person
-        assigned = np.where(schedule[w] == 1)
+        # Check if someone is assigned to multiple shifts at the same time.
+        assigned = np.where(schedule[w] > 0)
         assigned_shifts = list(zip(assigned[0], assigned[1]))
 
+        for d, s in assigned_shifts:
+            if schedule[w, d, s] > 1:
+                errors.append(
+                    f"Overlapping Shift: {translator.get_person(w)} is double-booked for the exact same shift ({translator.get_station(s)}) on {translator.get_date(d)}."
+                )
+
+        # 2. Now check if they are assigned to DIFFERENT overlapping slots
         for i in range(len(assigned_shifts)):
             for j in range(i + 1, len(assigned_shifts)):
                 d1, s1 = assigned_shifts[i]
@@ -161,8 +168,9 @@ def no_two_watchstations_at_same_time_constraint(
                 st2, et2 = intervals[(d2, s2)]
 
                 if max(st1, st2) < min(et1, et2):
+                    date_str = translator.get_date(d1) if d1 == d2 else f"{translator.get_date(d1)} - {translator.get_date(d2)}"
                     errors.append(
-                        f"{translator.get_person(w)} has overlapping shifts: {translator.get_station(s1)} on {translator.get_date(d1)} and {translator.get_station(s2)} on {translator.get_date(d2)}."
+                        f"Overlapping Shift: {translator.get_person(w)} is assigned to overlapping shifts: {translator.get_station(s1)} and {translator.get_station(s2)} on {date_str}."
                     )
 
 
@@ -295,11 +303,11 @@ def no_duty_on_conflicts_constraint(
     # Find where both conflict exists and person has duty (violations)
     violations = np.where((conflict_matrix == 1) & has_duty)
 
-    if len(violations[0]) > 0:
-        # Get the first violation
-        person, day = violations[0][0], violations[1][0]
-
-        errors.append(f"{translator.get_person(person)} is assigned duty on {translator.get_date(day)} but has a conflict.")
+    # Loop through all violations.
+    for i in range(len(violations[0])):
+        person = violations[0][i]
+        day = violations[1][i]
+        errors.append(f"Conflict: {translator.get_person(person)} is scheduled on {translator.get_date(day)} but has approved time-off or a recorded conflict.")
 
 def frozen_assignments_constraint(
     schedule: np.ndarray,
