@@ -64,7 +64,8 @@ async def sse_generator(
         request_data=None,
         regen_uuid: str = None,
         is_live: bool = False,
-        target_dates: list = None
+        target_dates: list = None,
+        fixed_assignments: list = None
 ):
     """
     Wraps the schedule generator to format output as Server-Sent Events (SSE).
@@ -81,6 +82,7 @@ async def sse_generator(
         regen_uuid: The uuid of the existing draft to regenerate.
         is_live: Boolean flag indicating if the result should be saved directly to the live schedule.
         target_dates: List of specific dates to overwrite if saving to the live schedule.
+        fixed_assignments: List of predetermined assignments to be created (i.e. mon-fri workers)
 
     Yields:
         str: Server-Sent Events formatted string (e.g., "data: {...}\n\n").
@@ -92,6 +94,18 @@ async def sse_generator(
             # Intercept if final result and save to the live or draft database.
             if payload.get("type") == "result":
                 draft_data = payload["payload"]
+
+                if fixed_assignments:
+                    # If this is a regen, only add fixed assignments that fall on the regen dates
+                    if regen_uuid or (is_live and target_dates):
+                        filtered_fixed = [
+                            fa for fa in fixed_assignments
+                            if datetime.fromisoformat(fa['date']).date() in target_dates
+                        ]
+                        draft_data["assignments"].extend(filtered_fixed)
+                    else:
+                        # Otherwise, append all of them to the newly generated schedule
+                        draft_data["assignments"].extend(fixed_assignments)
 
                 with Session(engine) as session:
                     if is_live and target_dates:
@@ -202,7 +216,7 @@ async def generate_schedule(
     """
     try:
         # Convert db data to ewatchbill algorithm parameters
-        params = build_watchbill_params(request_data)
+        params, fixed_assignments = build_watchbill_params(request_data)
 
         if not params.watchstanders:
             raise HTTPException(status_code=400, detail="No qualified members found for these qualifications.")
@@ -220,12 +234,16 @@ async def generate_schedule(
         public_id=request_id,
         cache=schedule_cache,
         request=request,
-        watchbill_params=params
+        watchbill_params=params,
     )
 
     # Stream the output via SSE
     return StreamingResponse(
-        sse_generator(logic_stream, params, request_data),
+        sse_generator(
+            generator=logic_stream,
+            params=params,
+            request_data=request_data,
+            fixed_assignments=fixed_assignments),
         media_type="text/event-stream"
     )
 
@@ -417,7 +435,7 @@ async def regenerate_schedule(
     """
     try:
         # Convert db data to ewatchbill algorithm parameters
-        params = build_watchbill_params(request_data)
+        params, fixed_assignments = build_watchbill_params(request_data)
 
         if not params.watchstanders:
             raise HTTPException(status_code=400, detail="No qualified members found for these qualifications.")
@@ -440,7 +458,12 @@ async def regenerate_schedule(
 
     # Stream the output via SSE
     return StreamingResponse(
-        sse_generator(logic_stream, params, request_data, regen_uuid=uuid_str),
+        sse_generator(
+            generator=logic_stream,
+            params=params,
+            request_data=request_data,
+            regen_uuid=uuid_str,
+            fixed_assignments=fixed_assignments),
         media_type="text/event-stream"
     )
 
@@ -632,7 +655,7 @@ async def regenerate_live_days(
     )
 
     try:
-        params = build_watchbill_params(sched_req)
+        params, fixed_assignments = build_watchbill_params(sched_req)
         if not params.watchstanders:
             raise HTTPException(status_code=400, detail="No qualified members found.")
     except Exception as e:
@@ -648,7 +671,11 @@ async def regenerate_live_days(
 
     # Stream the output using the unified SSE interceptor (is_live=True)
     return StreamingResponse(
-        sse_generator(logic_stream, is_live=True, target_dates=target_dates),
+        sse_generator(
+            generator=logic_stream,
+            is_live=True,
+            target_dates=target_dates,
+            fixed_assignments=fixed_assignments),
         media_type="text/event-stream"
     )
 
@@ -677,7 +704,7 @@ async def validate_schedule(
     """
     try:
         # Rebuild the mathematical environment from the frontend's parameters
-        watchbill_params = build_watchbill_params(request.params)
+        watchbill_params, _ = build_watchbill_params(request.params)
 
         # Fetch historical/future shifts
         buffer_start = watchbill_params.start - timedelta(days=7)

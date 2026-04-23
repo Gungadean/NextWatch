@@ -220,7 +220,8 @@ export const useScheduleGenerator = (
       const d = String(currentDate.getDate()).padStart(2, '0');
       const dateStr = `${y}-${m}-${d}`;
 
-      const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+      const currentDayOfWeek = currentDate.getDay();
+      const backendDayOfWeek = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
 
       activePositions.forEach(pos => {
         // Check if the position has templates assigned to it
@@ -230,26 +231,24 @@ export const useScheduleGenerator = (
           pos.requirements.forEach(req => {
             const template = req.shift_template;
 
-            // Rule Check: Does this specific shift apply today?
-            if ((isWeekend && req.applies_weekends) || (!isWeekend && req.applies_weekdays)) {
+            if (req.applies_on_days && req.applies_on_days.includes(backendDayOfWeek)) {
+              const blocksToGenerate = req.is_fixed ? 1 : req.count;
 
               // Create an empty assignment block for every single required headcount!
-              for(let i = 0; i < req.count; i++) {
+              for(let i = 0; i < blocksToGenerate; i++) {
                  emptyAssignments.push({
                     date: dateStr,
-                    // Notice we map the template times directly into the Assignment!
                     start_time: template?.start_time,
                     end_time: template?.end_time,
-
+                    is_fixed: req.is_fixed || false,
                     watchstander: {
                       id: 0,
-                      name: "Unassigned",
+                      name: req.is_fixed ? "Auto-Assigned" : "Unassigned",
                       offset: 0,
                       watchstations: []
                     },
                     watchstation: {
                       id: pos.id,
-                      // Append the shift name so the user knows exactly what block this is
                       name: template ? `${pos.name} (${template.name})` : pos.name,
                       color: pos.color
                     }

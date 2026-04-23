@@ -72,6 +72,7 @@ export interface Assignment {
   date: string;
   start_time?: string;
   end_time?: string;
+  is_fixed?: boolean;
   watchstander: Watchstander;
   watchstation: Watchstation;
 }

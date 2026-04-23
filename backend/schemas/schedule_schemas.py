@@ -43,6 +43,9 @@ class DraftAssignment(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
 
+    is_fixed: Optional[bool] = False
+
+
 class ScheduleRequest(BaseModel):
     """
     Request model for initiating the schedule generation process.
