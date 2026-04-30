@@ -41,6 +41,8 @@ export interface BasicEmployee {
   first_name: string;
   last_name: string;
   middle_name: string;
+  max_shift_length?: number | null;
+  target_weekly_hours?: number | null;
 }
 
 /**
@@ -55,6 +57,8 @@ export interface Employee {
   email: string;
   positions: Position[];
   time_off_requests: TimeOffRequest[];
+  max_shift_length?: number | null;
+  target_weekly_hours?: number | null;
 }
 
 /**
@@ -67,6 +71,8 @@ export interface EmployeeWithTimeOff {
     middle_name: string;
     time_off_requests: TimeOffRequest[];
     positions: Position[];
+    max_shift_length?: number | null;
+    target_weekly_hours?: number | null;
 }
 
 /**
@@ -78,6 +84,8 @@ export interface EmployeeAddRequest {
   middle_name: string;
   email: string;
   positions: number[];
+  max_shift_length?: number | null;
+  target_weekly_hours?: number | null;
 }
 
 /**

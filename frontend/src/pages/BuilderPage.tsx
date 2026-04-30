@@ -173,7 +173,8 @@ const BuilderPage = () => {
       selectIgnorePending,
       minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
       maxDaysOff: maxDaysOff === "" ? 1 : Number(maxDaysOff),
-      maxSteps: Number(maxSteps) || 10000
+      maxSteps: Number(maxSteps) || 10000,
+      templates: templates
     }, isRegen, regenDates);
   }
 
@@ -190,7 +191,8 @@ const BuilderPage = () => {
       selectIgnorePending,
       minDaysOff: minDaysOff === "" ? 1 : Number(minDaysOff),
       maxDaysOff: maxDaysOff === "" ? 1 : Number(maxDaysOff),
-      maxSteps: Number(maxSteps) || 10000
+      maxSteps: Number(maxSteps) || 10000,
+      templates: templates
     }, positions);
   };
 

@@ -145,7 +145,9 @@ async def route_add_employee(
         last_name=data.last_name,
         middle_name=data.middle_name,
         email=data.email,
-        positions=positions_to_link
+        positions=positions_to_link,
+        max_shift_length=data.max_shift_length,
+        target_weekly_hours=data.target_weekly_hours,
     )
 
     session.add(employee)
@@ -195,6 +197,8 @@ async def route_update_employee(
     employee.last_name = data.last_name
     employee.middle_name = data.middle_name
     employee.email = data.email
+    employee.max_shift_length = data.max_shift_length
+    employee.target_weekly_hours = data.target_weekly_hours
 
     # Update positions
     if data.positions:

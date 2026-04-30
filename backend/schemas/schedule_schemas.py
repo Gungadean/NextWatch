@@ -12,6 +12,8 @@ from datetime import date, datetime
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
+from schemas.template_schemas import ShiftTemplateRead
+
 
 class DraftWatchstander(BaseModel):
     """
@@ -21,6 +23,8 @@ class DraftWatchstander(BaseModel):
     name: str
     watchstations: Optional[List[int]]
     offset: Optional[int]
+    max_shift_length: Optional[int] = None
+    target_weekly_hours: Optional[int] = None
 
 
 class DraftWatchstation(BaseModel):
@@ -44,6 +48,8 @@ class DraftAssignment(BaseModel):
     end_time: Optional[str] = None
 
     is_fixed: Optional[bool] = False
+    template_id: int | None = None
+    split_increment: int | None = None
 
 
 class ScheduleRequest(BaseModel):
@@ -70,6 +76,7 @@ class ScheduleRequest(BaseModel):
     holidays: List[date] = []
     frozen_assignments: List[DraftAssignment] = []
     skeleton: List[DraftAssignment] = []
+    templates: List[ShiftTemplateRead] | None = None
 
 
 class ScheduleDraftSummaryRequest(BaseModel):

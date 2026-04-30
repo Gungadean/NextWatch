@@ -12,6 +12,7 @@ class ShiftTemplateCreate(BaseModel):
     name: str
     start_time: time
     end_time: time
+    split_increment: int | None = None
 
 
 class ShiftTemplateRead(ShiftTemplateCreate):

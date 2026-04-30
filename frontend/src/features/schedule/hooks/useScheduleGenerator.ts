@@ -21,7 +21,7 @@ import {
   generateScheduleStream,
   generateRegenStream,
   getScheduleDraftSchedule,
-  updateDraft, type GenerationProgress, type StreamError
+  updateDraft, type GenerationProgress, type StreamError, type ShiftTemplateRead
 } from "../scheduleApi.ts";
 import type {PositionWithRequirementsRead} from "@/features/position/positionApi.ts";
 
@@ -34,6 +34,7 @@ export interface GenerateConfig {
   minDaysOff: number;
   maxDaysOff: number;
   maxSteps: number;
+  templates: ShiftTemplateRead[];
 }
 
 export const useScheduleGenerator = (
@@ -94,7 +95,8 @@ export const useScheduleGenerator = (
         max_days_off: config.maxDaysOff,
         max_steps: config.maxSteps,
         frozen_assignments: frozenAssignments,
-        skeleton: currentDraftData ? currentDraftData.assignments : []
+        skeleton: currentDraftData ? currentDraftData.assignments : [],
+        templates: config.templates
       };
 
       const streamFunction = (requestData: ScheduleRequest,
@@ -241,6 +243,7 @@ export const useScheduleGenerator = (
                     start_time: template?.start_time,
                     end_time: template?.end_time,
                     is_fixed: req.is_fixed || false,
+                    template_id: template?.id,
                     watchstander: {
                       id: 0,
                       name: req.is_fixed ? "Auto-Assigned" : "Unassigned",

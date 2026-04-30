@@ -36,6 +36,8 @@ class Employee(SQLModel, table=True):
     email: str = Field(..., max_length=50)
     created_at: datetime = Field(default_factory=datetime.now)
     user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    max_shift_length: Optional[int] = Field(default=None)
+    target_weekly_hours: Optional[int] = Field(default=None)
 
     is_active: bool = Field(default=True)
 

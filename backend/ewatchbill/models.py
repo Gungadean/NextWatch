@@ -6,7 +6,7 @@
 #  Modified by Ryan Huston 2026
 
 from datetime import date
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,6 +24,8 @@ class Watchstander(BaseModel):
     name: str
     watchstations: List[int]
     offset: int
+    max_shift_length: Optional[int] = None
+    target_weekly_hours: Optional[int] = None
 
 
 class Conflict(BaseModel):
@@ -37,6 +39,9 @@ class Assignment(BaseModel):
     date: date
     start_time: str | None = None
     end_time: str | None = None
+    is_fixed: bool = False
+    template_id: int | None = None
+    split_increment: int | None = None
 
 
 class WatchbillParams(BaseModel):

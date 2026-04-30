@@ -17,6 +17,7 @@ export interface ShiftTemplateCreate {
   name: string;
   start_time: string;
   end_time: string;
+  split_increment?: number | null;
 }
 
 export interface ShiftTemplateRead extends ShiftTemplateCreate {
@@ -75,6 +76,8 @@ export interface Assignment {
   is_fixed?: boolean;
   watchstander: Watchstander;
   watchstation: Watchstation;
+  template_id?: number;
+  split_increment?: number;
 }
 
 /**
@@ -138,6 +141,7 @@ export interface ScheduleRequest {
   holidays?: string[];
   frozen_assignments?: Assignment[];
   skeleton?: Assignment[];
+  templates?: ShiftTemplateRead[];
 }
 
 /**

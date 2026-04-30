@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from .constraints import is_legal
 from .objectives import get_score_breakdown
 from .translator import ScheduleTranslator
-from ..encoding.from_watchbill_request import from_watchbill_request
+from ..encoding.from_watchbill_request import from_watchbill_request, parse_time
 from ..models import WatchbillParams, Assignment
 
 
@@ -53,6 +53,12 @@ def evaluate_draft_schedule(
     Acts as a Single Source of Truth for frontend validation.
     Converts a drafted schedule into a matrix and audits it against the core math engine.
     """
+    safe_assignments = draft_assignments or []
+
+    # Use getattr to prevent missing attribute crashes on plain dicts
+    dynamic_assignments = [a for a in safe_assignments if not getattr(a, "is_fixed", False)]
+    watchbill_params.skeleton = dynamic_assignments
+
     # Parse the request to get the exact same matrices the math engine uses
     (
         qualification_matrix,
@@ -79,34 +85,52 @@ def evaluate_draft_schedule(
     )
 
     schedule_array = np.zeros((num_people, num_days, num_watchstations), dtype=int)
-
-    slot_to_index = {}
-    for idx, slot in enumerate(unique_shift_slots):
-        ws_id, st, et = slot
-        norm_key = (ws_id, _normalize_time(st), _normalize_time(et))
-        slot_to_index[norm_key] = idx
-
     person_to_index = {ws.id: idx for idx, ws in enumerate(watchbill_params.watchstanders)}
 
     for assignment in draft_assignments:
         p_idx = person_to_index.get(assignment.watchstander.id)
         d_idx = (assignment.date - watchbill_params.start).days
 
-        norm_key = (
-            assignment.watchstation.id,
-            _normalize_time(assignment.start_time),
-            _normalize_time(assignment.end_time)
-        )
-        s_idx = slot_to_index.get(norm_key)
+        if p_idx is None or not (0 <= d_idx < num_days):
+            continue
 
-        if s_idx is None:
-            for idx, slot in enumerate(unique_shift_slots):
+        a_st = parse_time(assignment.start_time) if assignment.start_time else 0.0
+        a_et = parse_time(assignment.end_time) if assignment.end_time else 24.0
+        a_dur = a_et - a_st if a_et > a_st else (a_et + 24.0) - a_st
+        if a_dur == 0:
+            a_dur = 24.0
+
+        mapped_slots = 0
+
+        # Distribute the UI assignment into all corresponding shattered matrix slots
+        for s_idx, slot in enumerate(unique_shift_slots):
+            if slot[0] == assignment.watchstation.id:
+                slot_st = parse_time(slot[1]) if slot[1] else 0.0
+                slot_et = parse_time(slot[2]) if slot[2] else 24.0
+                slot_dur = slot_et - slot_st if slot_et > slot_st else (slot_et + 24.0) - slot_st
+                if slot_dur == 0:
+                    slot_dur = 24.0
+
+                def in_range(x: float, start: float, end: float) -> bool:
+                    if start <= end:
+                        return start <= x <= end
+                    return x >= start or x <= end
+
+                mid = (slot_st + slot_dur / 2.0) % 24.0
+
+                # Map if the assignment is 24h, or if the matrix slot fits perfectly inside the UI block
+                if a_dur >= 24.0 or (slot_dur <= a_dur and in_range(slot_st, a_st, a_et) and in_range(slot_et, a_st,
+                                                                                                      a_et) and in_range(
+                        mid, a_st, a_et)):
+                    schedule_array[p_idx, d_idx, s_idx] += 1
+                    mapped_slots += 1
+
+        # Fallback for ad-hoc shifts that don't align with templates
+        if mapped_slots == 0:
+            for s_idx, slot in enumerate(unique_shift_slots):
                 if slot[0] == assignment.watchstation.id:
-                    s_idx = idx
+                    schedule_array[p_idx, d_idx, s_idx] += 1
                     break
-
-        if p_idx is not None and 0 <= d_idx < num_days and s_idx is not None:
-            schedule_array[p_idx, d_idx, s_idx] += 1
 
     is_valid_math, all_hard_errors = is_legal(
         schedule_array,

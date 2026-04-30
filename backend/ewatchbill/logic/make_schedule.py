@@ -44,7 +44,8 @@ def make_schedule(
         conflict_matrix=conflict_matrix,
         headcount_matrix=headcount_matrix,
         shift_times=shift_times,
-        frozen_shifts=frozen_assignments_matrix
+        frozen_shifts=frozen_assignments_matrix,
+        translator=translator
     ).get_initial_schedule()
 
     def is_legal_local(schedule: np.ndarray):
@@ -70,6 +71,7 @@ def make_schedule(
             headcount_matrix=headcount_matrix,
             conflict_matrix=conflict_matrix,
             qualification_matrix=qualification_matrix,
+            translator=translator,
             shift_times=shift_times
         )
 

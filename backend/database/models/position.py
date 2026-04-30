@@ -18,6 +18,7 @@ class ShiftTemplate(SQLModel, table=True):
     name: str = Field(..., max_length=50)
     start_time: time
     end_time: time
+    split_increment: int | None = Field(default=None)
 
     requirements: List["PositionRequirement"] = Relationship(
         back_populates="shift_template",

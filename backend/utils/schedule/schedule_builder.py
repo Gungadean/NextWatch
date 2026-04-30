@@ -41,6 +41,26 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
             for position in db_positions
         ]
 
+        template_splits = {}
+        if request_data.templates:
+            for t in request_data.templates:
+                template_splits[t.id] = t.split_increment
+
+        dynamic_skeleton = []
+        fixed_assignments = []
+
+        if request_data.skeleton:
+            for a in request_data.skeleton:
+
+                # Inject the split increment into the assignment dynamically
+                if a.template_id and a.template_id in template_splits:
+                    a.split_increment = template_splits[a.template_id]
+
+                if a.is_fixed:
+                    fixed_assignments.append(a.model_dump())
+                else:
+                    dynamic_skeleton.append(a.model_dump())
+
         dynamic_position_ids = set()
         fixed_position_ids = set()
 
@@ -78,7 +98,9 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
                         id=employee.id,
                         name=f"{employee.last_name}, {employee.first_name}",
                         watchstations=valid_dynamic_positions,
-                        offset=0  # Future: Add option to offset specific employees based on previous months
+                        offset=0,  # Future: Add option to offset specific employees based on previous months
+                        max_shift_length = employee.max_shift_length,
+                        target_weekly_hours = employee.target_weekly_hours
                     )
                 )
 

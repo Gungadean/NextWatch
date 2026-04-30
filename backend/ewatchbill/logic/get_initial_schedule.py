@@ -6,12 +6,13 @@
 #  Modified by Ryan Huston 2026
 import multiprocessing
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 import numpy as np
 from ortools.sat.python import cp_model
 
 from ewatchbill.logic.exceptions.IllegalScheduleException import IllegalScheduleException
+from ewatchbill.logic.objectives import PENALTY
 
 
 @dataclass
@@ -32,6 +33,7 @@ class OrOptimizer:
     shift_times: List[Tuple[float, float]]
 
     frozen_shifts: list = field(default_factory=list)
+    translator: Any = None
 
     model: cp_model.CpModel = field(init=False)
     schedule_vars: dict = field(init=False)
@@ -58,6 +60,8 @@ class OrOptimizer:
         self.watchstander_qualified_constraint()
         self.no_duty_on_conflicts_constraint()
         self.frozen_assignments_constraint()
+
+        self.max_shift_length_constraint()
 
         if self.penalties:
             self.model.Minimize(sum(self.penalties))
@@ -92,6 +96,37 @@ class OrOptimizer:
         return schedule
 
 
+    def max_shift_length_constraint(self):
+        """
+        Hard Constraint
+        Prevents OR-Tools from building an initial schedule that physically
+        overworks an employee beyond their maximum daily limit.
+        """
+        if not self.translator:
+            return
+
+        for w in range(self.num_people):
+            ws_obj = self.translator.watchstanders[w]
+            max_len = ws_obj.get('max_shift_length') if isinstance(ws_obj, dict) else getattr(ws_obj, 'max_shift_length', None)
+
+            if max_len is None:
+                continue
+
+            for d in range(self.num_days):
+                day_duration_expr = 0
+                for s in range(self.num_watchstations):
+                    st, et = self.shift_times[s]
+                    dur = et - st if et > st else (et + 24.0) - st
+                    if dur == 0: dur = 24.0
+
+                    # Convert to integer (multiply by 10) to safely handle half-hours in CP-SAT math
+                    dur_int = int(dur * 10)
+                    day_duration_expr += self.schedule_vars[(w, d, s)] * dur_int
+
+                # Model strictly blocks anyone exceeding their personal cap
+                self.model.Add(day_duration_expr <= int(max_len * 10))
+
+
     def exact_headcount_constraint(self):
         """
         Soft Constraint
@@ -114,11 +149,11 @@ class OrOptimizer:
                     # of people assigned to the role of what should have been. 0 means the role could not be filled.
                     for i, missing_var in enumerate(missing_vars):
                         if i == 0:
-                            self.penalties.append(missing_var * 100000)
+                            self.penalties.append(missing_var * PENALTY.HEADCOUNT_MISSING_1)
                         elif i == 1:
-                            self.penalties.append(missing_var * 10000)
+                            self.penalties.append(missing_var * PENALTY.HEADCOUNT_MISSING_2)
                         else:
-                            self.penalties.append(missing_var * 1000)
+                            self.penalties.append(missing_var * PENALTY.HEADCOUNT_MISSING_3)
                 else:
                     # If the shift isn't required that day, enforce 0
                     self.model.Add(sum(self.schedule_vars[(w, d, s)] for w in range(self.num_people)) == 0)
@@ -161,10 +196,7 @@ class OrOptimizer:
                 self.model.Add(total_shifts == 0).OnlyEnforceIf(is_benched)
                 self.model.Add(total_shifts > 0).OnlyEnforceIf(is_benched.Not())
 
-                # Apply a moderate penalty (5000 points)
-                # This ensures the solver will prefer to spread shifts out,
-                # but won't break a critical rule just to give someone a shift.
-                self.penalties.append(is_benched * 5000)
+                self.penalties.append(is_benched * PENALTY.UTILIZATION_BENCHED)
 
 
     def no_two_watchstations_at_same_time_constraint(
@@ -242,16 +274,13 @@ class OrOptimizer:
                                 rest_hours = start2 - end1
 
                                 if rest_hours <= 0:
-                                    # This is a critical safety violation.
-                                    # Back to back shifts with no break in between.
-                                    self.penalties.append(violation * 500000)
+                                    self.penalties.append(violation * PENALTY.FATIGUE_CRITICAL_REST)
                                 else:
                                     # Violates the calendar preference, but is physically safe.
                                     # At least 12hrs between shifts.
                                     self.penalties.append(violation * 10000)
                             else:
-                                # Normal penalty for subtracting a day from min days off (gap > 1)
-                                self.penalties.append(violation * 500)
+                                self.penalties.append(violation * PENALTY.FATIGUE_MIN_DAYS_OFF)
 
 
     def max_days_off_between_duty_constraint(self):

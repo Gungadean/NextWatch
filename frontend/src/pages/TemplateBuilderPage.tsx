@@ -65,7 +65,8 @@ export default function TemplateBuilderPage() {
   const [newTimeBlock, setNewTimeBlock] = useState<ShiftTemplateCreate>({
     name: "",
     start_time: "",
-    end_time: ""
+    end_time: "",
+    split_increment: null
   });
 
   const [isReqModalOpen, setReqModalOpen] = useState(false);
@@ -117,7 +118,7 @@ export default function TemplateBuilderPage() {
       setTemplates([...templates, savedBlock]);
 
       setTimeBlockModalOpen(false);
-      setNewTimeBlock({ name: "", start_time: "", end_time: "" });
+      setNewTimeBlock({ name: "", start_time: "", end_time: "", split_increment: null });
       toaster.create({
         title: "Time Block Saved",
         type: "success"
@@ -406,6 +407,24 @@ export default function TemplateBuilderPage() {
                   <Input type="time" value={newTimeBlock.end_time} onChange={(e) => setNewTimeBlock({...newTimeBlock, end_time: e.target.value})} borderColor={borderColor} color={textColor} />
                 </Box>
               </Flex>
+
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Shift Splitting (Optional)</Text>
+                <select
+                  style={{ width: '100%', padding: '8px', border: `1px solid var(--chakra-colors-${borderColor.replace('.', '-')})`, borderRadius: '6px', backgroundColor: 'transparent', color: 'inherit' }}
+                  value={newTimeBlock.split_increment || ""}
+                  onChange={(e) => setNewTimeBlock({...newTimeBlock, split_increment: e.target.value ? parseInt(e.target.value, 10) : null})}
+                >
+                  <option value="" style={{ color: 'gray' }}>None (Standard unbroken shift)</option>
+                  <option value="12" style={{ color: 'black' }}>Split into 12-hour shifts</option>
+                  <option value="8" style={{ color: 'black' }}>Split into 8-hour shifts</option>
+                  <option value="6" style={{ color: 'black' }}>Split into 6-hour shifts</option>
+                </select>
+                <Text fontSize="xs" color={mutedText} mt={1}>
+                  If selected, the backend will auto-slice this shift into smaller chunks so employees with strict hour limits can be assigned.
+                </Text>
+              </Box>
+
             </Flex>
             <Flex justify="flex-end" mt={6} gap={2}>
               <Button variant="ghost" onClick={() => setTimeBlockModalOpen(false)} color={textColor}>Cancel</Button>

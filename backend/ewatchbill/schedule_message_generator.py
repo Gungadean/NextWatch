@@ -15,6 +15,7 @@ from .encoding.from_watchbill_request import from_watchbill_request
 from .encoding.to_watchbill_response import to_watchbill_response
 from .logic.make_schedule import make_schedule
 from .logic.exceptions.IllegalScheduleException import IllegalScheduleException
+from .logic.objectives import get_score_breakdown
 from .logic.translator import ScheduleTranslator
 from .models import WatchbillParams, WatchbillResponse
 
@@ -112,6 +113,24 @@ async def schedule_message_generator(
         )
         yield {"data": json.dumps({"type": "error", "payload": response.model_dump()})}
         return
+
+    # Run the validator on the final matrix to get the clean UI score
+    if best_schedule is not None:
+        breakdown, _ = get_score_breakdown(
+            schedule=best_schedule,
+            holiday_mask=holiday_mask,
+            offset_matrix=offset_matrix,
+            min_days_off=min_days_off_between_duty,
+            max_days_off=max_days_off_between_duty,
+            headcount_matrix=headcount_matrix,
+            conflict_matrix=conflict_matrix,
+            shift_times=shift_times,
+            translator=translator
+        )
+
+        # Overwrite the final score in the history array.
+        if scores:
+            scores[-1] = breakdown["Total Score"]
 
     # Final Result (Heavyweight)
     final_response = to_watchbill_response(

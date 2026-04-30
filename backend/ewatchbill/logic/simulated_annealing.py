@@ -113,7 +113,6 @@ class AnnealingOptimizer:
         """
         person = np.random.randint(0, self.num_people)
         # find a day and watchstation where the person is assigned
-        # in other words, find a 1 in the schedule
         indices = np.argwhere(self.schedule[person, :, :] == 1)
         if len(indices) == 0:
             return []
@@ -124,11 +123,13 @@ class AnnealingOptimizer:
         if self.frozen_mask[person, day, watchstation] == 1:
             return []
 
-        # Find anyone who isn't already working this exact day
-        valid_candidates = [
-            i for i in range(self.num_people)
-            if i != person and np.sum(self.schedule[i, day, :]) == 0
-        ]
+        # Find anyone who isn't already working this exact shift today
+        valid_candidates = []
+        for i in range(self.num_people):
+            if i != person and self.schedule[i, day, watchstation] == 0:
+                if self.scorer.qualification_matrix[i, watchstation] == 1:
+                    if np.sum(self.schedule[i, day, :]) == 0:
+                        valid_candidates.append(i)
 
         if not valid_candidates:
             return []
@@ -178,6 +179,21 @@ class AnnealingOptimizer:
             return []
 
         other_person = other_people[np.random.randint(0, len(other_people))][0]
+
+        if person == other_person:
+            return []
+
+        if self.schedule[person, day, other_watchstation] == 1:
+            return []
+
+        if self.schedule[other_person, day, watchstation] == 1:
+            return []
+
+        # Prevent the annealer from swapping people into roles they can't work!
+        if self.scorer.qualification_matrix[person, other_watchstation] == 0:
+            return []
+        if self.scorer.qualification_matrix[other_person, watchstation] == 0:
+            return []
 
         # Return the schedule if either of these assignments are frozen
         if (self.frozen_mask[person, day, watchstation] == 1 or
