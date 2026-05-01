@@ -134,7 +134,6 @@ def evaluate_draft_schedule(
 
     is_valid_math, all_hard_errors = is_legal(
         schedule_array,
-        min_days_off_between_duty=min_days_off,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
         shift_times=shift_times,

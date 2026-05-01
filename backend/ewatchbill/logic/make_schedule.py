@@ -51,7 +51,6 @@ def make_schedule(
     def is_legal_local(schedule: np.ndarray):
         is_legal_bool, _ = is_legal(
             schedule,
-            min_days_off_between_duty=min_days_off_between_duty,
             qualification_matrix=qualification_matrix,
             conflict_matrix=conflict_matrix,
             shift_times=shift_times,
@@ -78,7 +77,6 @@ def make_schedule(
 
     initial_is_legal, error_message = is_legal(
         initial_schedule,
-        min_days_off_between_duty=min_days_off_between_duty,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
         shift_times=shift_times,
