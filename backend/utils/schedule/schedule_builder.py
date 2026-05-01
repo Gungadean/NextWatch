@@ -17,6 +17,59 @@ from ewatchbill.models import WatchbillParams, Watchstation, Conflict
 from schemas.schedule_schemas import ScheduleRequest, DraftWatchstander
 
 
+def parse_time(t_str: str | None) -> float:
+    """
+    Converts string time to a mathematical float representation.
+    """
+    if not t_str:
+        return 0.0
+    parts = t_str.split(':')
+    return float(parts[0]) + (float(parts[1]) / 60.0 if len(parts) > 1 else 0.0)
+
+
+def float_to_time_str(time_float: float) -> str:
+    """
+    Converts float representation back to a standard time string.
+    """
+    time_float = time_float % 24.0
+    hours = int(time_float)
+    minutes = int(round((time_float - hours) * 60))
+    return f"{hours:02d}:{minutes:02d}:00"
+
+
+def shatter_assignment(assignment_dict: dict, split_inc: float | None) -> list[dict]:
+    """
+    Slices a long assignment into multiple chunks based on the template increment.
+    """
+    if not split_inc or split_inc <= 0:
+        return [assignment_dict]
+
+    st_float = parse_time(assignment_dict.get("start_time"))
+    et_float = parse_time(assignment_dict.get("end_time")) if assignment_dict.get("end_time") else 24.0
+
+    dur = et_float - st_float if et_float > st_float else (et_float + 24.0) - st_float
+    if dur == 0:
+        dur = 24.0
+
+    num_chunks = int(dur // split_inc)
+
+    if num_chunks <= 1:
+        return [assignment_dict]
+
+    shattered_chunks = []
+    current_start = st_float
+
+    for _ in range(num_chunks):
+        chunk_end = current_start + split_inc
+        chunk = assignment_dict.copy()
+        chunk["start_time"] = float_to_time_str(current_start)
+        chunk["end_time"] = float_to_time_str(chunk_end)
+        shattered_chunks.append(chunk)
+        current_start = chunk_end
+
+    return shattered_chunks
+
+
 def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillParams, list[dict]]:
     """
     Construct the configuration object for the scheduling algorithm.
@@ -51,15 +104,23 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
 
         if request_data.skeleton:
             for a in request_data.skeleton:
+                split_inc = template_splits.get(a.template_id)
+                # Force JSON mode so Python date objects are safely stringified
+                shattered_parts = shatter_assignment(a.model_dump(mode="json"), split_inc)
 
-                # Inject the split increment into the assignment dynamically
-                if a.template_id and a.template_id in template_splits:
-                    a.split_increment = template_splits[a.template_id]
+                for part in shattered_parts:
+                    if part.get("is_fixed"):
+                        fixed_assignments.append(part)
+                    else:
+                        dynamic_skeleton.append(part)
 
-                if a.is_fixed:
-                    fixed_assignments.append(a.model_dump())
-                else:
-                    dynamic_skeleton.append(a.model_dump())
+        shattered_frozen = []
+        if request_data.frozen_assignments:
+            for f in request_data.frozen_assignments:
+                split_inc = template_splits.get(f.template_id)
+                # Force JSON mode so Python date objects are safely stringified
+                parts = shatter_assignment(f.model_dump(mode="json"), split_inc)
+                shattered_frozen.extend(parts)
 
         dynamic_position_ids = set()
         fixed_position_ids = set()
@@ -98,28 +159,27 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
                         id=employee.id,
                         name=f"{employee.last_name}, {employee.first_name}",
                         watchstations=valid_dynamic_positions,
-                        offset=0,  # Future: Add option to offset specific employees based on previous months
-                        max_shift_length = employee.max_shift_length,
-                        target_weekly_hours = employee.target_weekly_hours
+                        offset=0,
+                        max_shift_length=employee.max_shift_length,
+                        target_weekly_hours=employee.target_weekly_hours
                     )
                 )
 
         # Handle conflicts (TimeOffRequests + manually defined conflicts)
         conflicts = []
-        fixed_assignments = []
 
         # Generate Fixed/Static Assignments directly for the draft output
         for position in db_positions:
             for requirement in position.requirements:
                 if requirement.is_fixed:
                     eligible_employees = [e for e in db_employees if position.id in [p.id for p in e.positions]]
+                    split_inc = requirement.shift_template.split_increment if requirement.shift_template else None
 
                     for emp in eligible_employees:
                         curr_day = request_data.start_date
                         while curr_day <= request_data.end_date:
                             if curr_day.weekday() in requirement.applies_on_days:
-                                # We no longer add a Conflict here, because the algorithm doesn't even know this person exists!
-                                fixed_assignments.append({
+                                base_fixed = {
                                     "date": curr_day.isoformat(),
                                     "start_time": requirement.shift_template.start_time.isoformat() if requirement.shift_template else None,
                                     "end_time": requirement.shift_template.end_time.isoformat() if requirement.shift_template else None,
@@ -127,7 +187,7 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
                                     "watchstander": {
                                         "id": emp.id,
                                         "name": f"{emp.last_name}, {emp.first_name}",
-                                        "offset": 0,
+                                        "offset": 0.0,
                                         "watchstations": [p.id for p in emp.positions]
                                     },
                                     "watchstation": {
@@ -135,7 +195,11 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
                                         "name": f"{position.name} ({requirement.shift_template.name})" if requirement.shift_template else position.name,
                                         "color": position.color
                                     }
-                                })
+                                }
+
+                                shattered_fixed = shatter_assignment(base_fixed, split_inc)
+                                fixed_assignments.extend(shattered_fixed)
+
                             curr_day += timedelta(days=1)
 
         watchstander_ids = [ws.id for ws in watchstanders]
@@ -148,7 +212,6 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
 
         # Only query time-off and shift lookbacks if we actually have dynamic workers
         if watchstander_ids:
-            # Get time off requests from database
             if request_data.ignore_pending_timeoff:
                 time_off_stmt = select(TimeOffRequest).where(
                     TimeOffRequest.start_date <= request_data.end_date,
@@ -198,9 +261,6 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
             for shift in existing_shifts:
                 conflicts.append(Conflict(watchstander=shift.employee_id, date=shift.shift_date))
 
-        # Filter out fixed assignments from the skeleton so the algorithm doesn't try to fill them
-        dynamic_skeleton = [a.model_dump() for a in request_data.skeleton if not a.is_fixed]
-
         params = WatchbillParams(
             start=request_data.start_date,
             end=request_data.end_date,
@@ -211,7 +271,7 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
             min_days_off_between_duty=request_data.min_days_off,
             max_days_off_between_duty=request_data.max_days_off,
             max_iteration_steps=request_data.max_steps,
-            frozen_assignments=[a.model_dump() for a in request_data.frozen_assignments],
+            frozen_assignments=shattered_frozen,
             skeleton=dynamic_skeleton
         )
 

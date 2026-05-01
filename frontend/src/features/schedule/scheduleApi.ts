@@ -77,7 +77,6 @@ export interface Assignment {
   watchstander: Watchstander;
   watchstation: Watchstation;
   template_id?: number;
-  split_increment?: number;
 }
 
 /**

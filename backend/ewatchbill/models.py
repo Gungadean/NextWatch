@@ -41,7 +41,6 @@ class Assignment(BaseModel):
     end_time: str | None = None
     is_fixed: bool = False
     template_id: int | None = None
-    split_increment: int | None = None
 
 
 class WatchbillParams(BaseModel):

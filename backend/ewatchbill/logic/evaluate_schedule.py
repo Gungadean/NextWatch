@@ -219,7 +219,7 @@ def evaluate_draft_schedule(
         else:
             filtered_hard_errors.append(err)
 
-    # If there are NO hard errors for THIS specific day, the day is valid and can be saved!
+    # If there are NO hard errors for THIS specific day, the day is valid and can be saved
     final_is_valid = len(filtered_hard_errors) == 0
 
     return ValidationResponse(

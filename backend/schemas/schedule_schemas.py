@@ -49,7 +49,6 @@ class DraftAssignment(BaseModel):
 
     is_fixed: Optional[bool] = False
     template_id: int | None = None
-    split_increment: int | None = None
 
 
 class ScheduleRequest(BaseModel):
