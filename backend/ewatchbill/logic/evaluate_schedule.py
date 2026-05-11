@@ -101,29 +101,44 @@ def evaluate_draft_schedule(
             a_dur = 24.0
 
         mapped_slots = 0
+        exact_match_found = False
 
-        # Distribute the UI assignment into all corresponding shattered matrix slots
+        # Attempt to map to an EXACT time match first to prevent double-booking 24hr shifts
         for s_idx, slot in enumerate(unique_shift_slots):
             if slot[0] == assignment.watchstation.id:
-                slot_st = parse_time(slot[1]) if slot[1] else 0.0
-                slot_et = parse_time(slot[2]) if slot[2] else 24.0
-                slot_dur = slot_et - slot_st if slot_et > slot_st else (slot_et + 24.0) - slot_st
-                if slot_dur == 0:
-                    slot_dur = 24.0
+                slot_st_str = _normalize_time(slot[1])
+                slot_et_str = _normalize_time(slot[2])
+                a_st_str = _normalize_time(assignment.start_time)
+                a_et_str = _normalize_time(assignment.end_time)
 
-                def in_range(x: float, start: float, end: float) -> bool:
-                    if start <= end:
-                        return start <= x <= end
-                    return x >= start or x <= end
-
-                mid = (slot_st + slot_dur / 2.0) % 24.0
-
-                # Map if the assignment is 24h, or if the matrix slot fits perfectly inside the UI block
-                if a_dur >= 24.0 or (slot_dur <= a_dur and in_range(slot_st, a_st, a_et) and in_range(slot_et, a_st,
-                                                                                                      a_et) and in_range(
-                        mid, a_st, a_et)):
+                if slot_st_str == a_st_str and slot_et_str == a_et_str:
                     schedule_array[p_idx, d_idx, s_idx] += 1
                     mapped_slots += 1
+                    exact_match_found = True
+                    break
+
+        # If no exact match exists, distribute the assignment into smaller shattered slots
+        if not exact_match_found:
+            for s_idx, slot in enumerate(unique_shift_slots):
+                if slot[0] == assignment.watchstation.id:
+                    slot_st = parse_time(slot[1]) if slot[1] else 0.0
+                    slot_et = parse_time(slot[2]) if slot[2] else 24.0
+                    slot_dur = slot_et - slot_st if slot_et > slot_st else (slot_et + 24.0) - slot_st
+                    if slot_dur == 0:
+                        slot_dur = 24.0
+
+                    def in_range(x: float, start: float, end: float) -> bool:
+                        if start <= end:
+                            return start <= x <= end
+                        return x >= start or x <= end
+
+                    mid = (slot_st + slot_dur / 2.0) % 24.0
+
+                    if slot_dur <= a_dur and in_range(slot_st, a_st, a_et) and in_range(slot_et, a_st,
+                                                                                        a_et) and in_range(mid, a_st,
+                                                                                                           a_et):
+                        schedule_array[p_idx, d_idx, s_idx] += 1
+                        mapped_slots += 1
 
         # Fallback for ad-hoc shifts that don't align with templates
         if mapped_slots == 0:
