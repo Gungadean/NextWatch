@@ -27,7 +27,7 @@ from ewatchbill.logic.exceptions.IllegalScheduleException import IllegalSchedule
 from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest, \
     DraftWatchstation, DraftWatchstander, DraftAssignment
 from utils.auth.auth_users_utils import get_current_active_user
-from utils.schedule.schedule_builder import build_watchbill_params
+from utils.schedule.schedule_builder import build_watchbill_params, merge_draft_assignments
 from ewatchbill.schedule_message_generator import schedule_message_generator
 from ewatchbill.models import WatchbillResponse, Assignment
 
@@ -106,6 +106,9 @@ async def sse_generator(
                     else:
                         # Otherwise, append all of them to the newly generated schedule
                         draft_data["assignments"].extend(fixed_assignments)
+
+                # Merge back to back shifts into a single continuous block
+                draft_data["assignments"] = merge_draft_assignments(draft_data["assignments"])
 
                 with Session(engine) as session:
                     if is_live and target_dates:

@@ -70,6 +70,49 @@ def shatter_assignment(assignment_dict: dict, split_inc: float | None) -> list[d
     return shattered_chunks
 
 
+def merge_draft_assignments(assignments: list[dict]) -> list[dict]:
+    """
+    Scans the final combined list of assignments (both dynamic and fixed)
+    and merges consecutive shattered shifts back into single contiguous blocks
+    before they are saved to the database.
+    """
+    grouped_assignments = {}
+    for a in assignments:
+        ws_id = a.get("watchstander", {}).get("id")
+        wsn_id = a.get("watchstation", {}).get("id")
+        date = a.get("date")
+
+        key = (date, ws_id, wsn_id)
+        if key not in grouped_assignments:
+            grouped_assignments[key] = []
+        grouped_assignments[key].append(a)
+
+    merged_assignments = []
+
+    for group in grouped_assignments.values():
+        if len(group) == 1:
+            merged_assignments.append(group[0])
+            continue
+
+        # Sort the chunks chronologically by start time
+        sorted_group = sorted(group, key=lambda x: parse_time(x.get("start_time")))
+
+        merged_stack = [sorted_group[0]]
+
+        for current_chunk in sorted_group[1:]:
+            last_merged = merged_stack[-1]
+
+            # If the current chunk starts exactly when the last one ends, glue them together
+            if last_merged.get("end_time") == current_chunk.get("start_time"):
+                last_merged["end_time"] = current_chunk.get("end_time")
+            else:
+                merged_stack.append(current_chunk)
+
+        merged_assignments.extend(merged_stack)
+
+    return merged_assignments
+
+
 def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillParams, list[dict]]:
     """
     Construct the configuration object for the scheduling algorithm.
