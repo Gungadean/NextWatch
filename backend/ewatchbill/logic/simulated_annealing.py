@@ -134,20 +134,8 @@ class AnnealingOptimizer:
         if not valid_candidates:
             return []
 
-        # Find candidates that don't work the day before or after.
-        ideal_candidates = []
-        for c in valid_candidates:
-            has_prev = day > 0 and np.sum(self.schedule[c, day - 1, :]) > 0
-            has_next = day < self.num_days - 1 and np.sum(self.schedule[c, day + 1, :]) > 0
-            if not has_prev and not has_next:
-                ideal_candidates.append(c)
-
-        # Try to swap the ideal candidate majority of the time. Add a 10% for any valid candidate to prevent
-        # the annealer from locking up, and allowing potential new paths to explore.
-        if ideal_candidates and np.random.rand() < 0.90:
-            other_person = np.random.choice(ideal_candidates)
-        else:
-            other_person = np.random.choice(valid_candidates)
+        # Allow the objective function to evaluate consecutive days
+        other_person = np.random.choice(valid_candidates)
 
         self.schedule[person, day, watchstation] = 0
         self.schedule[other_person, day, watchstation] = 1
@@ -251,37 +239,7 @@ class AnnealingOptimizer:
                 self.frozen_mask[person_2, day_2, watchstation] == 1):
             return []
 
-        is_ideal_swap = True
-
-        # Check if giving person_1 day_2 creates a back-to-back conflict
-        if day_2 > 0:
-            adj = day_2 - 1
-            rem = np.sum(self.schedule[person_1, adj, :])
-            if adj == day_1: rem -= 1
-            if rem > 0: is_ideal_swap = False
-        if day_2 < self.num_days - 1:
-            adj = day_2 + 1
-            rem = np.sum(self.schedule[person_1, adj, :])
-            if adj == day_1: rem -= 1
-            if rem > 0: is_ideal_swap = False
-
-        # Check person 2 getting day 1
-        if day_1 > 0:
-            adj = day_1 - 1
-            rem = np.sum(self.schedule[person_2, adj, :])
-            if adj == day_2: rem -= 1
-            if rem > 0: is_ideal_swap = False
-        if day_1 < self.num_days - 1:
-            adj = day_1 + 1
-            rem = np.sum(self.schedule[person_2, adj, :])
-            if adj == day_2: rem -= 1
-            if rem > 0: is_ideal_swap = False
-
-        # Add a 20% chance for a non-ideal swap to help prevent
-        # locking of annealer.
-        if not is_ideal_swap and np.random.rand() < 0.80:
-            return []
-
+        # Allow the objective function to evaluate consecutive days
         self.schedule[person_1, day_1, watchstation] = 0
         self.schedule[person_2, day_2, watchstation] = 0
         self.schedule[person_1, day_2, watchstation] = 1

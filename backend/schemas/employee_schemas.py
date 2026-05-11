@@ -29,6 +29,8 @@ class EmployeeAddRequest(BaseModel):
     positions: List[int]
     max_shift_length: Optional[int] = None
     target_weekly_hours: Optional[int] = None
+    max_consecutive_days: Optional[int] = None
+    min_consecutive_days: Optional[int] = None
 
 
 class EmployeeDeleteRequest(BaseModel):
@@ -55,6 +57,8 @@ class EmployeeQueryResponse(BaseModel):
     positions: List[int]
     max_shift_length: Optional[int] = None
     target_weekly_hours: Optional[int] = None
+    max_consecutive_days: Optional[int] = None
+    min_consecutive_days: Optional[int] = None
 
 
 class TimeOffRequestPublic(BaseModel):
@@ -82,6 +86,8 @@ class EmployeeReadWithTimeOff(BaseModel):
     email: str
     max_shift_length: Optional[int] = None
     target_weekly_hours: Optional[int] = None
+    max_consecutive_days: Optional[int] = None
+    min_consecutive_days: Optional[int] = None
 
     # Relationships
     time_off_requests: List[TimeOffResponsePublic] = []

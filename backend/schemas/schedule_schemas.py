@@ -25,6 +25,8 @@ class DraftWatchstander(BaseModel):
     offset: Optional[int]
     max_shift_length: Optional[int] = None
     target_weekly_hours: Optional[int] = None
+    max_consecutive_days: int | None = None
+    min_consecutive_days: int | None = None
 
 
 class DraftWatchstation(BaseModel):

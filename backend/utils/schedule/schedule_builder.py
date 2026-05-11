@@ -161,7 +161,9 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
                         watchstations=valid_dynamic_positions,
                         offset=0,
                         max_shift_length=employee.max_shift_length,
-                        target_weekly_hours=employee.target_weekly_hours
+                        target_weekly_hours=employee.target_weekly_hours,
+                        max_consecutive_days=employee.max_consecutive_days,
+                        min_consecutive_days=employee.min_consecutive_days
                     )
                 )
 

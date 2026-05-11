@@ -4,6 +4,7 @@
 #  Copyright (c). Carl Kolon
 #
 #  Modified by Ryan Huston 2026
+
 import multiprocessing
 from dataclasses import dataclass, field
 from typing import List, Tuple, Any
@@ -62,13 +63,14 @@ class OrOptimizer:
         self.frozen_assignments_constraint()
 
         self.max_shift_length_constraint()
+        self.consecutive_days_constraint()
+        self.target_hours_constraint()
 
         if self.penalties:
             self.model.Minimize(sum(self.penalties))
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = 30
-
         solver.parameters.num_workers = multiprocessing.cpu_count()
 
         status = solver.Solve(self.model)
@@ -95,6 +97,102 @@ class OrOptimizer:
 
         return schedule
 
+    def target_hours_constraint(self):
+        """Softly guides the initial solver to balance hours evenly or hit strict targets."""
+        if not self.translator:
+            return
+
+        generic_weekly_target = 40.0
+
+        for w in range(self.num_people):
+            ws_obj = self.translator.watchstanders[w]
+            target_weekly = ws_obj.get('target_weekly_hours') if isinstance(ws_obj, dict) else getattr(ws_obj,
+                                                                                                       'target_weekly_hours',
+                                                                                                       None)
+
+            conflict_days = np.sum(self.conflict_matrix[w])
+            available_days = max(0, self.num_days - conflict_days)
+
+            base_target = target_weekly if target_weekly is not None else generic_weekly_target
+            prorated_target = base_target * (available_days / 7.0)
+
+            target_int = int(prorated_target * 10)
+
+            total_hours_expr = 0
+            for d in range(self.num_days):
+                for s in range(self.num_watchstations):
+                    st, et = self.shift_times[s]
+                    dur = et - st if et > st else (et + 24.0) - st
+                    if dur == 0: dur = 24.0
+
+                    total_hours_expr += self.schedule_vars[(w, d, s)] * int(dur * 10)
+
+            diff = self.model.NewIntVar(0, 100000, f"hours_diff_w{w}")
+
+            self.model.Add(diff >= total_hours_expr - target_int)
+            self.model.Add(diff >= target_int - total_hours_expr)
+
+            weight = 5000 if target_weekly is not None else 500
+            self.penalties.append(diff * weight)
+
+    def consecutive_days_constraint(self):
+        """
+        Hard limits the max consecutive days, and strictly enforces minimum consecutive blocks.
+        By enforcing this as a Hard Constraint, we guarantee the Simulated Annealer starts
+        with perfectly formed blocks and will naturally refuse to break them.
+        """
+        if not self.translator:
+            return
+
+        for w in range(self.num_people):
+            ws_obj = self.translator.watchstanders[w]
+            max_consec = ws_obj.get('max_consecutive_days') if isinstance(ws_obj, dict) else getattr(ws_obj,
+                                                                                                     'max_consecutive_days',
+                                                                                                     None)
+            min_consec = ws_obj.get('min_consecutive_days') if isinstance(ws_obj, dict) else getattr(ws_obj,
+                                                                                                     'min_consecutive_days',
+                                                                                                     None)
+
+            worked_day_vars = []
+
+            # Condense multiple possible shifts per day into a single "worked today" boolean
+            for d in range(self.num_days):
+                worked_today = self.model.NewBoolVar(f"worked_w{w}_d{d}")
+                shifts_today = [self.schedule_vars[(w, d, s)] for s in range(self.num_watchstations)]
+                if shifts_today:
+                    self.model.AddMaxEquality(worked_today, shifts_today)
+                else:
+                    self.model.Add(worked_today == 0)
+                worked_day_vars.append(worked_today)
+
+            # --- MAX CONSECUTIVE CONSTRAINT (Hard) ---
+            if max_consec:
+                # Slide a window across the schedule to block anything exceeding max_consec
+                for start_d in range(self.num_days - max_consec):
+                    window = worked_day_vars[start_d: start_d + max_consec + 1]
+                    self.model.Add(sum(window) <= max_consec)
+
+            # --- MIN CONSECUTIVE CONSTRAINT (Hard) ---
+            if min_consec and min_consec > 1:
+                for d in range(self.num_days):
+                    # Define what it means to "Start" a block of shifts
+                    is_start = self.model.NewBoolVar(f"start_w{w}_d{d}")
+
+                    if d == 0:
+                        # Day 0 is a start if they work Day 0
+                        self.model.Add(is_start == worked_day_vars[d])
+                    else:
+                        # A start happens IF they work today AND did not work yesterday
+                        self.model.AddImplication(is_start, worked_day_vars[d])
+                        self.model.AddImplication(is_start, worked_day_vars[d - 1].Not())
+                        # Tie the logic together: if worked today and not yesterday, is_start MUST be true
+                        self.model.AddBoolOr([worked_day_vars[d].Not(), worked_day_vars[d - 1], is_start])
+
+                    # If today is a start day, mathematically force the next (min_consec - 1) days to be worked
+                    for offset in range(1, min_consec):
+                        target_day = d + offset
+                        if target_day < self.num_days:
+                            self.model.AddImplication(is_start, worked_day_vars[target_day])
 
     def max_shift_length_constraint(self):
         """
@@ -157,24 +255,6 @@ class OrOptimizer:
                 else:
                     # If the shift isn't required that day, enforce 0
                     self.model.Add(sum(self.schedule_vars[(w, d, s)] for w in range(self.num_people)) == 0)
-
-
-    def one_shift_per_day_constraint(
-        self,
-    ):
-        """
-        Hard Constraint
-        Exactly one shift per day per watchstation
-        """
-        for d in range(self.num_days):
-            for s in range(self.num_watchstations):
-                self.model.Add(
-                    sum(
-                        self.schedule_vars[(w, d, s)]
-                        for w in range(self.num_people)
-                    )
-                    == 1
-                )
 
     def fair_utilization_constraint(self):
         """
@@ -256,6 +336,12 @@ class OrOptimizer:
                 intervals[(d, s)] = (abs_st, abs_et)
 
         for w in range(self.num_people):
+            ws_obj = self.translator.watchstanders[w] if self.translator else {}
+            min_consec = ws_obj.get('min_consecutive_days') if isinstance(ws_obj, dict) else getattr(ws_obj,
+                                                                                                     'min_consecutive_days',
+                                                                                                     None)
+            min_consec = min_consec or 1
+
             for d in range(self.num_days):
                 for s1 in range(self.num_watchstations):
                     for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
@@ -276,9 +362,8 @@ class OrOptimizer:
                                 if rest_hours <= 0:
                                     self.penalties.append(violation * PENALTY.FATIGUE_CRITICAL_REST)
                                 else:
-                                    # Violates the calendar preference, but is physically safe.
-                                    # At least 12hrs between shifts.
-                                    self.penalties.append(violation * 10000)
+                                    if min_consec <= 1:
+                                        self.penalties.append(violation * 10000)
                             else:
                                 self.penalties.append(violation * PENALTY.FATIGUE_MIN_DAYS_OFF)
 

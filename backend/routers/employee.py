@@ -148,6 +148,8 @@ async def route_add_employee(
         positions=positions_to_link,
         max_shift_length=data.max_shift_length,
         target_weekly_hours=data.target_weekly_hours,
+        max_consecutive_days=data.max_consecutive_days,
+        min_consecutive_days=data.min_consecutive_days
     )
 
     session.add(employee)
@@ -199,6 +201,8 @@ async def route_update_employee(
     employee.email = data.email
     employee.max_shift_length = data.max_shift_length
     employee.target_weekly_hours = data.target_weekly_hours
+    employee.max_consecutive_days = data.max_consecutive_days
+    employee.min_consecutive_days = data.min_consecutive_days
 
     # Update positions
     if data.positions:

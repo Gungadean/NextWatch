@@ -43,6 +43,8 @@ export interface BasicEmployee {
   middle_name: string;
   max_shift_length?: number | null;
   target_weekly_hours?: number | null;
+  max_consecutive_days?: number | null;
+  min_consecutive_days?: number | null;
 }
 
 /**
@@ -59,6 +61,8 @@ export interface Employee {
   time_off_requests: TimeOffRequest[];
   max_shift_length?: number | null;
   target_weekly_hours?: number | null;
+  max_consecutive_days?: number | null;
+  min_consecutive_days?: number | null;
 }
 
 /**
@@ -73,6 +77,8 @@ export interface EmployeeWithTimeOff {
     positions: Position[];
     max_shift_length?: number | null;
     target_weekly_hours?: number | null;
+    max_consecutive_days?: number | null;
+    min_consecutive_days?: number | null;
 }
 
 /**
@@ -86,6 +92,8 @@ export interface EmployeeAddRequest {
   positions: number[];
   max_shift_length?: number | null;
   target_weekly_hours?: number | null;
+  max_consecutive_days?: number | null;
+  min_consecutive_days?: number | null;
 }
 
 /**
