@@ -102,6 +102,9 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
         dynamic_skeleton = []
         fixed_assignments = []
 
+        # Track unique fixed shifts to prevent the UI skeleton from duplicating the DB loop
+        fixed_signatures = set()
+
         if request_data.skeleton:
             for a in request_data.skeleton:
                 split_inc = template_splits.get(a.template_id)
@@ -110,7 +113,16 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
 
                 for part in shattered_parts:
                     if part.get("is_fixed"):
-                        fixed_assignments.append(part)
+                        ws_id = part.get("watchstander", {}).get("id", 0)
+                        wsn_id = part.get("watchstation", {}).get("id", 0)
+
+                        # Signature format: (Date, Start Time, Watchstation ID, Employee ID)
+                        sig = (part.get("date"), part.get("start_time"), wsn_id, ws_id)
+
+                        # Explicitly filter out Auto-Assigned (id 0) and any exact duplicates
+                        if ws_id != 0 and sig not in fixed_signatures:
+                            fixed_signatures.add(sig)
+                            fixed_assignments.append(part)
                     else:
                         dynamic_skeleton.append(part)
 
