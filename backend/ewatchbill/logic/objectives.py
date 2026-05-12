@@ -180,6 +180,8 @@ def get_score_breakdown(
         max_consec = ws_obj.get('max_consecutive_days') if isinstance(ws_obj, dict) else getattr(ws_obj, 'max_consecutive_days', None)
         min_consec = ws_obj.get('min_consecutive_days') if isinstance(ws_obj, dict) else getattr(ws_obj, 'min_consecutive_days', None)
 
+        is_block_worker = max_consec is not None and max_consec > 1
+
         # Evaluate linear time blocks for overlaps, shift limits, consecutive blocks, and minimum rest
         if absolute_shifts:
             current_start, current_end, prev_d, prev_s = absolute_shifts[0]
@@ -196,6 +198,9 @@ def get_score_breakdown(
                     current_end = max(current_end, et)
                 elif gap == 0:
                     current_end = max(current_end, et)
+                    if d != prev_d:
+                        current_block_shifts += 1
+                        prev_d = d
                 else:
                     dur = round(current_end - current_start, 2)
                     if max_len and dur > max_len:
@@ -207,57 +212,58 @@ def get_score_breakdown(
                             f"Critical Fatigue: {translator.get_person(p)} works {dur} hours continuously.")
                         breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
 
-                    # Use Calendar Days to determine consecutive blocks instead of hourly gaps
-                    is_same_or_next_day = (d - prev_d) <= 1
-                    is_block_worker = max_consec is not None and max_consec > 1
-
-                    if is_same_or_next_day:
-                        current_block_shifts += 1
-                        if max_consec and current_block_shifts > max_consec:
-                            detailed_warnings.append(
-                                f"Fatigue: {translator.get_person(p)} exceeded max consecutive shifts ({max_consec}).")
-                            breakdown["Fatigue (Min Days Off)"] += (current_block_shifts - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
-                    else:
-                        # Boundary check: Forgive minimum day rules if the block touches the start or end of the month
-                        is_boundary_block = (block_start_day == 0) or (prev_d == n_days - 1)
-
-                        if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                            detailed_warnings.append(
-                                f"Scheduling: {translator.get_person(p)} failed to meet minimum consecutive shifts ({min_consec}).")
-                            breakdown["Fatigue (Min Days Off)"] += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
-
+                    if not is_block_worker:
                         if gap < 12.0:
-                            detailed_warnings.append(
-                                f"Short Rest: {translator.get_person(p)} has only {gap} hours rest between shifts.")
+                            detailed_warnings.append(f"Short Rest: {translator.get_person(p)} has only {gap} hours rest between shifts.")
                             breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
-                        elif min_days_off > 0 and not is_block_worker:
+                        elif min_days_off > 0:
                             required_rest = min_days_off * 24.0
                             if gap < required_rest:
-                                detailed_warnings.append(
-                                    f"Fatigue: {translator.get_person(p)} had {gap}hrs rest (Required: {required_rest}hrs).")
+                                detailed_warnings.append(f"Fatigue: {translator.get_person(p)} had {gap}hrs rest (Required: {required_rest}hrs).")
                                 breakdown["Fatigue (Min Days Off)"] += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
 
-                        current_block_shifts = 1
-                        block_start_day = d
+                    else:
+                        is_same_or_next_day = (d - prev_d) <= 1
+
+                        if is_same_or_next_day:
+                            current_block_shifts += 1
+                            if max_consec and current_block_shifts > max_consec:
+                                detailed_warnings.append(f"Fatigue: {translator.get_person(p)} exceeded max consecutive shifts ({max_consec}).")
+                                breakdown["Fatigue (Min Days Off)"] += (current_block_shifts - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
+                        else:
+                            is_boundary_block = (block_start_day == 0) or (prev_d == n_days - 1)
+
+                            if min_consec and current_block_shifts < min_consec and not is_boundary_block:
+                                detailed_warnings.append(f"Scheduling: {translator.get_person(p)} failed to meet minimum consecutive shifts ({min_consec}).")
+                                breakdown["Fatigue (Min Days Off)"] += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
+
+                            if gap < 12.0:
+                                detailed_warnings.append(f"Short Rest: {translator.get_person(p)} has only {gap} hours rest between shifts.")
+                                breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
+                            elif min_days_off > 0:
+                                required_rest = min_days_off * 24.0
+                                if gap < required_rest:
+                                    detailed_warnings.append(f"Fatigue: {translator.get_person(p)} had {gap}hrs rest (Required: {required_rest}hrs).")
+                                    breakdown["Fatigue (Min Days Off)"] += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
+
+                            current_block_shifts = 1
+                            block_start_day = d
 
                     current_start, current_end, prev_d, prev_s = st, et, d, s
 
             dur = round(current_end - current_start, 2)
             if max_len and dur > max_len:
-                detailed_warnings.append(
-                    f"Max Shift Exceeded: {translator.get_person(p)} works {dur} hours continuously (Limit: {max_len}hr).")
+                detailed_warnings.append(f"Max Shift Exceeded: {translator.get_person(p)} works {dur} hours continuously (Limit: {max_len}hr).")
                 breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_MAX_SHIFT
             elif dur > 24.0:
-                detailed_warnings.append(
-                    f"Critical Fatigue: {translator.get_person(p)} works {dur} hours continuously.")
+                detailed_warnings.append(f"Critical Fatigue: {translator.get_person(p)} works {dur} hours continuously.")
                 breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
 
-            # Check the final block at the end of the schedule
-            is_boundary_block = (block_start_day == 0) or (prev_d == n_days - 1)
-            if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                detailed_warnings.append(
-                    f"Scheduling: {translator.get_person(p)} failed to meet minimum consecutive shifts ({min_consec}).")
-                breakdown["Fatigue (Min Days Off)"] += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
+            if is_block_worker:
+                is_boundary_block = (block_start_day == 0) or (prev_d == n_days - 1)
+                if min_consec and current_block_shifts < min_consec and not is_boundary_block:
+                    detailed_warnings.append(f"Scheduling: {translator.get_person(p)} failed to meet minimum consecutive shifts ({min_consec}).")
+                    breakdown["Fatigue (Min Days Off)"] += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
 
         # Evaluate target hours
         conflict_days = np.sum(conflict_matrix[p])
@@ -451,6 +457,8 @@ class DeltaScorer:
         min_consec = ws_obj.get('min_consecutive_days') if isinstance(ws_obj, dict) else getattr(ws_obj, 'min_consecutive_days', None)
 
         # Evaluate linear time blocks for fatigue constraints
+        is_block_worker = max_consec is not None and max_consec > 1
+
         if absolute_shifts:
             current_start, current_end, prev_d, prev_s = absolute_shifts[0]
             current_block_shifts = 1
@@ -464,6 +472,9 @@ class DeltaScorer:
                     current_end = max(current_end, et)
                 elif gap == 0:
                     current_end = max(current_end, et)
+                    if d != prev_d:
+                        current_block_shifts += 1
+                        prev_d = d
                 else:
                     dur = round(current_end - current_start, 2)
                     if max_len and dur > max_len:
@@ -471,30 +482,35 @@ class DeltaScorer:
                     elif dur > 24.0:
                         penalty += PENALTY.FATIGUE_CRITICAL_REST
 
-                    # Use Calendar Days to determine consecutive blocks instead of hourly gaps
-                    is_same_or_next_day = (d - prev_d) <= 1
-                    is_block_worker = max_consec is not None and max_consec > 1
-
-                    if is_same_or_next_day:
-                        current_block_shifts += 1
-                        if max_consec and current_block_shifts > max_consec:
-                            penalty += (current_block_shifts - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
-                    else:
-                        # Boundary check: Forgive minimum day rules if the block touches the start or end of the month
-                        is_boundary_block = (block_start_day == 0) or (prev_d == self.n_days - 1)
-
-                        if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                            penalty += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
-
+                    if not is_block_worker:
                         if gap < 12.0:
                             penalty += PENALTY.FATIGUE_CRITICAL_REST
-                        elif self.min_days_off > 0 and not is_block_worker:
+                        elif self.min_days_off > 0:
                             required_rest = self.min_days_off * 24.0
                             if gap < required_rest:
                                 penalty += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
+                    else:
+                        is_same_or_next_day = (d - prev_d) <= 1
 
-                        current_block_shifts = 1
-                        block_start_day = d
+                        if is_same_or_next_day:
+                            current_block_shifts += 1
+                            if max_consec and current_block_shifts > max_consec:
+                                penalty += (current_block_shifts - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
+                        else:
+                            is_boundary_block = (block_start_day == 0) or (prev_d == self.n_days - 1)
+
+                            if min_consec and current_block_shifts < min_consec and not is_boundary_block:
+                                penalty += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
+
+                            if gap < 12.0:
+                                penalty += PENALTY.FATIGUE_CRITICAL_REST
+                            elif self.min_days_off > 0:
+                                required_rest = self.min_days_off * 24.0
+                                if gap < required_rest:
+                                    penalty += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
+
+                            current_block_shifts = 1
+                            block_start_day = d
 
                     current_start, current_end, prev_d, prev_s = st, et, d, s
 
@@ -504,10 +520,11 @@ class DeltaScorer:
             elif dur > 24.0:
                 penalty += PENALTY.FATIGUE_CRITICAL_REST
 
-            # Check the final block at the end of the schedule
-            is_boundary_block = (block_start_day == 0) or (prev_d == self.n_days - 1)
-            if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                penalty += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
+            if is_block_worker:
+                # Check the final block at the end of the schedule
+                is_boundary_block = (block_start_day == 0) or (prev_d == self.n_days - 1)
+                if min_consec and current_block_shifts < min_consec and not is_boundary_block:
+                    penalty += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
 
         # Evaluate target hours
         conflict_days = np.sum(self.conflict_matrix[p])
