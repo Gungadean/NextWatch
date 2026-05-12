@@ -342,6 +342,9 @@ class OrOptimizer:
                                                                                                      None)
             min_consec = min_consec or 1
 
+            if min_consec > 1:
+                continue
+
             for d in range(self.num_days):
                 for s1 in range(self.num_watchstations):
                     for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
@@ -362,8 +365,7 @@ class OrOptimizer:
                                 if rest_hours <= 0:
                                     self.penalties.append(violation * PENALTY.FATIGUE_CRITICAL_REST)
                                 else:
-                                    if min_consec <= 1:
-                                        self.penalties.append(violation * 10000)
+                                    self.penalties.append(violation * PENALTY.FATIGUE_MIN_DAYS_OFF)
                             else:
                                 self.penalties.append(violation * PENALTY.FATIGUE_MIN_DAYS_OFF)
 
