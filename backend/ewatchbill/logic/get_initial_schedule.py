@@ -65,6 +65,7 @@ class OrOptimizer:
         self.max_shift_length_constraint()
         self.consecutive_days_constraint()
         self.target_hours_constraint()
+        self.shift_switch_constraint()
 
         if self.penalties:
             self.model.Minimize(sum(self.penalties))
@@ -223,6 +224,40 @@ class OrOptimizer:
 
                 # Model strictly blocks anyone exceeding their personal cap
                 self.model.Add(day_duration_expr <= int(max_len * 10))
+
+
+    def shift_switch_constraint(self):
+        """
+        Soft Constraint
+        Discourages the initial solver from flipping a person's routine (e.g. Day to Night)
+        on back-to-back calendar days.
+        """
+        if not self.translator:
+            return
+
+        for w in range(self.num_people):
+            for d in range(self.num_days - 1):
+                for s1 in range(self.num_watchstations):
+                    for s2 in range(self.num_watchstations):
+                        if s1 == s2:
+                            continue
+
+                        st1 = self.shift_times[s1][0]
+                        st2 = self.shift_times[s2][0]
+
+                        if st1 != st2:
+                            # Create a boolean that triggers if this specific flip occurs
+                            switch_var = self.model.NewBoolVar(f"switch_w{w}_d{d}_s{s1}_s{s2}")
+
+                            # If person works s1 on 'd', and s2 on 'd+1', switch_var must be true
+                            self.model.AddBoolOr([
+                                self.schedule_vars[(w, d, s1)].Not(),
+                                self.schedule_vars[(w, d + 1, s2)].Not(),
+                                switch_var
+                            ])
+
+                            # Penalize the solver for making this choice
+                            self.penalties.append(switch_var * PENALTY.FATIGUE_SHIFT_SWITCH)
 
 
     def exact_headcount_constraint(self):

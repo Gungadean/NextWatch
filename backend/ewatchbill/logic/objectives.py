@@ -17,12 +17,12 @@ class PENALTY:
     HEADCOUNT_MISSING_3 = 100000
 
     FATIGUE_OVERLAP = 20000000
-
     FATIGUE_MAX_SHIFT = 1000000
     FATIGUE_CRITICAL_REST = 500000
     FATIGUE_MAX_CONSECUTIVE = 150000
     FATIGUE_MIN_CONSECUTIVE = 125000
     FATIGUE_MIN_DAYS_OFF = 200000
+    FATIGUE_SHIFT_SWITCH = 100000
 
     TARGET_HOURS_HARD = 5000000
     TARGET_HOURS_SOFT = 500
@@ -211,6 +211,14 @@ def get_score_breakdown(
                         detailed_warnings.append(
                             f"Critical Fatigue: {translator.get_person(p)} works {dur} hours continuously.")
                         breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
+
+                    if d == prev_d + 1:
+                        prev_st_hr = shift_times[prev_s][0]
+                        curr_st_hr = shift_times[s][0]
+                        if prev_st_hr != curr_st_hr:
+                            detailed_warnings.append(
+                                f"Shift Switch: {translator.get_person(p)} changes shift timings on consecutive days ({translator.get_date(prev_d)} to {translator.get_date(d)}).")
+                            breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_SHIFT_SWITCH
 
                     if not is_block_worker:
                         if gap < 12.0:
@@ -481,6 +489,12 @@ class DeltaScorer:
                         penalty += PENALTY.FATIGUE_MAX_SHIFT
                     elif dur > 24.0:
                         penalty += PENALTY.FATIGUE_CRITICAL_REST
+
+                    if d == prev_d + 1:
+                        prev_st_hr = self.shift_times[prev_s][0]
+                        curr_st_hr = self.shift_times[s][0]
+                        if prev_st_hr != curr_st_hr:
+                            penalty += PENALTY.FATIGUE_SHIFT_SWITCH
 
                     if not is_block_worker:
                         if gap < 12.0:
