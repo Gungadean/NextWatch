@@ -187,6 +187,27 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
                 else:
                     dynamic_position_ids.add(position.id)
 
+        time_off_filters = [
+            TimeOffRequest.start_date <= request_data.end_date,
+            TimeOffRequest.end_date >= request_data.start_date,
+            TimeOffRequest.status != "Denied"
+        ]
+        if request_data.ignore_pending_timeoff:
+            time_off_filters.append(TimeOffRequest.status != "Pending")
+
+        time_off_stmt = select(TimeOffRequest).where(*time_off_filters)
+        time_off_requests = session.exec(time_off_stmt).all()
+
+        global_time_off_conflicts = set()
+        for time_off in time_off_requests:
+            effective_start = max(time_off.start_date, request_data.start_date)
+            effective_end = min(time_off.end_date, request_data.end_date)
+
+            current_day = effective_start
+            while current_day <= effective_end:
+                global_time_off_conflicts.add((time_off.employee_id, current_day))
+                current_day += timedelta(days=1)
+
         # Eager load positions using selectinload
         employee_stmt = select(Employee).where(Employee.is_active == True).options(selectinload(Employee.positions))
         db_employees = session.exec(employee_stmt).all()
@@ -236,26 +257,35 @@ def build_watchbill_params(request_data: ScheduleRequest) -> tuple[WatchbillPara
                         curr_day = request_data.start_date
                         while curr_day <= request_data.end_date:
                             if curr_day.weekday() in requirement.applies_on_days:
-                                base_fixed = {
-                                    "date": curr_day.isoformat(),
-                                    "start_time": requirement.shift_template.start_time.isoformat() if requirement.shift_template else None,
-                                    "end_time": requirement.shift_template.end_time.isoformat() if requirement.shift_template else None,
-                                    "is_fixed": True,
-                                    "watchstander": {
-                                        "id": emp.id,
-                                        "name": f"{emp.last_name}, {emp.first_name}",
-                                        "offset": 0.0,
-                                        "watchstations": [p.id for p in emp.positions]
-                                    },
-                                    "watchstation": {
-                                        "id": position.id,
-                                        "name": f"{position.name} ({requirement.shift_template.name})" if requirement.shift_template else position.name,
-                                        "color": position.color
+                                if (emp.id, curr_day) not in global_time_off_conflicts:
+                                    base_fixed = {
+                                        "date": curr_day.isoformat(),
+                                        "start_time": requirement.shift_template.start_time.isoformat() if requirement.shift_template else None,
+                                        "end_time": requirement.shift_template.end_time.isoformat() if requirement.shift_template else None,
+                                        "is_fixed": True,
+                                        "watchstander": {
+                                            "id": emp.id,
+                                            "name": f"{emp.last_name}, {emp.first_name}",
+                                            "offset": 0.0,
+                                            "watchstations": [p.id for p in emp.positions]
+                                        },
+                                        "watchstation": {
+                                            "id": position.id,
+                                            "name": f"{position.name} ({requirement.shift_template.name})" if requirement.shift_template else position.name,
+                                            "color": position.color
+                                        }
                                     }
-                                }
 
                                 shattered_fixed = shatter_assignment(base_fixed, split_inc)
-                                fixed_assignments.extend(shattered_fixed)
+
+                                for part in shattered_fixed:
+                                    ws_id = part.get("watchstander", {}).get("id", 0)
+                                    wsn_id = part.get("watchstation", {}).get("id", 0)
+                                    sig = (part.get("date"), part.get("start_time"), wsn_id, ws_id)
+
+                                    if sig not in fixed_signatures:
+                                        fixed_signatures.add(sig)
+                                        fixed_assignments.append(part)
 
                             curr_day += timedelta(days=1)
 
