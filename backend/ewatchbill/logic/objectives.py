@@ -12,22 +12,24 @@ class PENALTY:
     """
     Penalty variables
     """
-    HEADCOUNT_MISSING_1 = 10000000
-    HEADCOUNT_MISSING_2 = 1000000
-    HEADCOUNT_MISSING_3 = 100000
+    FATIGUE_OVERLAP = 100000000
+    FATIGUE_MAX_SHIFT = 100000000
+    HEADCOUNT_MISSING_1 = 100000000
+    TARGET_HOURS_HARD = 100000000
 
-    FATIGUE_OVERLAP = 20000000
-    FATIGUE_MAX_SHIFT = 1000000
-    FATIGUE_CRITICAL_REST = 500000
-    FATIGUE_MAX_CONSECUTIVE = 150000
-    FATIGUE_MIN_CONSECUTIVE = 125000
-    FATIGUE_MIN_DAYS_OFF = 200000
-    FATIGUE_SHIFT_SWITCH = 100000
+    HEADCOUNT_MISSING_2 = 10000000
+    FATIGUE_CRITICAL_REST = 5000000
+    FATIGUE_MAX_CONSECUTIVE = 2500000
+    FATIGUE_MIN_DAYS_OFF = 2500000
+    HEADCOUNT_MISSING_3 = 1000000
 
-    TARGET_HOURS_HARD = 5000000
-    TARGET_HOURS_SOFT = 500
+    FATIGUE_MIN_CONSECUTIVE = 500000
+    FATIGUE_SHIFT_SWITCH = 150000
+    SCHEDULING_FRAGMENTATION = 15000
+    UTILIZATION_BENCHED = 50000
 
-    UTILIZATION_BENCHED = 15000
+    TARGET_HOURS_SOFT = 1500
+    TARGET_MAX_DAYS_OFF = 25000
     FAIRNESS_MULTIPLIER = 500
 
 
@@ -80,9 +82,9 @@ def get_exponential_gap_penalty(gap_size: int, max_days_off: int) -> float:
         # Calculate how many times this specific window size fits inside the total gap
         count = gap_size - window_size + 1
 
-        weight = int(10 * (2 ** (k - 1)))
-        if weight > 50000:
-            weight = 50000
+        weight = int(PENALTY.TARGET_MAX_DAYS_OFF * (2 ** (k - 1)))
+        if weight > 5000000:
+            weight = 5000000
 
         total_penalty += count * weight
 
@@ -182,11 +184,34 @@ def get_score_breakdown(
 
         is_block_worker = max_consec is not None and max_consec > 1
 
+        # Evaluate calendar blocks for contractors
+        if is_block_worker and len(duty_days) > 0:
+            blocks = []
+            current_block = [duty_days[0]]
+            for d in duty_days[1:]:
+                if d == current_block[-1] + 1:
+                    current_block.append(d)
+                else:
+                    blocks.append(current_block)
+                    current_block = [d]
+            blocks.append(current_block)
+
+            for b in blocks:
+                b_len = len(b)
+                if max_consec and b_len > max_consec:
+                    detailed_warnings.append(
+                        f"Fatigue: {translator.get_person(p)} exceeded max consecutive shifts ({max_consec} days).")
+                    breakdown["Fatigue (Min Days Off)"] += (b_len - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
+
+                is_boundary = (b[0] == 0) or (b[-1] == n_days - 1)
+                if min_consec and b_len < min_consec and not is_boundary:
+                    detailed_warnings.append(
+                        f"Scheduling: {translator.get_person(p)} failed to meet minimum consecutive shifts ({min_consec} days).")
+                    breakdown["Fatigue (Min Days Off)"] += (min_consec - b_len) * PENALTY.FATIGUE_MIN_CONSECUTIVE
+
         # Evaluate linear time blocks for overlaps, shift limits, consecutive blocks, and minimum rest
         if absolute_shifts:
             current_start, current_end, prev_d, prev_s = absolute_shifts[0]
-            current_block_shifts = 1
-            block_start_day = prev_d
 
             for st, et, d, s in absolute_shifts[1:]:
                 gap = round(st - current_end, 2)
@@ -199,8 +224,8 @@ def get_score_breakdown(
                 elif gap == 0:
                     current_end = max(current_end, et)
                     if d != prev_d:
-                        current_block_shifts += 1
-                        prev_d = d
+                        detailed_warnings.append(f"Shift Switch: {translator.get_person(p)} changes shift timings on contiguous days ({translator.get_date(prev_d)} to {translator.get_date(d)}).")
+                        breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_SHIFT_SWITCH
                 else:
                     dur = round(current_end - current_start, 2)
                     if max_len and dur > max_len:
@@ -212,6 +237,7 @@ def get_score_breakdown(
                             f"Critical Fatigue: {translator.get_person(p)} works {dur} hours continuously.")
                         breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
 
+                    # Shift Switch (Day to Night on back-to-back calendar days)
                     if d == prev_d + 1:
                         prev_st_hr = shift_times[prev_s][0]
                         curr_st_hr = shift_times[s][0]
@@ -220,6 +246,7 @@ def get_score_breakdown(
                                 f"Shift Switch: {translator.get_person(p)} changes shift timings on consecutive days ({translator.get_date(prev_d)} to {translator.get_date(d)}).")
                             breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_SHIFT_SWITCH
 
+                    # Independent worker rest rules
                     if not is_block_worker:
                         if gap < 12.0:
                             detailed_warnings.append(f"Short Rest: {translator.get_person(p)} has only {gap} hours rest between shifts.")
@@ -230,32 +257,11 @@ def get_score_breakdown(
                                 detailed_warnings.append(f"Fatigue: {translator.get_person(p)} had {gap}hrs rest (Required: {required_rest}hrs).")
                                 breakdown["Fatigue (Min Days Off)"] += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
 
+                    # Block workers just need physical safety gaps, calendar rest handled above
                     else:
-                        is_same_or_next_day = (d - prev_d) <= 1
-
-                        if is_same_or_next_day:
-                            current_block_shifts += 1
-                            if max_consec and current_block_shifts > max_consec:
-                                detailed_warnings.append(f"Fatigue: {translator.get_person(p)} exceeded max consecutive shifts ({max_consec}).")
-                                breakdown["Fatigue (Min Days Off)"] += (current_block_shifts - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
-                        else:
-                            is_boundary_block = (block_start_day == 0) or (prev_d == n_days - 1)
-
-                            if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                                detailed_warnings.append(f"Scheduling: {translator.get_person(p)} failed to meet minimum consecutive shifts ({min_consec}).")
-                                breakdown["Fatigue (Min Days Off)"] += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
-
-                            if gap < 12.0:
-                                detailed_warnings.append(f"Short Rest: {translator.get_person(p)} has only {gap} hours rest between shifts.")
-                                breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
-                            elif min_days_off > 0:
-                                required_rest = min_days_off * 24.0
-                                if gap < required_rest:
-                                    detailed_warnings.append(f"Fatigue: {translator.get_person(p)} had {gap}hrs rest (Required: {required_rest}hrs).")
-                                    breakdown["Fatigue (Min Days Off)"] += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
-
-                            current_block_shifts = 1
-                            block_start_day = d
+                        if gap < 12.0:
+                            detailed_warnings.append(f"Short Rest: {translator.get_person(p)} has only {gap} hours rest between shifts.")
+                            breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
 
                     current_start, current_end, prev_d, prev_s = st, et, d, s
 
@@ -266,12 +272,6 @@ def get_score_breakdown(
             elif dur > 24.0:
                 detailed_warnings.append(f"Critical Fatigue: {translator.get_person(p)} works {dur} hours continuously.")
                 breakdown["Fatigue (Min Days Off)"] += PENALTY.FATIGUE_CRITICAL_REST
-
-            if is_block_worker:
-                is_boundary_block = (block_start_day == 0) or (prev_d == n_days - 1)
-                if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                    detailed_warnings.append(f"Scheduling: {translator.get_person(p)} failed to meet minimum consecutive shifts ({min_consec}).")
-                    breakdown["Fatigue (Min Days Off)"] += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
 
         # Evaluate target hours
         conflict_days = np.sum(conflict_matrix[p])
@@ -314,18 +314,29 @@ def get_score_breakdown(
                     breakdown["Target Hours (Soft Balance)"] += (diff ** 2) * PENALTY.TARGET_HOURS_SOFT
 
         # Evaluate maximum permitted days off (Engagement)
-        if 0 < max_days_off < n_days:
+        effective_max_days_off = max_days_off
+
+        if target_weekly is not None and target_weekly > 0:
+            monthly_target = target_weekly * (available_days / 7.0)
+            expected_shifts = monthly_target / 12.0
+            if expected_shifts > 0:
+                natural_gap = available_days / expected_shifts
+                effective_max_days_off = max(effective_max_days_off, int(natural_gap * 1.5))
+
+        if 0 < effective_max_days_off < n_days:
             active_mask = person_duty_days | (conflict_matrix[p] == 1)
             active_days = np.where(active_mask)[0]
 
-            if len(active_days) > 1:
-                gaps = np.diff(active_days) - 1
+            if len(active_days) > 0:
+                padded_active = np.insert(active_days, 0, -1)
+                padded_active = np.append(padded_active, n_days)
+                gaps = np.diff(padded_active) - 1
+
                 for idx, gap in enumerate(gaps):
-                    if gap > max_days_off:
-                        gap_start = int(active_days[idx])
-                        detailed_warnings.append(
-                            f"Engagement: {translator.get_person(p)} is benched for {gap} days after {translator.get_date(gap_start)} (Max allowed: {max_days_off}).")
-                        breakdown["Engagement (Max Days Off)"] += get_exponential_gap_penalty(gap, max_days_off)
+                    if gap > effective_max_days_off:
+                        gap_start = int(padded_active[idx]) + 1
+                        detailed_warnings.append(f"Engagement: {translator.get_person(p)} is benched for {gap} days starting {translator.get_date(gap_start)} (Max allowed for target hours: {effective_max_days_off}).")
+                        breakdown["Engagement (Max Days Off)"] += get_exponential_gap_penalty(gap, effective_max_days_off)
 
         # Flag qualified users left completely unscheduled
         if available_days > 0 and total_hours == 0:
@@ -467,10 +478,30 @@ class DeltaScorer:
         # Evaluate linear time blocks for fatigue constraints
         is_block_worker = max_consec is not None and max_consec > 1
 
+        # Evaluate calendar blocks for contractors
+        if is_block_worker and len(duty_days) > 0:
+            blocks = []
+            current_block = [duty_days[0]]
+            for d in duty_days[1:]:
+                if d == current_block[-1] + 1:
+                    current_block.append(d)
+                else:
+                    blocks.append(current_block)
+                    current_block = [d]
+            blocks.append(current_block)
+
+            for b in blocks:
+                b_len = len(b)
+                if max_consec and b_len > max_consec:
+                    penalty += (b_len - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
+
+                is_boundary = (b[0] == 0) or (b[-1] == self.n_days - 1)
+                if min_consec and b_len < min_consec and not is_boundary:
+                    penalty += (min_consec - b_len) * PENALTY.FATIGUE_MIN_CONSECUTIVE
+
+        # Evaluate hourly gaps and limits
         if absolute_shifts:
             current_start, current_end, prev_d, prev_s = absolute_shifts[0]
-            current_block_shifts = 1
-            block_start_day = prev_d
 
             for st, et, d, s in absolute_shifts[1:]:
                 gap = round(st - current_end, 2)
@@ -481,8 +512,7 @@ class DeltaScorer:
                 elif gap == 0:
                     current_end = max(current_end, et)
                     if d != prev_d:
-                        current_block_shifts += 1
-                        prev_d = d
+                        penalty += PENALTY.FATIGUE_SHIFT_SWITCH
                 else:
                     dur = round(current_end - current_start, 2)
                     if max_len and dur > max_len:
@@ -504,27 +534,8 @@ class DeltaScorer:
                             if gap < required_rest:
                                 penalty += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
                     else:
-                        is_same_or_next_day = (d - prev_d) <= 1
-
-                        if is_same_or_next_day:
-                            current_block_shifts += 1
-                            if max_consec and current_block_shifts > max_consec:
-                                penalty += (current_block_shifts - max_consec) * PENALTY.FATIGUE_MAX_CONSECUTIVE
-                        else:
-                            is_boundary_block = (block_start_day == 0) or (prev_d == self.n_days - 1)
-
-                            if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                                penalty += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
-
-                            if gap < 12.0:
-                                penalty += PENALTY.FATIGUE_CRITICAL_REST
-                            elif self.min_days_off > 0:
-                                required_rest = self.min_days_off * 24.0
-                                if gap < required_rest:
-                                    penalty += (required_rest - gap) * PENALTY.FATIGUE_MIN_DAYS_OFF
-
-                            current_block_shifts = 1
-                            block_start_day = d
+                        if gap < 12.0:
+                            penalty += PENALTY.FATIGUE_CRITICAL_REST
 
                     current_start, current_end, prev_d, prev_s = st, et, d, s
 
@@ -533,12 +544,6 @@ class DeltaScorer:
                 penalty += PENALTY.FATIGUE_MAX_SHIFT
             elif dur > 24.0:
                 penalty += PENALTY.FATIGUE_CRITICAL_REST
-
-            if is_block_worker:
-                # Check the final block at the end of the schedule
-                is_boundary_block = (block_start_day == 0) or (prev_d == self.n_days - 1)
-                if min_consec and current_block_shifts < min_consec and not is_boundary_block:
-                    penalty += (min_consec - current_block_shifts) * PENALTY.FATIGUE_MIN_CONSECUTIVE
 
         # Evaluate target hours
         conflict_days = np.sum(self.conflict_matrix[p])
@@ -571,15 +576,28 @@ class DeltaScorer:
                     penalty += (diff ** 2) * PENALTY.TARGET_HOURS_SOFT
 
         # Evaluate engagement penalties
-        if 0 < self.max_days_off < self.n_days:
+        effective_max_days_off = self.max_days_off
+
+        if target_weekly is not None and target_weekly > 0:
+            monthly_target = target_weekly * (available_days / 7.0)
+            expected_shifts = monthly_target / 12.0
+            if expected_shifts > 0:
+                natural_gap = available_days / expected_shifts
+                effective_max_days_off = max(effective_max_days_off, int(natural_gap * 1.5))
+
+        if 0 < effective_max_days_off < self.n_days:
             active_mask = person_duty_days | (self.conflict_matrix[p] == 1)
             active_days = np.where(active_mask)[0]
 
-            if len(active_days) > 1:
-                gaps = np.diff(active_days) - 1
-                violations = gaps[gaps > self.max_days_off]
-                for gap in violations:
-                    penalty += get_exponential_gap_penalty(gap, self.max_days_off)
+            if len(active_days) > 0:
+                padded_active = np.insert(active_days, 0, -1)
+                padded_active = np.append(padded_active, self.n_days)
+                gaps = np.diff(padded_active) - 1
+
+                for gap in gaps:
+                    if gap > effective_max_days_off:
+                        penalty += get_exponential_gap_penalty(gap, effective_max_days_off)
+
 
         # Fair Utilization (Anti-Benchwarmer)
         # Add penalty if a qualified and available person isn't schedule for any shifts.

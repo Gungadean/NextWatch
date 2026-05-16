@@ -66,6 +66,7 @@ class OrOptimizer:
         self.consecutive_days_constraint()
         self.target_hours_constraint()
         self.shift_switch_constraint()
+        self.fragmentation_constraint()
 
         if self.penalties:
             self.model.Minimize(sum(self.penalties))
@@ -133,7 +134,7 @@ class OrOptimizer:
             self.model.Add(diff >= total_hours_expr - target_int)
             self.model.Add(diff >= target_int - total_hours_expr)
 
-            weight = 5000 if target_weekly is not None else 500
+            weight = 100000 if target_weekly is not None else 10000
             self.penalties.append(diff * weight)
 
     def consecutive_days_constraint(self):
@@ -258,6 +259,47 @@ class OrOptimizer:
 
                             # Penalize the solver for making this choice
                             self.penalties.append(switch_var * PENALTY.FATIGUE_SHIFT_SWITCH)
+
+    def fragmentation_constraint(self):
+        """
+        Soft Constraint
+        Discourages 24hr-capable workers from taking fragmented 12-hour shifts.
+        Ensures military preferentially grab 24h blocks, leaving 12h shifts to contractors.
+        """
+        if not self.translator: return
+
+        for w in range(self.num_people):
+            ws_obj = self.translator.watchstanders[w]
+            max_len = ws_obj.get('max_shift_length') if isinstance(ws_obj, dict) else getattr(ws_obj,
+                                                                                              'max_shift_length', None)
+
+            # Identify Unrestricted Workers
+            capable_of_24 = (max_len is None or max_len >= 24.0)
+            if not capable_of_24:
+                continue
+
+            for d in range(self.num_days):
+                worked_today = self.model.NewBoolVar(f"worked_w{w}_d{d}")
+                shifts_today = [self.schedule_vars[(w, d, s)] for s in range(self.num_watchstations)]
+                if shifts_today:
+                    self.model.AddMaxEquality(worked_today, shifts_today)
+                else:
+                    self.model.Add(worked_today == 0)
+
+                # Calculate total hours worked today
+                day_duration_expr = 0
+                for s in range(self.num_watchstations):
+                    st, et = self.shift_times[s]
+                    dur = et - st if et > st else (et + 24.0) - st
+                    if dur == 0: dur = 24.0
+                    day_duration_expr += self.schedule_vars[(w, d, s)] * int(dur * 10)
+
+                is_fragmented = self.model.NewBoolVar(f"frag_w{w}_d{d}")
+
+                # If worked_today == 1 AND duration < 240 (24 hours), is_fragmented must be 1.
+                self.model.Add(day_duration_expr + (is_fragmented * 240) >= 240 * worked_today)
+
+                self.penalties.append(is_fragmented * PENALTY.SCHEDULING_FRAGMENTATION)
 
 
     def exact_headcount_constraint(self):
