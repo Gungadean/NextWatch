@@ -134,7 +134,7 @@ class OrOptimizer:
             self.model.Add(diff >= total_hours_expr - target_int)
             self.model.Add(diff >= target_int - total_hours_expr)
 
-            weight = 100000 if target_weekly is not None else 10000
+            weight = PENALTY.TARGET_HOURS_HARD if target_weekly is not None else PENALTY.TARGET_HOURS_SOFT * 10
             self.penalties.append(diff * weight)
 
     def consecutive_days_constraint(self):
@@ -461,11 +461,10 @@ class OrOptimizer:
             for extra_days in range(1, self.num_days - self.max_days_off_between_duty + 1):
                 window_size = self.max_days_off_between_duty + extra_days
 
-                penalty_weight = int(10 * (2 ** (extra_days - 1)))
-
-                # Cap at 50,000 to prevent integer overflow on massive date ranges
-                if penalty_weight > 50000:
-                    penalty_weight = 50000
+                # Cap at 5,000,000 to prevent integer overflow on massive date ranges
+                penalty_weight = int(PENALTY.TARGET_MAX_DAYS_OFF * (2 ** (extra_days - 1)))
+                if penalty_weight > 5000000:
+                    penalty_weight = 5000000
 
                 for start_d in range(self.num_days - window_size + 1):
                     conflicts_in_window = sum(self.conflict_matrix[w, start_d: start_d + window_size])
