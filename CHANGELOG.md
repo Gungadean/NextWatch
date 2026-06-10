@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-06-10
+
+### Added
+- **User Interface**
+  - Implemented global background schedule generation, allowing users to navigate the application while schedules optimize.
+  - Added a persistent bottom-corner progress overlay tracking generation phase, steps, score, and percentage.
+  - Draft history panel now live-updates seamlessly upon background generation completion.
+
+### Changed
+- **Scheduling & Algorithm**
+  - Improved performance of the initial schedule generation by offloading soft target hours balancing entirely to the Simulated Annealer.
+  - Scaled down internal penalty constants to prevent solver integer overflows and improve CP-SAT math engine efficiency.
+  - Introduced dynamic shift distribution logic to prevent schedule clumping for employees with heavily interrupted availability (e.g., numerous time-off requests).
+
 ## [0.2.0] - 2026-04-22
 
 ### Added

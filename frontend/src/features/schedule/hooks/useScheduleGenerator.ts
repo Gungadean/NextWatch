@@ -21,9 +21,10 @@ import {
   generateScheduleStream,
   generateRegenStream,
   getScheduleDraftSchedule,
-  updateDraft, type GenerationProgress, type StreamError
+  updateDraft, type GenerationProgress, type StreamError, type ShiftTemplateRead
 } from "../scheduleApi.ts";
 import type {PositionWithRequirementsRead} from "@/features/position/positionApi.ts";
+import { useScheduleGenerationContext } from "./useScheduleGenerationContext.ts";
 
 
 export interface GenerateConfig {
@@ -34,6 +35,7 @@ export interface GenerateConfig {
   minDaysOff: number;
   maxDaysOff: number;
   maxSteps: number;
+  templates: ShiftTemplateRead[];
 }
 
 export const useScheduleGenerator = (
@@ -42,11 +44,20 @@ export const useScheduleGenerator = (
   setStartDate: React.Dispatch<React.SetStateAction<string>>,
   setEndDate: React.Dispatch<React.SetStateAction<string>>
 ) => {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [genProgress, setGenProgress] = useState(0);
+  const {
+    isGenerating,
+    setIsGenerating,
+    genProgress,
+    setGenProgress,
+    setGenStep,
+    setGenTotal,
+    setGenScore,
+    currentDraftData,
+    setCurrentDraftData,
+    selectedDraftId,
+    setSelectedDraftId
+  } = useScheduleGenerationContext();
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
-  const [currentDraftData, setCurrentDraftData] = useState<ScheduleResponse | ScheduleDraft | null>(null);
-  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
 
   /**
    * Handle generating a new draft schedule.
@@ -69,10 +80,14 @@ export const useScheduleGenerator = (
 
     setIsGenerating(true);
     setGenProgress(0);
+    setGenStep(0);
+    setGenTotal(0);
+    setGenScore(0);
 
     // Only clear the current data if it's a brand-new generation
     if (!isRegen) {
       setCurrentDraftData(null);
+      setSelectedDraftId(null);
     }
 
     try {
@@ -94,7 +109,8 @@ export const useScheduleGenerator = (
         max_days_off: config.maxDaysOff,
         max_steps: config.maxSteps,
         frozen_assignments: frozenAssignments,
-        skeleton: currentDraftData ? currentDraftData.assignments : []
+        skeleton: currentDraftData ? currentDraftData.assignments : [],
+        templates: config.templates
       };
 
       const streamFunction = (requestData: ScheduleRequest,
@@ -107,22 +123,29 @@ export const useScheduleGenerator = (
 
       await streamFunction(
         requestData,
-        (progress) => setGenProgress(progress.percent),
+        (progress) => {
+          setGenProgress(progress.percent);
+          setGenStep(progress.step);
+          setGenTotal(progress.total);
+          setGenScore(progress.current_score);
+        },
         (result) => {
           setCurrentDraftData(result);
 
+          const responseExtended = result as ScheduleResponse & { public_id?: string, id?: string, score?: number };
+          const pubId = result.draft_id || responseExtended.public_id || responseExtended.id;
           const newSummary: DraftSummary = {
-            public_id: result.draft_id || "Undefined",
+            public_id: pubId || "Undefined",
             created_at: result.created_at || new Date().toISOString(),
             start_date: config.startDate,
             end_date: config.endDate,
-            score: result.final_score || -1
+            score: result.final_score ?? responseExtended.score ?? -1
           };
 
           // Update draft summaries based on if it's a new draft or a regen
           if (isRegen) {
             // If the backend overwrites the existing draft, just update the summary in the list
-            setDraftSummaries(prev => prev.map(draft => draft.public_id === result.draft_id ? newSummary : draft));
+            setDraftSummaries(prev => prev.map(draft => draft.public_id === pubId ? newSummary : draft));
           } else {
             // If it's a brand-new generation, add it to the top of the list
             setDraftSummaries(prev => [newSummary, ...prev]);
@@ -220,7 +243,8 @@ export const useScheduleGenerator = (
       const d = String(currentDate.getDate()).padStart(2, '0');
       const dateStr = `${y}-${m}-${d}`;
 
-      const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+      const currentDayOfWeek = currentDate.getDay();
+      const backendDayOfWeek = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
 
       activePositions.forEach(pos => {
         // Check if the position has templates assigned to it
@@ -230,26 +254,25 @@ export const useScheduleGenerator = (
           pos.requirements.forEach(req => {
             const template = req.shift_template;
 
-            // Rule Check: Does this specific shift apply today?
-            if ((isWeekend && req.applies_weekends) || (!isWeekend && req.applies_weekdays)) {
+            if (req.applies_on_days && req.applies_on_days.includes(backendDayOfWeek)) {
+              const blocksToGenerate = req.is_fixed ? 1 : req.count;
 
               // Create an empty assignment block for every single required headcount!
-              for(let i = 0; i < req.count; i++) {
+              for(let i = 0; i < blocksToGenerate; i++) {
                  emptyAssignments.push({
                     date: dateStr,
-                    // Notice we map the template times directly into the Assignment!
                     start_time: template?.start_time,
                     end_time: template?.end_time,
-
+                    is_fixed: req.is_fixed || false,
+                    template_id: template?.id,
                     watchstander: {
                       id: 0,
-                      name: "Unassigned",
+                      name: req.is_fixed ? "Auto-Assigned" : "Unassigned",
                       offset: 0,
                       watchstations: []
                     },
                     watchstation: {
                       id: pos.id,
-                      // Append the shift name so the user knows exactly what block this is
                       name: template ? `${pos.name} (${template.name})` : pos.name,
                       color: pos.color
                     }

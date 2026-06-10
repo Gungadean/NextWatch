@@ -7,7 +7,7 @@ employee_schemas.py
 This module defines Pydantic models (Schemas) for Employee-related API operations.
 """
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -27,6 +27,10 @@ class EmployeeAddRequest(BaseModel):
     middle_name: str
     email: str
     positions: List[int]
+    max_shift_length: Optional[int] = None
+    target_weekly_hours: Optional[int] = None
+    max_consecutive_days: Optional[int] = None
+    min_consecutive_days: Optional[int] = None
 
 
 class EmployeeDeleteRequest(BaseModel):
@@ -51,6 +55,11 @@ class EmployeeQueryResponse(BaseModel):
     middle_name: str
     email: str
     positions: List[int]
+    max_shift_length: Optional[int] = None
+    target_weekly_hours: Optional[int] = None
+    max_consecutive_days: Optional[int] = None
+    min_consecutive_days: Optional[int] = None
+
 
 class TimeOffRequestPublic(BaseModel):
     """
@@ -75,6 +84,10 @@ class EmployeeReadWithTimeOff(BaseModel):
     last_name: str
     middle_name: str
     email: str
+    max_shift_length: Optional[int] = None
+    target_weekly_hours: Optional[int] = None
+    max_consecutive_days: Optional[int] = None
+    min_consecutive_days: Optional[int] = None
 
     # Relationships
     time_off_requests: List[TimeOffResponsePublic] = []

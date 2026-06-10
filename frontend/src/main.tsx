@@ -12,18 +12,26 @@
 
 import { Provider } from './components/ui/provider'
 import { StrictMode } from 'react'
+import { BrowserRouter } from 'react-router';
 import { createRoot } from 'react-dom/client'
 
 import App from './App.tsx'
 import {AuthProvider} from "./context/AuthProvider.tsx";
 import {Toaster} from "./components/ui/toaster.tsx";
+import { ScheduleGenerationProvider } from './features/schedule/context/ScheduleGenerationProvider.tsx';
+import { GenerationProgressOverlay } from './features/schedule/components/GenerationProgressOverlay.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Provider>
       <AuthProvider>
-        <Toaster />
-        <App />
+        <BrowserRouter>
+          <ScheduleGenerationProvider>
+            <App />
+            <Toaster />
+            <GenerationProgressOverlay />
+          </ScheduleGenerationProvider>
+        </BrowserRouter>
       </AuthProvider>
     </Provider>
   </StrictMode>,

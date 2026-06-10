@@ -32,6 +32,7 @@ import {
 import { useColorModeValue } from "@/components/ui/color-mode.tsx";
 import type { Employee, EmployeeAddRequest } from "../personnelApi.ts";
 import type { PositionQueryResponse } from "../../position/positionApi.ts";
+import { NativeSelectField, NativeSelectRoot } from "@/components/ui/native-select.tsx";
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -125,8 +126,22 @@ function EmployeeModal({
   /**
    * Handle changing the format data
    */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    let parsedValue: string | number | null = value;
+
+    const numericFields: string[] = [
+      'max_shift_length',
+      'target_weekly_hours',
+      'max_consecutive_days',
+      'min_consecutive_days'
+    ];
+
+    if (numericFields.includes(name)) {
+        parsedValue = value === "" ? null : parseInt(value, 10);
+    }
+
+    setFormData((prev) => ({ ...prev, [name]: parsedValue }));
   };
 
   /**
@@ -145,6 +160,10 @@ function EmployeeModal({
       last_name: formData.last_name || "",
       middle_name: formData.middle_name || "",
       email: formData.email || "",
+      max_shift_length: formData.max_shift_length ?? null,
+      target_weekly_hours: formData.target_weekly_hours ?? null,
+      max_consecutive_days: formData.max_consecutive_days ?? null,
+      min_consecutive_days: formData.min_consecutive_days ?? null,
       positions: positionIds
     };
 
@@ -168,7 +187,7 @@ function EmployeeModal({
 
             <Dialog.Header pb={2}>
               <Text fontSize="xl" fontWeight="bold" color={textColor}>
-                {isEditMode ? `Edit ${employee.first_name} ${employee.last_name}` : "Add New Employee"}
+                {isEditMode ? `Edit ${employee?.first_name} ${employee?.last_name}` : "Add New Employee"}
               </Text>
               <Text fontSize="sm" color={mutedText} mt={1}>
                 {isEditMode ? "Update personal details and assigned positions." : "Enter details and assign positions to the new employee."}
@@ -240,6 +259,83 @@ function EmployeeModal({
 
                   <Separator borderColor={borderColor} my={2} />
 
+                  <Grid templateColumns="1fr 1fr" gap={4}>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Max Daily Hours</Text>
+                      <NativeSelectRoot>
+                        <NativeSelectField
+                          name="max_shift_length"
+                          value={formData.max_shift_length === null ? "" : formData.max_shift_length}
+                          onChange={handleChange}
+                          bg={inputBg}
+                          borderColor={borderColor}
+                          color={textColor}
+                          _focus={{ bg: inputFocusBg, borderColor: "blue.400", shadow: "sm" }}
+                          transition="all 0.2s"
+                        >
+                          <option value="">Unrestricted</option>
+                          <option value={8}>8 Hours</option>
+                          <option value={12}>12 Hours</option>
+                          <option value={16}>16 Hours</option>
+                          <option value={24}>24 Hours</option>
+                        </NativeSelectField>
+                      </NativeSelectRoot>
+                    </Box>
+
+                    <Box>
+                      <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Target Weekly Hours</Text>
+                      <NativeSelectRoot>
+                        <NativeSelectField
+                          name="target_weekly_hours"
+                          value={formData.target_weekly_hours === null ? "" : formData.target_weekly_hours}
+                          onChange={handleChange}
+                          bg={inputBg}
+                          borderColor={borderColor}
+                          color={textColor}
+                          _focus={{ bg: inputFocusBg, borderColor: "blue.400", shadow: "sm" }}
+                          transition="all 0.2s"
+                        >
+                          <option value="">Unrestricted</option>
+                          <option value={20}>20 Hours (Part Time)</option>
+                          <option value={40}>40 Hours (Full Time)</option>
+                        </NativeSelectField>
+                      </NativeSelectRoot>
+                    </Box>
+                  </Grid>
+
+                  <Grid templateColumns="1fr 1fr" gap={4}>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Min Consecutive Days</Text>
+                      <Input
+                        name="min_consecutive_days"
+                        type="number"
+                        min={1}
+                        onChange={handleChange}
+                        value={formData.min_consecutive_days === null ? "" : formData.min_consecutive_days}
+                        placeholder="e.g., 2"
+                        borderColor={borderColor}
+                        bg={inputBg}
+                        _focus={{ bg: inputFocusBg, borderColor: "blue.400", shadow: "sm" }}
+                        transition="all 0.2s"
+                      />
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Max Consecutive Days</Text>
+                      <Input
+                        name="max_consecutive_days"
+                        type="number"
+                        min={1}
+                        onChange={handleChange}
+                        value={formData.max_consecutive_days === null ? "" : formData.max_consecutive_days}
+                        placeholder="e.g., 4"
+                        borderColor={borderColor}
+                        bg={inputBg}
+                        _focus={{ bg: inputFocusBg, borderColor: "blue.400", shadow: "sm" }}
+                        transition="all 0.2s"
+                      />
+                    </Box>
+                  </Grid>
+
                   <Box>
                     <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Qualified Positions</Text>
                     <Combobox.RootProvider value={combobox}>
@@ -282,7 +378,7 @@ function EmployeeModal({
 
             <Dialog.Footer justifyContent={isEditMode ? "space-between" : "flex-end"} mt={4}>
               {isEditMode && onDelete && (
-                <Button colorPalette="red" onClick={() => { onDelete(employee.id); onOpenChange(false); }}>
+                <Button colorPalette="red" onClick={() => { onDelete(employee!.id); onOpenChange(false); }}>
                   Delete
                 </Button>
               )}

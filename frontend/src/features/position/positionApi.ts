@@ -20,8 +20,8 @@ import type {ShiftTemplateRead} from "@/features/schedule/scheduleApi.ts";
 export interface PositionRequirementCreate {
   shift_template_id: number
   count: number
-  applies_weekdays: boolean
-  applies_weekends: boolean
+  applies_on_days: number[];
+  is_fixed: boolean;
 }
 
 /**

@@ -29,6 +29,21 @@ import {
   type ShiftTemplateRead
 } from "@/features/schedule/scheduleApi.ts";
 
+interface DayOption {
+  label: string;
+  value: number;
+}
+
+const DAYS_OF_WEEK: DayOption[] = [
+  { label: "M", value: 0 },
+  { label: "T", value: 1 },
+  { label: "W", value: 2 },
+  { label: "T", value: 3 },
+  { label: "F", value: 4 },
+  { label: "S", value: 5 },
+  { label: "S", value: 6 },
+];
+
 /**
  * Main component for template builder page.
  */
@@ -50,7 +65,8 @@ export default function TemplateBuilderPage() {
   const [newTimeBlock, setNewTimeBlock] = useState<ShiftTemplateCreate>({
     name: "",
     start_time: "",
-    end_time: ""
+    end_time: "",
+    split_increment: null
   });
 
   const [isReqModalOpen, setReqModalOpen] = useState(false);
@@ -59,8 +75,8 @@ export default function TemplateBuilderPage() {
   const [newReq, setNewReq] = useState({
     shift_template_id: "",
     count: 1,
-    applies_weekdays: true,
-    applies_weekends: true
+    applies_on_days: [0, 1, 2, 3, 4] as number[],
+    is_fixed: false
   });
 
   useEffect(() => {
@@ -102,7 +118,7 @@ export default function TemplateBuilderPage() {
       setTemplates([...templates, savedBlock]);
 
       setTimeBlockModalOpen(false);
-      setNewTimeBlock({ name: "", start_time: "", end_time: "" });
+      setNewTimeBlock({ name: "", start_time: "", end_time: "", split_increment: null });
       toaster.create({
         title: "Time Block Saved",
         type: "success"
@@ -129,10 +145,10 @@ export default function TemplateBuilderPage() {
       return;
     }
 
-    if (!newReq.applies_weekdays && !newReq.applies_weekends) {
+    if (newReq.applies_on_days.length === 0) {
       toaster.create({
         title: "Validation Error",
-        description: "Shift must apply to at least weekdays or weekends.",
+        description: "Shift must apply to at least one day of the week.",
         type: "warning"
       });
       return;
@@ -140,9 +156,9 @@ export default function TemplateBuilderPage() {
 
     const apiPayload: PositionRequirementCreate = {
       shift_template_id: Number(newReq.shift_template_id),
-      count: newReq.count,
-      applies_weekdays: newReq.applies_weekdays,
-      applies_weekends: newReq.applies_weekends
+      count: newReq.is_fixed ? 1 : newReq.count,
+      applies_on_days: newReq.applies_on_days,
+      is_fixed: newReq.is_fixed
     };
 
     try {
@@ -156,7 +172,7 @@ export default function TemplateBuilderPage() {
       }));
 
       setReqModalOpen(false);
-      setNewReq({ shift_template_id: "", count: 1, applies_weekdays: true, applies_weekends: true });
+      setNewReq({ shift_template_id: "", count: 1, applies_on_days: [0, 1, 2, 3, 4], is_fixed: false });
       toaster.create({
         title: "Requirement Added",
         type: "success"
@@ -205,7 +221,6 @@ export default function TemplateBuilderPage() {
 
     try {
       await deleteShiftTemplate(temId);
-
       setTemplates(templates.filter(tem => tem.id !== temId));
     } catch (error) {
       toaster.create({
@@ -217,13 +232,38 @@ export default function TemplateBuilderPage() {
   };
 
   /**
-   * Determine correct badge to render based on the type of the requirement.
+   * Toggle individual days in the new requirement array.
    */
-  const renderDayBadge = (req: PositionRequirementRead) => {
-      if (req.applies_weekdays && req.applies_weekends) return <Badge colorPalette="green" variant="subtle">Everyday</Badge>;
-      if (req.applies_weekdays) return <Badge colorPalette="blue" variant="subtle">Weekdays</Badge>;
-      if (req.applies_weekends) return <Badge colorPalette="purple" variant="subtle">Weekends</Badge>;
-      return null;
+  const handleToggleDay = (dayValue: number): void => {
+    setNewReq((prev) => {
+      const currentDays = prev.applies_on_days;
+      if (currentDays.includes(dayValue)) {
+        return { ...prev, applies_on_days: currentDays.filter(d => d !== dayValue) };
+      } else {
+        return { ...prev, applies_on_days: [...currentDays, dayValue].sort() };
+      }
+    });
+  };
+
+  /**
+   * Determine correct badge to render based on the days array and is_fixed flag.
+   */
+  const renderBadges = (req: PositionRequirementRead) => {
+      const reqDays: number[] = req.applies_on_days || [];
+      const isFixed: boolean = req.is_fixed || false;
+
+      let daysLabel = "No Days";
+      if (reqDays.length === 7) daysLabel = "Everyday";
+      else if (reqDays.length === 5 && reqDays.every(d => [0,1,2,3,4].includes(d))) daysLabel = "Weekdays";
+      else if (reqDays.length === 2 && reqDays.every(d => [5,6].includes(d))) daysLabel = "Weekends";
+      else if (reqDays.length > 0) daysLabel = reqDays.map(d => DAYS_OF_WEEK.find(day => day.value === d)?.label).join(", ");
+
+      return (
+        <Flex gap={2}>
+          <Badge colorPalette="blue" variant="subtle">{daysLabel}</Badge>
+          {isFixed && <Badge colorPalette="purple" variant="solid">Fixed Schedule</Badge>}
+        </Flex>
+      );
   };
 
   if (isLoading) {
@@ -301,6 +341,9 @@ export default function TemplateBuilderPage() {
                       <Flex direction="column">
                         {pos.requirements.map((req, index) => {
                           const tpl = templates.find(t => t.id === req.shift_template_id);
+                          // Determine if this requirement is a fixed schedule
+                          const isFixed = req.is_fixed || false;
+
                           return (
                             <Flex
                                 key={req.id}
@@ -315,15 +358,19 @@ export default function TemplateBuilderPage() {
                               <Box>
                                 <Flex align="center" gap={3}>
                                     <Text fontWeight="bold" color={textColor}>{tpl?.name || "Unknown Shift"}</Text>
-                                    {renderDayBadge(req)}
+                                    {renderBadges(req)}
                                 </Flex>
                                 <Text fontSize="sm" color={mutedText} mt={1}>{tpl?.start_time} - {tpl?.end_time}</Text>
                               </Box>
 
                               <Flex align="center" gap={6}>
                                 <Flex align="center" gap={3}>
-                                  <Text fontSize="sm" fontWeight="medium" color={subText}>Headcount:</Text>
-                                  <Badge size="lg" colorPalette="gray" px={3}>{req.count}</Badge>
+                                  {!isFixed && (
+                                    <>
+                                      <Text fontSize="sm" fontWeight="medium" color={subText}>Headcount:</Text>
+                                      <Badge size="lg" colorPalette="gray" px={3}>{req.count}</Badge>
+                                    </>
+                                  )}
                                 </Flex>
                                 <Button size="xs" colorPalette="red" variant="ghost" onClick={() => handleDeleteRequirement(pos.id, req.id)}>Remove</Button>
                               </Flex>
@@ -360,6 +407,24 @@ export default function TemplateBuilderPage() {
                   <Input type="time" value={newTimeBlock.end_time} onChange={(e) => setNewTimeBlock({...newTimeBlock, end_time: e.target.value})} borderColor={borderColor} color={textColor} />
                 </Box>
               </Flex>
+
+              <Box>
+                <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Shift Splitting (Optional)</Text>
+                <select
+                  style={{ width: '100%', padding: '8px', border: `1px solid var(--chakra-colors-${borderColor.replace('.', '-')})`, borderRadius: '6px', backgroundColor: 'transparent', color: 'inherit' }}
+                  value={newTimeBlock.split_increment || ""}
+                  onChange={(e) => setNewTimeBlock({...newTimeBlock, split_increment: e.target.value ? parseInt(e.target.value, 10) : null})}
+                >
+                  <option value="" style={{ color: 'gray' }}>None (Standard unbroken shift)</option>
+                  <option value="12" style={{ color: 'black' }}>Split into 12-hour shifts</option>
+                  <option value="8" style={{ color: 'black' }}>Split into 8-hour shifts</option>
+                  <option value="6" style={{ color: 'black' }}>Split into 6-hour shifts</option>
+                </select>
+                <Text fontSize="xs" color={mutedText} mt={1}>
+                  If selected, the backend will auto-slice this shift into smaller chunks so employees with strict hour limits can be assigned.
+                </Text>
+              </Box>
+
             </Flex>
             <Flex justify="flex-end" mt={6} gap={2}>
               <Button variant="ghost" onClick={() => setTimeBlockModalOpen(false)} color={textColor}>Cancel</Button>
@@ -389,25 +454,54 @@ export default function TemplateBuilderPage() {
                 </select>
               </Box>
 
-              <Flex gap={4}>
-                <Box flex="1">
-                    <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Headcount</Text>
-                    <Input type="number" min={1} value={newReq.count} onChange={(e) => setNewReq({...newReq, count: Number(e.target.value)})} borderColor={borderColor} color={textColor} />
-                </Box>
-              </Flex>
+              {/* Conditionally render Headcount */}
+              {!newReq.is_fixed && (
+                <Flex gap={4}>
+                  <Box flex="1">
+                      <Text fontSize="sm" fontWeight="medium" mb={1} color={textColor}>Headcount</Text>
+                      <Input type="number" min={1} value={newReq.count} onChange={(e) => setNewReq({...newReq, count: Number(e.target.value)})} borderColor={borderColor} color={textColor} />
+                  </Box>
+                </Flex>
+              )}
 
+              {/* Active Days Toggles */}
               <Box mt={2}>
                   <Text fontSize="sm" fontWeight="medium" mb={2} color={textColor}>Active Days</Text>
-                  <Flex gap={6}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: textColor }}>
-                          <input type="checkbox" checked={newReq.applies_weekdays} onChange={(e) => setNewReq({...newReq, applies_weekdays: e.target.checked})} style={{ width: '16px', height: '16px' }} />
-                          Weekdays
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: textColor }}>
-                          <input type="checkbox" checked={newReq.applies_weekends} onChange={(e) => setNewReq({...newReq, applies_weekends: e.target.checked})} style={{ width: '16px', height: '16px' }} />
-                          Weekends
-                      </label>
+                  <Flex gap={2}>
+                    {DAYS_OF_WEEK.map((day) => (
+                      <Button
+                        key={`${day.label}-${day.value}`}
+                        size="sm"
+                        variant={newReq.applies_on_days.includes(day.value) ? "solid" : "outline"}
+                        colorPalette={newReq.applies_on_days.includes(day.value) ? "blue" : "gray"}
+                        onClick={() => handleToggleDay(day.value)}
+                        borderRadius="full"
+                        width="36px"
+                        height="36px"
+                        padding={0}
+                      >
+                        {day.label}
+                      </Button>
+                    ))}
                   </Flex>
+              </Box>
+
+              {/* Fixed Schedule Toggle */}
+              <Box mt={2}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', color: textColor }}>
+                  <input
+                    type="checkbox"
+                    checked={newReq.is_fixed}
+                    onChange={(e) => setNewReq({...newReq, is_fixed: e.target.checked})}
+                    style={{ width: '16px', height: '16px', marginTop: '4px' }}
+                  />
+                  <Box>
+                    <Text fontWeight="bold">Fixed Schedule</Text>
+                    <Text fontSize="xs" color={mutedText}>
+                      Checking this assigns everyone in this role directly, bypassing optimization.
+                    </Text>
+                  </Box>
+                </label>
               </Box>
 
             </Flex>
