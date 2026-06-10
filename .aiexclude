@@ -1,0 +1,22 @@
+# Dependency directories
+node_modules/
+.venv/
+venv/
+env/
+
+# Build and distribution directories
+dist/
+build/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE and source control directories
+.git/
+.idea/
+.vscode/
+
+# Other large or generated files
+package-lock.json
+*.log
