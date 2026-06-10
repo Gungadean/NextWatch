@@ -493,7 +493,11 @@ class OrOptimizer:
                 expected_shifts = monthly_target / 12.0
                 if expected_shifts > 0:
                     natural_gap = available_days_total / expected_shifts
-                    effective_max_days_off = max(effective_max_days_off, int(natural_gap * 1.5))
+                    dynamic_gap = max(1, int(natural_gap * 1.5))
+                    if self.max_days_off_between_duty > 0:
+                        effective_max_days_off = min(self.max_days_off_between_duty, dynamic_gap)
+                    else:
+                        effective_max_days_off = dynamic_gap
 
             if effective_max_days_off >= self.num_days:
                 continue
