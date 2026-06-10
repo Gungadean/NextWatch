@@ -104,19 +104,20 @@ class OrOptimizer:
         if not self.translator:
             return
 
-        generic_weekly_target = 40.0
-
         for w in range(self.num_people):
             ws_obj = self.translator.watchstanders[w]
             target_weekly = ws_obj.get('target_weekly_hours') if isinstance(ws_obj, dict) else getattr(ws_obj,
                                                                                                        'target_weekly_hours',
                                                                                                        None)
 
+            # Skip soft targets entirely. Let the Simulated Annealer handle the balancing algorithm.
+            if target_weekly is None:
+                continue
+
             conflict_days = np.sum(self.conflict_matrix[w])
             available_days = max(0, self.num_days - conflict_days)
 
-            base_target = target_weekly if target_weekly is not None else generic_weekly_target
-            prorated_target = base_target * (available_days / 7.0)
+            prorated_target = target_weekly * (available_days / 7.0)
 
             target_int = int(prorated_target * 10)
 
@@ -134,8 +135,7 @@ class OrOptimizer:
             self.model.Add(diff >= total_hours_expr - target_int)
             self.model.Add(diff >= target_int - total_hours_expr)
 
-            weight = PENALTY.TARGET_HOURS_HARD if target_weekly is not None else PENALTY.TARGET_HOURS_SOFT * 10
-            self.penalties.append(diff * weight)
+            self.penalties.append(diff * PENALTY.TARGET_HOURS_HARD)
 
     def consecutive_days_constraint(self):
         """
@@ -205,26 +205,48 @@ class OrOptimizer:
         if not self.translator:
             return
 
+        intervals = {}
+        for d in range(self.num_days):
+            for s in range(self.num_watchstations):
+                st, et = self.shift_times[s]
+                abs_st = d * 24.0 + st
+                abs_et = d * 24.0 + et
+                if st >= et and not (st == 0.0 and et == 24.0):
+                    abs_et += 24.0
+                dur = abs_et - abs_st
+                if dur == 0: dur = 24.0
+                intervals[(d, s)] = (abs_st, abs_et, dur)
+
         for w in range(self.num_people):
             ws_obj = self.translator.watchstanders[w]
             max_len = ws_obj.get('max_shift_length') if isinstance(ws_obj, dict) else getattr(ws_obj, 'max_shift_length', None)
 
+            # Force a global hard limit of 24h if it is not explicitly defined in the DB
             if max_len is None:
-                continue
+                max_len = 24.0
 
             for d in range(self.num_days):
                 day_duration_expr = 0
                 for s in range(self.num_watchstations):
-                    st, et = self.shift_times[s]
-                    dur = et - st if et > st else (et + 24.0) - st
-                    if dur == 0: dur = 24.0
+                    _, _, dur = intervals[(d, s)]
+                    day_duration_expr += self.schedule_vars[(w, d, s)] * int(dur * 10)
 
-                    # Convert to integer (multiply by 10) to safely handle half-hours in CP-SAT math
-                    dur_int = int(dur * 10)
-                    day_duration_expr += self.schedule_vars[(w, d, s)] * dur_int
-
-                # Model strictly blocks anyone exceeding their personal cap
+                # Prevent taking more than 24 hours within the exact same calendar day
                 self.model.Add(day_duration_expr <= int(max_len * 10))
+
+            # Prevent taking overlapping back-to-back blocks that mathematically exceed 24 hours
+            shifts = list(intervals.keys())
+            for i in range(len(shifts)):
+                for j in range(len(shifts)):
+                    if i == j: continue
+                    d1, s1 = shifts[i]
+                    d2, s2 = shifts[j]
+                    st1, et1, dur1 = intervals[(d1, s1)]
+                    st2, et2, dur2 = intervals[(d2, s2)]
+
+                    if et1 == st2:
+                        if (dur1 + dur2) > max_len:
+                            self.model.Add(self.schedule_vars[(w, d1, s1)] + self.schedule_vars[(w, d2, s2)] <= 1)
 
 
     def shift_switch_constraint(self):
@@ -422,55 +444,71 @@ class OrOptimizer:
             if min_consec > 1:
                 continue
 
-            for d in range(self.num_days):
+            for d1 in range(self.num_days):
                 for s1 in range(self.num_watchstations):
-                    for off_day in range(d + 1, min(d + self.min_days_off_between_duty + 1, self.num_days)):
+                    for d2 in range(d1, min(d1 + self.min_days_off_between_duty + 2, self.num_days)):
                         for s2 in range(self.num_watchstations):
+                            if d1 == d2 and s2 <= s1:
+                                continue
 
-                            violation = self.model.NewIntVar(0, 1, f"min_viol_w{w}_d{d}_s{s1}_od{off_day}_s{s2}")
+                            st1, et1 = intervals[(d1, s1)]
+                            st2, et2 = intervals[(d2, s2)]
+                            gap = st2 - et1
 
-                            # Evaluate if the person is working both s1 and s2, violation must be 1.
-                            self.model.Add(
-                                self.schedule_vars[(w, d, s1)] + self.schedule_vars[(w, off_day, s2)] <= 1 + violation)
+                            if gap < 0: continue
 
-                            if off_day == d + 1:
-                                # They are working consecutive days. Calculate actual rest hours.
-                                _, end1 = intervals[(d, s1)]
-                                start2, _ = intervals[(off_day, s2)]
-                                rest_hours = start2 - end1
+                            required_rest = self.min_days_off_between_duty * 24.0
+                            if gap < required_rest:
+                                violation = self.model.NewBoolVar(f"min_viol_w{w}_d{d1}s{s1}_d{d2}s{s2}")
+                                self.model.Add(self.schedule_vars[(w, d1, s1)] + self.schedule_vars[(w, d2, s2)] <= 1 + violation)
 
-                                if rest_hours <= 0:
+                                if gap < 12.0:
                                     self.penalties.append(violation * PENALTY.FATIGUE_CRITICAL_REST)
                                 else:
-                                    self.penalties.append(violation * PENALTY.FATIGUE_MIN_DAYS_OFF)
-                            else:
-                                self.penalties.append(violation * PENALTY.FATIGUE_MIN_DAYS_OFF)
-
+                                    shortfall_days = np.ceil((required_rest - gap) / 24.0)
+                                    if shortfall_days > 0:
+                                        penalty_weight = int(PENALTY.FATIGUE_MIN_DAYS_OFF * (2 ** (shortfall_days - 1)))
+                                        self.penalties.append(violation * penalty_weight)
 
     def max_days_off_between_duty_constraint(self):
         """
         Soft Constraint
         Ensures a person works at least one shift within any sliding window
-        of (max_days_off + 1) days, ignoring approved time off
+        of (max_days_off + 1) available days, ignoring approved time off
         """
         if self.max_days_off_between_duty <= 0 or self.max_days_off_between_duty >= self.num_days:
             return
 
         for w in range(self.num_people):
-            # Evaluate windows of increasing size to create an exponentially stacking penalty
-            for extra_days in range(1, self.num_days - self.max_days_off_between_duty + 1):
-                window_size = self.max_days_off_between_duty + extra_days
+            ws_obj = self.translator.watchstanders[w] if self.translator else {}
+            target_weekly = ws_obj.get('target_weekly_hours') if isinstance(ws_obj, dict) else getattr(ws_obj, 'target_weekly_hours', None)
 
-                # Cap at 5,000,000 to prevent integer overflow on massive date ranges
-                penalty_weight = int(PENALTY.TARGET_MAX_DAYS_OFF * (2 ** (extra_days - 1)))
-                if penalty_weight > 5000000:
-                    penalty_weight = 5000000
+            eval_target = target_weekly if (target_weekly is not None and target_weekly > 0) else 40.0
+            conflict_days = np.sum(self.conflict_matrix[w])
+            available_days_total = max(0, self.num_days - conflict_days)
+            effective_max_days_off = self.max_days_off_between_duty
 
+            if eval_target is not None and eval_target > 0:
+                monthly_target = eval_target * (available_days_total / 7.0)
+                expected_shifts = monthly_target / 12.0
+                if expected_shifts > 0:
+                    natural_gap = available_days_total / expected_shifts
+                    effective_max_days_off = max(effective_max_days_off, int(natural_gap * 1.5))
+
+            if effective_max_days_off >= self.num_days:
+                continue
+
+            for window_size in range(effective_max_days_off + 1, self.num_days + 1):
                 for start_d in range(self.num_days - window_size + 1):
                     conflicts_in_window = sum(self.conflict_matrix[w, start_d: start_d + window_size])
+                    available_days = window_size - conflicts_in_window
+                    extra_days = available_days - effective_max_days_off
 
-                    # Only enforce the rule if the window consists purely of available days
-                    if conflicts_in_window == 0:
+                    if extra_days > 0:
+                        penalty_weight = int(PENALTY.TARGET_MAX_DAYS_OFF * (2 ** (extra_days - 1)))
+                        if penalty_weight > 1000:
+                            penalty_weight = 1000
+
                         shifts_in_window = [
                             self.schedule_vars[(w, d, s)]
                             for d in range(start_d, start_d + window_size)
