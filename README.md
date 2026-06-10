@@ -3,10 +3,10 @@
 **NextWatch** is an open-source, self-hosted web application for managing shift work scheduling.
 
 ![License](https://img.shields.io/github/license/gungadean/nextwatch)
-![Version](https://img.shields.io/badge/version-0.2.0-blue)
+![Version](https://img.shields.io/badge/version-0.3.0-blue)
 
 ## Features
-- **Shift Scheduling:** Automated drafting and publishing of schedules using an advanced Simulated Annealing optimizer.
+- **Shift Scheduling:** Automated background drafting and publishing of schedules using an advanced Simulated Annealing optimizer with global real-time progress tracking.
 - **Draft Tweaking:** Fine-tune generated schedules using Frozen Assignments and smart auto-assign features.
 - **Schedule Templating:** Quickly generate schedules using customizable baseline templates.
 - **User Management:** Role-based access for Admins and Employees with integrated time-off requests.

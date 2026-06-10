@@ -16,6 +16,7 @@ import {
   Portal,
   Select,
   Separator,
+  Spinner,
   Stack,
   Text,
   VStack
@@ -26,6 +27,7 @@ import {convertToLocalTime} from "@/utils/timeUtils.ts";
 import {LuChevronDown, LuChevronUp, LuPanelLeftClose, LuPanelLeftOpen, LuSettings2} from "react-icons/lu";
 import {useMemo, useState} from "react";
 import type {Position} from "@/features/personnel/personnelApi.ts";
+import { useScheduleGenerationContext } from "../context/ScheduleGenerationContext.tsx";
 
 /**
  * BuilderSidebar.tsx
@@ -125,6 +127,8 @@ const BuilderSidebar = ({
   const positionCollection = useMemo(() => createListCollection({
     items: positions.map(p => ({ label: p.name, value: String(p.id) }))
   }), [positions]);
+
+  const { genProgress, setCurrentDraftData, setSelectedDraftId } = useScheduleGenerationContext();
 
   const hasSkeleton = currentDraftData && currentDraftData.assignments.length > 0;
 
@@ -361,6 +365,28 @@ const BuilderSidebar = ({
           <Box>
             <Heading size="sm" mb={3} textTransform="uppercase" color="gray.500">Draft History</Heading>
             <Stack gap={2}>
+              {isGenerating && (
+                <Box
+                     p={3}
+                     bg={cardBg}
+                     border="1px solid"
+                     borderColor={!selectedDraftId ? activeCardBorder : borderColor}
+                     borderLeftWidth={!selectedDraftId ? "4px" : "1px"}
+                     borderRadius="md" cursor="pointer"
+                     onClick={() => {
+                       setSelectedDraftId(null);
+                       setCurrentDraftData(null);
+                     }}
+                     _hover={{ borderColor: "blue.300" }}
+                     shadow="sm">
+                  <Flex justify="space-between" align="center">
+                    <Text fontWeight="bold" fontSize="sm" color="blue.500">
+                      {genProgress === 0 ? "Analyzing Feasibility..." : `Currently Generating... ${genProgress}%`}
+                    </Text>
+                    <Spinner size="sm" color="blue.500" />
+                  </Flex>
+                </Box>
+              )}
               {draftSummaries.map((draft) => (
                 <Box key={draft.public_id}
                      p={3}

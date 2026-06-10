@@ -161,6 +161,9 @@ async def sse_generator(
                             if not draft:
                                 print("WARNING: Draft not found for regeneration.")
                                 break
+                            
+                            draft.assignments = draft_data["assignments"]
+                            draft.score = final_score
 
                         else:
                             draft = ScheduleDraft(

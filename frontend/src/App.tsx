@@ -13,7 +13,7 @@
  * and UI Layouts (`AppLayout`) to specific sections of the app.
  */
 
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { Route, Routes } from 'react-router';
 
 // Layouts & Guards
 import AppLayout from './layouts/AppLayout.tsx';
@@ -38,32 +38,30 @@ import TemplateBuilderPage from "@/pages/TemplateBuilderPage.tsx";
  */
 const App = () => {
   return (
-      <BrowserRouter>
-        <Routes>
-          {/* --- Public Routes --- */}
-          {/* Accessible without a session token */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+    <Routes>
+      {/* --- Public Routes --- */}
+      {/* Accessible without a session token */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
-          {/* --- Protected Routes --- */}
-          {/* Wrapped in AuthRoute to enforce login */}
-          {/* Wrapped in AppLayout to provide Sidebar/Header */}
-          <Route element={<AuthRoute />}>
-            <Route element={<AppLayout />}>
-              <Route index element={<CalendarPage />} />
-              <Route path="builder" element={<BuilderPage />} />
-              <Route path="templates" element={<TemplateBuilderPage />} />
-              <Route path="requests" element={<RequestPage />} />
-              <Route path="personnel" element={<PersonnelPage />} />
-              <Route path="positions" element={<PositionsPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-          </Route>
+      {/* --- Protected Routes --- */}
+      {/* Wrapped in AuthRoute to enforce login */}
+      {/* Wrapped in AppLayout to provide Sidebar/Header */}
+      <Route element={<AuthRoute />}>
+        <Route element={<AppLayout />}>
+          <Route index element={<CalendarPage />} />
+          <Route path="builder" element={<BuilderPage />} />
+          <Route path="templates" element={<TemplateBuilderPage />} />
+          <Route path="requests" element={<RequestPage />} />
+          <Route path="personnel" element={<PersonnelPage />} />
+          <Route path="positions" element={<PositionsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
+      </Route>
 
-          {/* --- Fallback --- */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </BrowserRouter>
+      {/* --- Fallback --- */}
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
   )
 };
 

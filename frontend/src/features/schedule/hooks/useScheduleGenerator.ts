@@ -24,6 +24,7 @@ import {
   updateDraft, type GenerationProgress, type StreamError, type ShiftTemplateRead
 } from "../scheduleApi.ts";
 import type {PositionWithRequirementsRead} from "@/features/position/positionApi.ts";
+import { useScheduleGenerationContext } from "../context/ScheduleGenerationContext.tsx";
 
 
 export interface GenerateConfig {
@@ -43,11 +44,20 @@ export const useScheduleGenerator = (
   setStartDate: React.Dispatch<React.SetStateAction<string>>,
   setEndDate: React.Dispatch<React.SetStateAction<string>>
 ) => {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [genProgress, setGenProgress] = useState(0);
+  const {
+    isGenerating,
+    setIsGenerating,
+    genProgress,
+    setGenProgress,
+    setGenStep,
+    setGenTotal,
+    setGenScore,
+    currentDraftData,
+    setCurrentDraftData,
+    selectedDraftId,
+    setSelectedDraftId
+  } = useScheduleGenerationContext();
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
-  const [currentDraftData, setCurrentDraftData] = useState<ScheduleResponse | ScheduleDraft | null>(null);
-  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
 
   /**
    * Handle generating a new draft schedule.
@@ -70,10 +80,14 @@ export const useScheduleGenerator = (
 
     setIsGenerating(true);
     setGenProgress(0);
+    setGenStep(0);
+    setGenTotal(0);
+    setGenScore(0);
 
     // Only clear the current data if it's a brand-new generation
     if (!isRegen) {
       setCurrentDraftData(null);
+      setSelectedDraftId(null);
     }
 
     try {
@@ -109,22 +123,28 @@ export const useScheduleGenerator = (
 
       await streamFunction(
         requestData,
-        (progress) => setGenProgress(progress.percent),
+        (progress) => {
+          setGenProgress(progress.percent);
+          setGenStep(progress.step);
+          setGenTotal(progress.total);
+          setGenScore(progress.current_score);
+        },
         (result) => {
           setCurrentDraftData(result);
 
+          const pubId = result.draft_id || (result as any).public_id || (result as any).id;
           const newSummary: DraftSummary = {
-            public_id: result.draft_id || "Undefined",
+            public_id: pubId || "Undefined",
             created_at: result.created_at || new Date().toISOString(),
             start_date: config.startDate,
             end_date: config.endDate,
-            score: result.final_score || -1
+            score: result.final_score ?? (result as any).score ?? -1
           };
 
           // Update draft summaries based on if it's a new draft or a regen
           if (isRegen) {
             // If the backend overwrites the existing draft, just update the summary in the list
-            setDraftSummaries(prev => prev.map(draft => draft.public_id === result.draft_id ? newSummary : draft));
+            setDraftSummaries(prev => prev.map(draft => draft.public_id === pubId ? newSummary : draft));
           } else {
             // If it's a brand-new generation, add it to the top of the list
             setDraftSummaries(prev => [newSummary, ...prev]);

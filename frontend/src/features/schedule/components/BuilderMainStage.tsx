@@ -35,6 +35,7 @@ import DayEditModal from "@/features/schedule/components/DayEditModal.tsx";
 import {useScheduleViewData} from "@/features/schedule/hooks/useScheduleViewData.ts";
 import type { PositionWithRequirementsRead } from "@/features/position/positionApi";
 import FullScreenTimelineModal from "@/components/FullScreenTimelineModal.tsx";
+import { useScheduleGenerationContext } from "../context/ScheduleGenerationContext.tsx";
 
 /**
  * Props for the Builder Main Stage.
@@ -102,7 +103,7 @@ const BuilderMainStage = ({
   globalSoftWarnings
 }: BuilderMainStageProps) => {
   const buttonBG = useColorModeValue("gray.100", "gray.700");
-  const overlayBg = useColorModeValue("whiteAlpha.800", "blackAlpha.800");
+  const cardBg = useColorModeValue("white", "gray.800");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -122,6 +123,8 @@ const BuilderMainStage = ({
 
   const activeAssignments = currentDraftData?.assignments || [];
   const { events, timelineRows, timelineItems } = useScheduleViewData(employees, activeAssignments);
+
+  const { genStep, genTotal, genScore } = useScheduleGenerationContext();
 
   /**
    * Handle toggle button for selecting days to regenerate
@@ -254,6 +257,26 @@ const BuilderMainStage = ({
               <Spinner size="xl" mb={4} />
               <Text color="gray.500">Loading Schedule...</Text>
             </Flex>
+          ) : (isGenerating && !selectedDraftId) ? (
+            <Flex h="100%" justify="center" align="center" direction="column">
+              <Flex align="center" gap={3} mb={4}>
+                {genProgress === 0 && <Spinner size="md" color="blue.500" />}
+                <Heading size="md" color="blue.500">
+                  {genProgress === 0 ? "Determining Schedule Feasibility..." : "Generating Assignments..."}
+                </Heading>
+              </Flex>
+              <Box w="100%" maxW="400px" p={6} bg={cardBg} borderRadius="xl" shadow="sm" border="1px solid" borderColor={borderColor}>
+                <Flex justify="space-between" fontSize="sm" color="gray.500" mb="2">
+                  <Text>Step {genStep} of {genTotal}</Text>
+                  <Text>Score: {genScore}</Text>
+                </Flex>
+                <Progress.Root value={genProgress === 0 ? null : genProgress} size="lg" colorPalette="blue" h="3" w="100%" striped animated>
+                  <Progress.Track>
+                    <Progress.Range transition={genProgress === 0 ? "none" : "width 0.3s ease-in-out"} />
+                  </Progress.Track>
+                </Progress.Root>
+              </Box>
+            </Flex>
           ) : !currentDraftData ? (
             <Flex h="100%" justify="center" align="center" direction="column" color="gray.400">
               <Heading size="md" mb={2}>Ready to Build</Heading>
@@ -284,41 +307,6 @@ const BuilderMainStage = ({
             />
           )}
         </Box>
-
-        {/* Apply generation overlay */}
-        {isGenerating && (
-          <Flex
-            position="absolute"
-            top={0} left={0} right={0} bottom={0}
-            bg={overlayBg}
-            backdropFilter="blur(4px)"
-            zIndex={50}
-            direction="column"
-            justify="center"
-            align="center"
-            animation="fadeIn 0.2s ease-out"
-          >
-            <Box w="100%" maxW="400px" textAlign="center" p={6} bg={mainBg} borderRadius="xl" shadow="xl" border="1px solid" borderColor={borderColor}>
-              <Heading size="md" color="blue.500" mb={2}>
-                Generating Assignments...
-              </Heading>
-
-              <Progress.Root
-                value={genProgress}
-                size="md"
-                colorPalette="blue"
-                h="10px"
-                w="100%"
-                striped
-                animated
-              >
-                <Progress.Track>
-                  <Progress.Range />
-                </Progress.Track>
-              </Progress.Root>
-            </Box>
-          </Flex>
-        )}
       </Box>
 
       {/* Modal for editing shifts for a day */}
