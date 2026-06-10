@@ -9,7 +9,7 @@
  * Page for building schedules.
  */
 
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {Center, Flex, Spinner, Text, VStack} from "@chakra-ui/react";
 import { useColorModeValue } from "../components/ui/color-mode";
 import {parseDate, toSimpleDate} from "@/utils/timeUtils.ts";
@@ -87,7 +87,7 @@ const BuilderPage = () => {
   /**
    * Get current schedule parameters to help validate draft schedule.
    */
-  const currentScheduleParams: ScheduleRequest = {
+  const currentScheduleParams: ScheduleRequest = useMemo(() => ({
     start_date: startDate,
     end_date: endDate,
     position_ids: selectAllPositions ? positions.map(p => p.id) : selectedPositionIds.map(Number),
@@ -95,7 +95,7 @@ const BuilderPage = () => {
     min_days_off: minDaysOff === "" ? 1 : Number(minDaysOff),
     max_days_off: maxDaysOff === "" ? 1 : Number(maxDaysOff),
     max_steps: Number(maxSteps) || 10000,
-  };
+  }), [startDate, endDate, selectAllPositions, positions, selectedPositionIds, selectIgnorePending, minDaysOff, maxDaysOff, maxSteps]);
 
   const mainBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -149,16 +149,7 @@ const BuilderPage = () => {
       // Cancel the timer if they keep typing
       return () => clearTimeout(timeoutId);
     }
-  }, [
-    currentDraftData,
-    startDate,
-    endDate,
-    minDaysOff,
-    maxDaysOff,
-    selectIgnorePending,
-    selectAllPositions,
-    joinedSelectedIds
-  ]);
+  }, [currentDraftData, startDate, endDate, minDaysOff, maxDaysOff, selectIgnorePending, selectAllPositions, joinedSelectedIds, currentScheduleParams]);
 
   /**
    * Wrap the hook's generate function to grab from the current form state.

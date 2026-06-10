@@ -24,7 +24,7 @@ import {
   updateDraft, type GenerationProgress, type StreamError, type ShiftTemplateRead
 } from "../scheduleApi.ts";
 import type {PositionWithRequirementsRead} from "@/features/position/positionApi.ts";
-import { useScheduleGenerationContext } from "../context/ScheduleGenerationContext.tsx";
+import { useScheduleGenerationContext } from "./useScheduleGenerationContext.ts";
 
 
 export interface GenerateConfig {
@@ -132,13 +132,14 @@ export const useScheduleGenerator = (
         (result) => {
           setCurrentDraftData(result);
 
-          const pubId = result.draft_id || (result as any).public_id || (result as any).id;
+          const responseExtended = result as ScheduleResponse & { public_id?: string, id?: string, score?: number };
+          const pubId = result.draft_id || responseExtended.public_id || responseExtended.id;
           const newSummary: DraftSummary = {
             public_id: pubId || "Undefined",
             created_at: result.created_at || new Date().toISOString(),
             start_date: config.startDate,
             end_date: config.endDate,
-            score: result.final_score ?? (result as any).score ?? -1
+            score: result.final_score ?? responseExtended.score ?? -1
           };
 
           // Update draft summaries based on if it's a new draft or a regen

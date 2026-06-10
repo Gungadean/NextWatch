@@ -18,7 +18,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import {AuthProvider} from "./context/AuthProvider.tsx";
 import {Toaster} from "./components/ui/toaster.tsx";
-import { ScheduleGenerationProvider } from './features/schedule/context/ScheduleGenerationContext.tsx';
+import { ScheduleGenerationProvider } from './features/schedule/context/ScheduleGenerationProvider.tsx';
 import { GenerationProgressOverlay } from './features/schedule/components/GenerationProgressOverlay.tsx';
 
 createRoot(document.getElementById('root')!).render(

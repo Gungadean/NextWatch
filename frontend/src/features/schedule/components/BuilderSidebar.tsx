@@ -27,7 +27,7 @@ import {convertToLocalTime} from "@/utils/timeUtils.ts";
 import {LuChevronDown, LuChevronUp, LuPanelLeftClose, LuPanelLeftOpen, LuSettings2} from "react-icons/lu";
 import {useMemo, useState} from "react";
 import type {Position} from "@/features/personnel/personnelApi.ts";
-import { useScheduleGenerationContext } from "../context/ScheduleGenerationContext.tsx";
+import { useScheduleGenerationContext } from "../hooks/useScheduleGenerationContext.ts";
 
 /**
  * BuilderSidebar.tsx

@@ -3,29 +3,9 @@
  * Copyright (c) 2026. Ryan Huston
  */
 
-import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import type { ScheduleResponse, ScheduleDraft } from '../scheduleApi.ts';
-
-interface ScheduleGenerationState {
-  isGenerating: boolean;
-  genProgress: number;
-  genStep: number;
-  genTotal: number;
-  genScore: number;
-  isOverlayMinimized: boolean;
-  currentDraftData: ScheduleResponse | ScheduleDraft | null;
-  selectedDraftId: string | null;
-  setIsGenerating: (isGen: boolean) => void;
-  setGenProgress: (progress: number) => void;
-  setGenStep: (step: number) => void;
-  setGenTotal: (total: number) => void;
-  setGenScore: (score: number) => void;
-  setIsOverlayMinimized: (isMin: boolean) => void;
-  setCurrentDraftData: (data: ScheduleResponse | ScheduleDraft | null) => void;
-  setSelectedDraftId: (id: string | null) => void;
-}
-
-const ScheduleGenerationContext = createContext<ScheduleGenerationState | undefined>(undefined);
+import { ScheduleGenerationContext } from '../hooks/useScheduleGenerationContext.ts';
 
 export const ScheduleGenerationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -37,8 +17,7 @@ export const ScheduleGenerationProvider: React.FC<{ children: ReactNode }> = ({ 
   const [currentDraftData, setCurrentDraftData] = useState<ScheduleResponse | ScheduleDraft | null>(null);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
 
-  return (
-    <ScheduleGenerationContext.Provider value={{
+  const contextValue = React.useMemo(() => ({
       isGenerating,
       genProgress,
       genStep,
@@ -55,14 +34,14 @@ export const ScheduleGenerationProvider: React.FC<{ children: ReactNode }> = ({ 
       setIsOverlayMinimized,
       setCurrentDraftData,
       setSelectedDraftId
-    }}>
+  }), [
+    isGenerating, genProgress, genStep, genTotal, genScore, 
+    isOverlayMinimized, currentDraftData, selectedDraftId
+  ]);
+
+  return (
+    <ScheduleGenerationContext.Provider value={contextValue}>
       {children}
     </ScheduleGenerationContext.Provider>
   );
-};
-
-export const useScheduleGenerationContext = () => {
-  const context = useContext(ScheduleGenerationContext);
-  if (!context) throw new Error('useScheduleGenerationContext must be used within a ScheduleGenerationProvider');
-  return context;
 };

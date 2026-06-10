@@ -35,7 +35,7 @@ import DayEditModal from "@/features/schedule/components/DayEditModal.tsx";
 import {useScheduleViewData} from "@/features/schedule/hooks/useScheduleViewData.ts";
 import type { PositionWithRequirementsRead } from "@/features/position/positionApi";
 import FullScreenTimelineModal from "@/components/FullScreenTimelineModal.tsx";
-import { useScheduleGenerationContext } from "../context/ScheduleGenerationContext.tsx";
+import { useScheduleGenerationContext } from "../hooks/useScheduleGenerationContext.ts";
 
 /**
  * Props for the Builder Main Stage.

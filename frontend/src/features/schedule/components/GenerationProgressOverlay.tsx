@@ -6,7 +6,7 @@
 import React from 'react';
 import { Box, Flex, Progress, Text } from '@chakra-ui/react';
 import { useLocation, useNavigate } from 'react-router';
-import { useScheduleGenerationContext } from '../context/ScheduleGenerationContext.tsx';
+import { useScheduleGenerationContext } from '../hooks/useScheduleGenerationContext.ts';
 import { LuChevronDown, LuChevronUp } from 'react-icons/lu';
 
 export const GenerationProgressOverlay: React.FC = () => {
