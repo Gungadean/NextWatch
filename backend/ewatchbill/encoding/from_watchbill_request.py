@@ -3,6 +3,8 @@
 #
 #  Copyright (c). Carl Kolon
 
+import datetime
+from typing import Any, Tuple, Optional
 import numpy as np
 
 from ewatchbill.models import WatchbillParams
@@ -14,7 +16,29 @@ def parse_time(t_str: str | None) -> float:
     return float(parts[0]) + (float(parts[1]) / 60.0 if len(parts) > 1 else 0.0)
 
 
-def from_watchbill_request(params: WatchbillParams):
+def _extract_assignment_data(assignment: Any) -> Tuple[Optional[int], Optional[str], Optional[str], Optional[int], Optional[datetime.date]]:
+    """Extracts assignment data from either dictionaries or Pydantic models."""
+    if isinstance(assignment, dict):
+        ws_id = assignment.get("watchstation", {}).get("id")
+        st = assignment.get("start_time")
+        et = assignment.get("end_time")
+        emp_id = assignment.get("watchstander", {}).get("id", 0)
+        raw_date = assignment.get("date")
+    else:
+        ws_id = getattr(getattr(assignment, "watchstation", None), "id", None)
+        st = getattr(assignment, "start_time", None)
+        et = getattr(assignment, "end_time", None)
+        emp_id = getattr(getattr(assignment, "watchstander", None), "id", 0)
+        raw_date = getattr(assignment, "date", None)
+
+    date_val = None
+    if raw_date:
+        date_val = datetime.datetime.strptime(raw_date, "%Y-%m-%d").date() if isinstance(raw_date, str) else raw_date
+
+    return ws_id, st, et, emp_id, date_val
+
+
+def from_watchbill_request(params: WatchbillParams) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int, np.ndarray, list, list, list]:
     start_date = params.start
     end_date = params.end
     holiday_dates = params.holidays
@@ -23,11 +47,20 @@ def from_watchbill_request(params: WatchbillParams):
     num_days = (end_date - start_date).days + 1
 
     unique_shift_slots = []
+    assigned_emp_ids = set()
+
+    # Consolidate skeleton parsing
     if hasattr(params, 'skeleton') and params.skeleton:
         for assignment in params.skeleton:
-            slot = (assignment.watchstation.id, assignment.start_time, assignment.end_time)
-            if slot not in unique_shift_slots:
-                unique_shift_slots.append(slot)
+            ws_id, st, et, emp_id, _ = _extract_assignment_data(assignment)
+
+            if ws_id is not None:
+                slot = (ws_id, st, et)
+                if slot not in unique_shift_slots:
+                    unique_shift_slots.append(slot)
+
+            if emp_id and emp_id != 0:
+                assigned_emp_ids.add(emp_id)
     else:
         for ws in params.watchstations:
             unique_shift_slots.append((ws.id, None, None))
@@ -35,10 +68,16 @@ def from_watchbill_request(params: WatchbillParams):
     num_shift_slots = len(unique_shift_slots)
 
     frozen_emp_ids = set()
-    if hasattr(params, 'frozen_assignments') and params.frozen_assignments:
-        frozen_emp_ids = {fa.watchstander.id for fa in params.frozen_assignments if fa.watchstander.id != 0}
+    frozen_assignments_matrix = []
 
-    # Filter out watchstanders who are not qualified for any of the positions that are being scheduled.
+    # Map frozen assignments in a single loop
+    if hasattr(params, 'frozen_assignments') and params.frozen_assignments:
+        for fa in params.frozen_assignments:
+            ws_id, st, et, emp_id, date_val = _extract_assignment_data(fa)
+
+            if emp_id and emp_id != 0:
+                frozen_emp_ids.add(emp_id)
+
     active_watchstanders = []
     for ws in params.watchstanders:
         is_qualified = any(slot[0] in ws.watchstations for slot in unique_shift_slots)
@@ -50,7 +89,8 @@ def from_watchbill_request(params: WatchbillParams):
         )
         is_available = user_conflict_days < num_days
 
-        if (is_qualified and is_available) or has_frozen:
+        # Keep them in the matrix if they are qualified/available, frozen, or already assigned
+        if (is_qualified and is_available) or has_frozen or (ws.id in assigned_emp_ids):
             active_watchstanders.append(ws)
 
     params.watchstanders = active_watchstanders
@@ -62,19 +102,23 @@ def from_watchbill_request(params: WatchbillParams):
         et = parse_time(slot[2]) if slot[2] else 24.0
         shift_times.append((st, et))
 
-    # Build Headcount Matrix from the skeleton
+    # Build Headcount Matrix using the new helper
     headcount_matrix = np.zeros((num_days, num_shift_slots), dtype=int)
-    if hasattr(params, 'skeleton') and params.skeleton:
+    if params.skeleton:
         for assignment in params.skeleton:
-            day_idx = (assignment.date - start_date).days
-            if not (0 <= day_idx < num_days): continue
+            ws_id, st, et, _, date_val = _extract_assignment_data(assignment)
 
-            slot = (assignment.watchstation.id, assignment.start_time, assignment.end_time)
+            if not date_val:
+                continue
+
+            day_idx = (date_val - start_date).days
+            if not (0 <= day_idx < num_days):
+                continue
+
+            slot = (ws_id, st, et)
             if slot in unique_shift_slots:
                 s_idx = unique_shift_slots.index(slot)
                 headcount_matrix[day_idx, s_idx] += 1
-    else:
-        headcount_matrix.fill(1)
 
     qualification_matrix = np.zeros((num_people, num_shift_slots), dtype=int)
     for person_index, watchstander in enumerate(params.watchstanders):
@@ -107,15 +151,12 @@ def from_watchbill_request(params: WatchbillParams):
     for i, watchstander in enumerate(params.watchstanders):
         offset_matrix[i] = watchstander.offset
 
-    frozen_assignments_matrix = []
-
+    # Generate the frozen matrix
     if hasattr(params, 'frozen_assignments') and params.frozen_assignments:
-
         for assignment in params.frozen_assignments:
-            # Find the watchstander index
-            emp_id = assignment.watchstander.id
+            ws_id, st, et, emp_id, date_val = _extract_assignment_data(assignment)
 
-            if emp_id == 0:
+            if not emp_id or emp_id == 0 or not date_val:
                 continue
 
             w_index = next(
@@ -123,23 +164,13 @@ def from_watchbill_request(params: WatchbillParams):
                 None
             )
 
-            # Find the watchstation index
-            target_slot = (assignment.watchstation.id, assignment.start_time, assignment.end_time)
-            s_index = None
-            if target_slot in unique_shift_slots:
-                s_index = unique_shift_slots.index(target_slot)
+            target_slot = (ws_id, st, et)
+            s_index = unique_shift_slots.index(target_slot) if target_slot in unique_shift_slots else None
 
-            # Find the day index
-            date = assignment.date
-            if date:
-                d_index = (assignment.date - start_date).days
-            else:
-                d_index = None
+            d_index = (date_val - start_date).days
 
-            # Frozen assignment found, append to the matrix
-            if w_index is not None and s_index is not None and d_index is not None:
-                if 0 <= d_index < num_days:
-                    frozen_assignments_matrix.append((w_index, d_index, s_index))
+            if w_index is not None and s_index is not None and 0 <= d_index < num_days:
+                frozen_assignments_matrix.append((w_index, d_index, s_index))
 
     return (
         qualification_matrix,

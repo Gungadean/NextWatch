@@ -4,6 +4,7 @@
 from datetime import datetime, time
 from typing import Optional, List
 
+from sqlalchemy import Column, JSON
 from sqlmodel import SQLModel, Field, Relationship
 
 from database.models import EmployeePosition
@@ -17,6 +18,7 @@ class ShiftTemplate(SQLModel, table=True):
     name: str = Field(..., max_length=50)
     start_time: time
     end_time: time
+    split_increment: int | None = Field(default=None)
 
     requirements: List["PositionRequirement"] = Relationship(
         back_populates="shift_template",
@@ -62,8 +64,9 @@ class PositionRequirement(SQLModel, table=True):
     # Set the number of people to fill this slot
     count: int = Field(default=1)
 
-    applies_weekdays: bool = Field(default=True)
-    applies_weekends: bool = Field(default=True)
+    applies_on_days: list[int] = Field(default=[], sa_column=Column(JSON))
+
+    is_fixed: bool = Field(default=False)
 
     position: Optional[Position] = Relationship(back_populates="requirements")
     shift_template: Optional[ShiftTemplate] = Relationship(back_populates="requirements")

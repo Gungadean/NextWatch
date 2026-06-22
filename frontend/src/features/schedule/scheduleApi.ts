@@ -17,6 +17,7 @@ export interface ShiftTemplateCreate {
   name: string;
   start_time: string;
   end_time: string;
+  split_increment?: number | null;
 }
 
 export interface ShiftTemplateRead extends ShiftTemplateCreate {
@@ -72,8 +73,10 @@ export interface Assignment {
   date: string;
   start_time?: string;
   end_time?: string;
+  is_fixed?: boolean;
   watchstander: Watchstander;
   watchstation: Watchstation;
+  template_id?: number;
 }
 
 /**
@@ -137,6 +140,7 @@ export interface ScheduleRequest {
   holidays?: string[];
   frozen_assignments?: Assignment[];
   skeleton?: Assignment[];
+  templates?: ShiftTemplateRead[];
 }
 
 /**
@@ -204,7 +208,7 @@ export const generateScheduleStream = async (
 
         // Loop through all parts except the last one (which might be incomplete)
         for (let i = 0; i < parts.length - 1; i++) {
-          const line = parts[i];
+          const line = parts[i].trim();
           if (line.startsWith("data: ")) {
             const jsonStr = line.replace("data: ", "");
             try {
@@ -222,6 +226,19 @@ export const generateScheduleStream = async (
         buffer = parts[parts.length - 1];
       }
     });
+
+    // Process any remaining buffer after stream finishes
+    if (buffer.trim().startsWith("data: ")) {
+      const jsonStr = buffer.trim().replace("data: ", "");
+      try {
+        const payload = JSON.parse(jsonStr);
+        if (payload.type === "progress") onProgress(payload);
+        if (payload.type === "result") onComplete(payload.payload);
+        if (payload.type === "error") onError({type: "error", message: payload.payload.error});
+      } catch (e) {
+        console.error("Stream parse error on final buffer:", e);
+      }
+    }
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error, "Schedule Generation Failed");
     onError({ type: "error", message: errorMessage });
@@ -262,7 +279,7 @@ export const generateRegenStream = async (
 
         // Loop through all parts except the last one (which might be incomplete)
         for (let i = 0; i < parts.length - 1; i++) {
-          const line = parts[i];
+          const line = parts[i].trim();
           if (line.startsWith("data: ")) {
             const jsonStr = line.replace("data: ", "");
             try {
@@ -280,6 +297,19 @@ export const generateRegenStream = async (
         buffer = parts[parts.length - 1];
       }
     });
+
+    // Process any remaining buffer after stream finishes
+    if (buffer.trim().startsWith("data: ")) {
+      const jsonStr = buffer.trim().replace("data: ", "");
+      try {
+        const payload = JSON.parse(jsonStr);
+        if (payload.type === "progress") onProgress(payload);
+        if (payload.type === "result") onComplete(payload.payload);
+        if (payload.type === "error") onError({type: "error", message: payload.payload.error});
+      } catch (e) {
+        console.error("Stream parse error on final buffer:", e);
+      }
+    }
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error, "Schedule Generation Failed");
     onError({ type: "error", message: errorMessage });
@@ -394,7 +424,7 @@ export const regenerateLiveDays = async (
 
         // Loop through all parts except the last one (which might be incomplete)
         for (let i = 0; i < parts.length - 1; i++) {
-          const line = parts[i];
+          const line = parts[i].trim();
           if (line.startsWith("data: ")) {
             const jsonStr = line.replace("data: ", "");
             try {
@@ -412,6 +442,19 @@ export const regenerateLiveDays = async (
         buffer = parts[parts.length - 1];
       }
     });
+
+    // Process any remaining buffer after stream finishes
+    if (buffer.trim().startsWith("data: ")) {
+      const jsonStr = buffer.trim().replace("data: ", "");
+      try {
+        const payload = JSON.parse(jsonStr);
+        if (payload.type === "progress") onProgress(payload);
+        if (payload.type === "result") onComplete(payload.payload);
+        if (payload.type === "error") onError({type: "error", message: payload.payload.error});
+      } catch (e) {
+        console.error("Stream parse error on final buffer:", e);
+      }
+    }
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error, "Schedule Generation Failed");
     onError({ type: "error", message: errorMessage });

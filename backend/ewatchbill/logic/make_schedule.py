@@ -44,13 +44,13 @@ def make_schedule(
         conflict_matrix=conflict_matrix,
         headcount_matrix=headcount_matrix,
         shift_times=shift_times,
-        frozen_shifts=frozen_assignments_matrix
+        frozen_shifts=frozen_assignments_matrix,
+        translator=translator
     ).get_initial_schedule()
 
     def is_legal_local(schedule: np.ndarray):
         is_legal_bool, _ = is_legal(
             schedule,
-            min_days_off_between_duty=min_days_off_between_duty,
             qualification_matrix=qualification_matrix,
             conflict_matrix=conflict_matrix,
             shift_times=shift_times,
@@ -70,13 +70,13 @@ def make_schedule(
             headcount_matrix=headcount_matrix,
             conflict_matrix=conflict_matrix,
             qualification_matrix=qualification_matrix,
+            translator=translator,
             shift_times=shift_times
         )
 
 
     initial_is_legal, error_message = is_legal(
         initial_schedule,
-        min_days_off_between_duty=min_days_off_between_duty,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
         shift_times=shift_times,

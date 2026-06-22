@@ -8,7 +8,7 @@ Module accepting a draft schedule and validating its fairness while generating
 a list of errors/warnings to return to the frontend for display.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 from typing import List, Dict
@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from .constraints import is_legal
 from .objectives import get_score_breakdown
 from .translator import ScheduleTranslator
-from ..encoding.from_watchbill_request import from_watchbill_request
+from ..encoding.from_watchbill_request import from_watchbill_request, parse_time
 from ..models import WatchbillParams, Assignment
 
 
@@ -53,6 +53,12 @@ def evaluate_draft_schedule(
     Acts as a Single Source of Truth for frontend validation.
     Converts a drafted schedule into a matrix and audits it against the core math engine.
     """
+    safe_assignments = draft_assignments or []
+
+    # Use getattr to prevent missing attribute crashes on plain dicts
+    dynamic_assignments = [a for a in safe_assignments if not getattr(a, "is_fixed", False)]
+    watchbill_params.skeleton = dynamic_assignments
+
     # Parse the request to get the exact same matrices the math engine uses
     (
         qualification_matrix,
@@ -79,60 +85,76 @@ def evaluate_draft_schedule(
     )
 
     schedule_array = np.zeros((num_people, num_days, num_watchstations), dtype=int)
-
-    slot_to_index = {}
-    for idx, slot in enumerate(unique_shift_slots):
-        ws_id, st, et = slot
-        norm_key = (ws_id, _normalize_time(st), _normalize_time(et))
-        slot_to_index[norm_key] = idx
-
     person_to_index = {ws.id: idx for idx, ws in enumerate(watchbill_params.watchstanders)}
 
     for assignment in draft_assignments:
         p_idx = person_to_index.get(assignment.watchstander.id)
         d_idx = (assignment.date - watchbill_params.start).days
 
-        norm_key = (
-            assignment.watchstation.id,
-            _normalize_time(assignment.start_time),
-            _normalize_time(assignment.end_time)
-        )
-        s_idx = slot_to_index.get(norm_key)
+        if p_idx is None or not (0 <= d_idx < num_days):
+            continue
 
-        if s_idx is None:
-            for idx, slot in enumerate(unique_shift_slots):
-                if slot[0] == assignment.watchstation.id:
-                    s_idx = idx
+        a_st = parse_time(assignment.start_time) if assignment.start_time else 0.0
+        a_et = parse_time(assignment.end_time) if assignment.end_time else 24.0
+        a_dur = a_et - a_st if a_et > a_st else (a_et + 24.0) - a_st
+        if a_dur == 0:
+            a_dur = 24.0
+
+        mapped_slots = 0
+        exact_match_found = False
+
+        # Attempt to map to an EXACT time match first to prevent double-booking 24hr shifts
+        for s_idx, slot in enumerate(unique_shift_slots):
+            if slot[0] == assignment.watchstation.id:
+                slot_st_str = _normalize_time(slot[1])
+                slot_et_str = _normalize_time(slot[2])
+                a_st_str = _normalize_time(assignment.start_time)
+                a_et_str = _normalize_time(assignment.end_time)
+
+                if slot_st_str == a_st_str and slot_et_str == a_et_str:
+                    schedule_array[p_idx, d_idx, s_idx] += 1
+                    mapped_slots += 1
+                    exact_match_found = True
                     break
 
-        if p_idx is not None and 0 <= d_idx < num_days and s_idx is not None:
-            schedule_array[p_idx, d_idx, s_idx] += 1
+        # If no exact match exists, distribute the assignment into smaller shattered slots
+        if not exact_match_found:
+            for s_idx, slot in enumerate(unique_shift_slots):
+                if slot[0] == assignment.watchstation.id:
+                    slot_st = parse_time(slot[1]) if slot[1] else 0.0
+                    slot_et = parse_time(slot[2]) if slot[2] else 24.0
+                    slot_dur = slot_et - slot_st if slot_et > slot_st else (slot_et + 24.0) - slot_st
+                    if slot_dur == 0:
+                        slot_dur = 24.0
+
+                    def in_range(x: float, start: float, end: float) -> bool:
+                        if start <= end:
+                            return start <= x <= end
+                        return x >= start or x <= end
+
+                    mid = (slot_st + slot_dur / 2.0) % 24.0
+
+                    if slot_dur <= a_dur and in_range(slot_st, a_st, a_et) and in_range(slot_et, a_st,
+                                                                                        a_et) and in_range(mid, a_st,
+                                                                                                           a_et):
+                        schedule_array[p_idx, d_idx, s_idx] += 1
+                        mapped_slots += 1
+
+        # Fallback for ad-hoc shifts that don't align with templates
+        if mapped_slots == 0:
+            for s_idx, slot in enumerate(unique_shift_slots):
+                if slot[0] == assignment.watchstation.id:
+                    schedule_array[p_idx, d_idx, s_idx] += 1
+                    break
 
     is_valid_math, all_hard_errors = is_legal(
         schedule_array,
-        min_days_off_between_duty=min_days_off,
         qualification_matrix=qualification_matrix,
         conflict_matrix=conflict_matrix,
         shift_times=shift_times,
         frozen_assignments_matrix=frozen_assignments_matrix,
         translator=translator
     )
-
-    for p_idx in range(num_people):
-        for d_idx in range(num_days):
-            if conflict_matrix[p_idx, d_idx] == 1:
-                # If the person has a shift assigned on this day
-                if np.sum(schedule_array[p_idx, d_idx, :]) > 0:
-                    person_name = watchbill_params.watchstanders[p_idx].name
-                    date_val = watchbill_params.start + timedelta(days=d_idx)
-                    date_str = date_val.strftime("%b %d")
-                    err_msg = f"Conflict: {person_name} is scheduled on {date_str} but has approved time-off or a recorded conflict."
-
-                    # Ensure to not duplicate errors that is_legal already caught
-                    if err_msg not in all_hard_errors:
-                        all_hard_errors.append(err_msg)
-
-    is_valid_math = len(all_hard_errors) == 0
 
     breakdown, detailed_warnings = get_score_breakdown(
         schedule_array,
@@ -179,7 +201,7 @@ def evaluate_draft_schedule(
                             f"Boundary Conflict: {name} works on {b_date.strftime('%b %d')} (Published) and {d_date.strftime('%b %d')} (Draft), violating the {min_days_off}-day rest rule.")
 
     filtered_warnings = []
-    filtered_hard_errors = []  # <-- NEW: Target filter for Hard Errors
+    filtered_hard_errors = []
 
     target_date_str = None
     if target_date:
@@ -212,7 +234,7 @@ def evaluate_draft_schedule(
         else:
             filtered_hard_errors.append(err)
 
-    # If there are NO hard errors for THIS specific day, the day is valid and can be saved!
+    # If there are NO hard errors for THIS specific day, the day is valid and can be saved
     final_is_valid = len(filtered_hard_errors) == 0
 
     return ValidationResponse(
