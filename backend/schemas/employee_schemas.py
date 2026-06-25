@@ -61,17 +61,6 @@ class EmployeeQueryResponse(BaseModel):
     min_consecutive_days: Optional[int] = None
 
 
-class TimeOffRequestPublic(BaseModel):
-    """
-    Simplified response model for time-off requests nested within an employee object.
-    """
-    id: int
-    start_date: datetime
-    end_date: datetime
-    type: str
-    status: str
-
-
 class EmployeeReadWithTimeOff(BaseModel):
     """
     Comprehensive response model for an Employee.

@@ -11,7 +11,7 @@ from database.database import get_session
 from database.models import User
 from database.models.position import ShiftTemplate
 from schemas.template_schemas import ShiftTemplateRead, ShiftTemplateCreate
-from utils.auth.auth_users_utils import get_current_active_user
+from utils.auth.auth_users_utils import require_admin, get_current_active_user
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ def get_shift_templates(
 @router.post("/templates/add", response_model=ShiftTemplateRead)
 def create_shift_template(
         template_in: ShiftTemplateCreate,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -47,7 +47,7 @@ def create_shift_template(
 @router.delete("/templates/{template_id}/delete")
 def delete_shift_template(
         template_id: int,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """

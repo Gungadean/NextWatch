@@ -72,7 +72,7 @@ def get_token_data(token: str, token_type: str) -> TokenData:
     try:
         # Decode and verify signature
         payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
+        email: str = payload.get("sub")
         expiration: int = payload.get("exp")
 
         # Determine if this token is expired.
@@ -82,14 +82,14 @@ def get_token_data(token: str, token_type: str) -> TokenData:
                 detail="Token expired",
                 headers={"WWW-Authenticate": "Bearer"})
 
-        if username is None:
+        if email is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="The user associated with this token does not exist",
                 headers={"WWW-Authenticate": "Bearer"}
             )
 
-        return TokenData(username=username, expiration=expiration)
+        return TokenData(email=email, expiration=expiration)
     except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -105,7 +105,7 @@ def create_access_token(data: dict) -> str:
     This token is used to authorize API requests.
 
     Args:
-        data (dict): Payload data (must include 'sub' for username).
+        data (dict): Payload data (must include 'sub' for email).
 
     Returns:
         str: The encoded JWT string.

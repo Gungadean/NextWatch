@@ -9,7 +9,7 @@ This ensures Alembic and the application can discover all tables from a single i
 """
 
 # Import all models so they register with SQLModel.metadata
-from .user import User
+from .user import User, EmployeeInvite
 from .employee import Employee, EmployeePosition
 from .position import Position
 from .shift import Shift
@@ -18,6 +18,7 @@ from .schedule import ScheduleDraft
 
 __all__ = [
     "User",
+    "EmployeeInvite",
     "Employee",
     "EmployeePosition",
     "Position",

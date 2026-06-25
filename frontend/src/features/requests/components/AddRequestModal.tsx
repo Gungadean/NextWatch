@@ -23,14 +23,15 @@ import {
   Combobox,
   Stack
 } from "@chakra-ui/react";
-import {Field} from "@/components/ui/field.tsx";
-import {toaster} from "@/components/ui/toaster.tsx";
-import {useForm} from "@/hooks/useForm.ts";
-import React, {type Dispatch, type SetStateAction, useMemo, useState} from "react";
-import {addRequest, type TimeOffAddRequest, type TimeOffResponse} from "@/features/requests/requestsApi.ts";
-import type {Employee} from "@/features/personnel/personnelApi.ts";
-import {toSimpleDate} from "@/utils/timeUtils.ts";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { Field } from "@/components/ui/field.tsx";
+import { toaster } from "@/components/ui/toaster.tsx";
+import { useForm } from "@/hooks/useForm.ts";
+import React, { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
+import { addRequest, type TimeOffAddRequest, type TimeOffResponse } from "@/features/requests/requestsApi.ts";
+import type { Employee } from "@/features/personnel/personnelApi.ts";
+import { toSimpleDate } from "@/utils/timeUtils.ts";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
+import { useCurrentUser } from "@/hooks/useAuth.ts";
 
 /**
  * Props for the AddRequestModal.
@@ -47,8 +48,7 @@ interface AddRequestModalProps {
  * Modal that allows the user to create a new time off request.
  */
 const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequestsChange }: AddRequestModalProps) => {
-  // Initialize initial form state.
-  const {formData, handleChange, resetForm, setFormData} = useForm<TimeOffAddRequest>({
+  const { formData, handleChange, resetForm, setFormData } = useForm<TimeOffAddRequest>({
     employee_id: -1,
     start_date: toSimpleDate(new Date()),
     end_date: toSimpleDate(new Date()),
@@ -56,24 +56,28 @@ const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequests
   });
 
   const [inputFilter, setInputFilter] = useState("");
+  const currentUser = useCurrentUser();
+  const isAdminOrManager = currentUser.role.toLowerCase() === 'admin' || currentUser.role.toLowerCase() === 'manager';
 
-  // Memoize the collection to prevent rebuilding on every render
+  useEffect(() => {
+    if (isOpen && !isAdminOrManager && currentUser.employee_id) {
+      setFormData(prev => ({ ...prev, employee_id: currentUser.employee_id as number }));
+    }
+  }, [isOpen, isAdminOrManager, currentUser.employee_id, setFormData]);
+
   const collection = useMemo(() => {
     const filteredEmployees = employees.filter((emp) => {
-      const fullName = `${emp.last_name}, ${emp.first_name} ${emp.middle_name}`;
+      const fullName = `${emp.last_name}, ${emp.first_name} ${emp.middle_name || ""}`;
       return fullName.toLowerCase().includes(inputFilter.toLowerCase());
     });
 
     return createListCollection({
       items: filteredEmployees,
-      itemToString: (item) => `${item.last_name}, ${item.first_name} ${item.middle_name}`,
+      itemToString: (item) => `${item.last_name}, ${item.first_name} ${item.middle_name ? item.middle_name.charAt(0).toUpperCase() + "." : ""}`,
       itemToValue: (item) => item.id.toString(),
     });
   }, [employees, inputFilter]);
 
-  /**
-   * Handle form submission
-   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -118,7 +122,7 @@ const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequests
             <Dialog.Body>
               <form id="add-request-form" onSubmit={handleSubmit}>
                 <Stack gap={5} pb={5}>
-                  <Field label="Employees" required>
+                  <Field label="Employee" required>
                     <Combobox.Root
                       collection={collection}
                       selectionBehavior="replace"
@@ -134,6 +138,7 @@ const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequests
                            setFormData(prev => ({ ...prev, employee_id: -1 }));
                         }
                       }}
+                      disabled={!isAdminOrManager}
                     >
                       <Combobox.Control>
                         <Combobox.Input
@@ -150,7 +155,7 @@ const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequests
                            {collection.items.map((item) => (
                               <Combobox.Item item={item} key={item.id}>
                                 <Combobox.ItemText>
-                                  {item.last_name}, {item.first_name} {item.middle_name.charAt(0).toUpperCase() + "."}
+                                  {item.last_name}, {item.first_name} {item.middle_name ? item.middle_name.charAt(0).toUpperCase() + "." : ""}
                                 </Combobox.ItemText>
                               </Combobox.Item>
                             ))}
@@ -165,10 +170,12 @@ const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequests
                       size="sm"
                       value={formData.start_date}
                       onChange={(e) => {
-                        setFormData(prev => ({ ...prev, start_date: e.target.value }));
-                        if (formData.start_date > formData.end_date) {
-                          setFormData(prev => ({ ...prev, end_date: e.target.value }));
-                        }
+                        const newStartDate = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          start_date: newStartDate,
+                          ...(newStartDate > prev.end_date ? { end_date: newStartDate } : {})
+                        }));
                       }}
                     />
                     <Text>-</Text>
@@ -177,10 +184,12 @@ const AddRequestModal = ({ isOpen, onOpenChange, employees, requests, onRequests
                       size="sm"
                       value={formData.end_date}
                       onChange={(e) => {
-                        setFormData(prev => ({ ...prev, end_date: e.target.value }));
-                        if (formData.end_date < formData.start_date) {
-                          setFormData(prev => ({ ...prev, start_date: e.target.value }));
-                        }
+                        const newEndDate = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          end_date: newEndDate,
+                          ...(newEndDate < prev.start_date ? { start_date: newEndDate } : {})
+                        }));
                       }}
                     />
                   </HStack>

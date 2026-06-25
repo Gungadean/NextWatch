@@ -15,7 +15,6 @@ import { Stack, Input, Button } from '@chakra-ui/react';
 
 import {
   validateSignIn,
-  determineLoginType,
   type AuthSignInData
 } from '../authValidation';
 import {PasswordInput} from "@/components/ui/password-input.tsx";
@@ -37,8 +36,7 @@ export const LoginForm = () => {
   // Initialize form state.
   const {formData, errors, handleChange, setErrors} = useForm<AuthSignInData>({
     identifier: '',
-    password: '',
-    type: 'username'
+    password: ''
   });
 
   /**
@@ -54,15 +52,11 @@ export const LoginForm = () => {
       return;
     }
 
-    // Determine if login is with email or username
-    const loginType = determineLoginType(formData.identifier);
-
     try {
       // Attempt to authenticate with provider
       await login({
         identifier: formData.identifier,
-        password: formData.password,
-        type: loginType
+        password: formData.password
       });
 
       // Show success and redirect to dashboard

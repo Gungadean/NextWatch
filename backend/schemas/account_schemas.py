@@ -21,7 +21,6 @@ class AccountDataResponse(BaseModel):
     personnel record (employee_id), allowing the frontend to understand both
     who is logged in and which schedule they belong to.
     """
-    username: str
     email: str
     employee_id: int | None
     role: str

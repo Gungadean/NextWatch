@@ -7,7 +7,6 @@
  * accountApi.ts
  *
  * Handles account API functions for fetching the user profile.
- * TODO: Add support for updating account data.
  */
 
 import axiosInstance from "@/axiosConfig.tsx";
@@ -18,10 +17,32 @@ import {getErrorMessage} from "@/utils/errorUtils.ts";
  */
 export interface User {
   id: number;
-  username: string;
   email: string;
   role: string;
-  employee_id: number;
+  is_active: boolean;
+  created_at: string;
+  last_login: string;
+  employee_id: number | null;
+}
+
+/**
+ * Represents a user update request.
+ */
+export interface UserUpdate {
+  id: number;
+  password?: string;
+  role?: string;
+  is_active?: boolean;
+  employee_id?: number | null;
+}
+
+/**
+ *
+ */
+export interface InviteCreateResponse {
+  token: string;
+  expires_at: string;
+  message: string;
 }
 
 /**
@@ -38,3 +59,38 @@ export const fetchUserProfile = async (): Promise<User> => {
     throw new Error(getErrorMessage(error, "User data fetching failed"));
   }
 }
+
+export const getUsers = async (): Promise<User[]> => {
+  try {
+    const response = await axiosInstance.get<User[]>('/users');
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to load users"));
+  }
+};
+
+export const updateUser = async (id: number, data: UserUpdate): Promise<User> => {
+  try {
+    const response = await axiosInstance.put<User>(`/users/${id}`, data);
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to update user"));
+  }
+};
+
+export const deleteUser = async (id: number): Promise<void> => {
+  try {
+    await axiosInstance.delete(`/users/${id}`);
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to delete user"));
+  }
+};
+
+export const inviteUser = async (employeeId: number): Promise<InviteCreateResponse> => {
+  try {
+    const response = await axiosInstance.post<InviteCreateResponse>(`/invites/${employeeId}`);
+    return response.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to invite user"));
+  }
+};

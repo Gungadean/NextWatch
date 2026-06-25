@@ -8,32 +8,37 @@
  *
  * Renders the user registration interface.
  * Handles input capture, client-side validation, password strength visualization,
- * and the creation of new user accounts.
+ * and the creation of new user accounts via an invite token.
  */
 
 import React, { useState } from 'react';
 import { Stack, Input, Button, Progress, Text, HStack } from '@chakra-ui/react';
-import {type AuthSignUpData, validateSignUp} from "../authValidation.ts";
-import {registerUser} from "../authApi.ts";
-import {toaster} from "@/components/ui/toaster.tsx";
-import {Field} from "@/components/ui/field.tsx";
-import {PasswordInput} from "@/components/ui/password-input.tsx";
-import {useForm} from "@/hooks/useForm.ts";
-import {useNavigate} from "react-router";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { type AuthSignUpData, validateSignUp } from "../authValidation.ts";
+import { registerUser } from "../authApi.ts";
+import { toaster } from "@/components/ui/toaster.tsx";
+import { Field } from "@/components/ui/field.tsx";
+import { PasswordInput } from "@/components/ui/password-input.tsx";
+import { useForm } from "@/hooks/useForm.ts";
+import { useNavigate } from "react-router";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
+
+interface RegisterFormProps {
+  token: string;
+  email: string;
+}
 
 /**
  * Register Form Component
- * Contains logic for registering a new user.
+ * Contains logic for registering a new user via invite token.
  */
-export const RegisterForm = () => {
+export const RegisterForm: React.FC<RegisterFormProps> = ({ token, email }) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Initialize form state.
-  const {formData, errors, handleChange, setErrors} = useForm<AuthSignUpData>({
-    username: '',
-    email: '',
+  // Initialize form state with the props passed from the token validation
+  const { formData, errors, handleChange, setErrors } = useForm<AuthSignUpData>({
+    token: token,
+    email: email,
     password: '',
     confirmPassword: ''
   });
@@ -77,14 +82,13 @@ export const RegisterForm = () => {
     setLoading(true);
     try {
       await registerUser({
-        username: formData.username,
-        email: formData.email,
+        token: formData.token,
         password: formData.password
       });
 
-      // Redirect to login after successful registration
-      toaster.create({ title: "Account created!", type: "success" });
-      navigate("/login");
+      // Redirect to home after successful registration
+      toaster.create({ title: "Account activated!", type: "success" });
+      navigate("/");
 
     } catch (error: unknown) {
       toaster.create({
@@ -102,33 +106,23 @@ export const RegisterForm = () => {
       <Stack gap="4">
 
         <Field
-          label="Username"
-          invalid={!!errors.username}
-          errorText={errors.username}
-          required>
-          <Input
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            placeholder="username"
-          />
-        </Field>
-
-        <Field
-          label="Email"
+          label="Account Email"
           invalid={!!errors.email}
           errorText={errors.email}
-          required>
+        >
           <Input
             name="email"
             value={formData.email}
-            onChange={handleChange}
+            readOnly
+            disabled
+            variant="subtle"
             placeholder="user@example.com"
+            _disabled={{ opacity: 0.8, cursor: "not-allowed", color: "gray.600" }}
           />
         </Field>
 
         <Field
-          label="Password"
+          label="New Password"
           invalid={!!errors.password}
           errorText={errors.password}
           required>
@@ -174,7 +168,7 @@ export const RegisterForm = () => {
         )}
 
         <Button type="submit" loading={loading} colorPalette="blue" mt="4">
-          Create Account
+          Activate Account
         </Button>
       </Stack>
     </form>

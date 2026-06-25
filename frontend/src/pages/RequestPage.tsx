@@ -7,8 +7,8 @@
  * RequestPage.tsx
  *
  * The central hub for Leave Management.
- * Allows users to submit time-off requests and Managers/Admins to approve or deny them.
- * Supports both a List view (for processing) and a Timeline view (for conflict checking).
+ * Allows users to submit time-off requests, Managers/Admins to approve or deny them,
+ * and users to cancel their own pending requests.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -31,15 +31,16 @@ import {
 import { useColorModeValue } from "../components/ui/color-mode";
 import { Tooltip } from "../components/ui/tooltip";
 import { FaList, FaCalendarAlt } from "react-icons/fa";
-import {TimelineGrid, type TimelineItem, type TimelineRow} from "@/components/TimelineGrid.tsx";
-import {approveRequest, denyRequest, getRequests, type TimeOffResponse} from "@/features/requests/requestsApi.ts";
-import {type Employee, getEmployees} from "@/features/personnel/personnelApi.ts";
-import {useCurrentUser} from "@/hooks/useAuth.ts";
+import { TimelineGrid, type TimelineItem, type TimelineRow } from "@/components/TimelineGrid.tsx";
+import { approveRequest, denyRequest, getRequests, type TimeOffResponse } from "@/features/requests/requestsApi.ts";
+import { type Employee, getEmployees } from "@/features/personnel/personnelApi.ts";
+import { useCurrentUser } from "@/hooks/useAuth.ts";
 import AddRequestModal from "@/features/requests/components/AddRequestModal.tsx";
 import ConfirmRequestDenialModal from "@/features/requests/components/ConfirmRequestDenialModal.tsx";
-import {toaster} from "@/components/ui/toaster.tsx";
-import {toSimpleDate} from "@/utils/timeUtils.ts";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { toaster } from "@/components/ui/toaster.tsx";
+import { toSimpleDate } from "@/utils/timeUtils.ts";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
+import ConfirmRequestCancelModal from "@/features/requests/components/ConfirmRequestCancelModal.tsx";
 
 /**
  * Main Request Management Page.
@@ -47,21 +48,23 @@ import {getErrorMessage} from "@/utils/errorUtils.ts";
 const RequestPage = () => {
   const [requests, setRequests] = useState<TimeOffResponse[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const user = useCurrentUser();
 
-  const [isSubmitRequestModalOpen, setIsSubmitRequestModalOpen] = useState(false);
+  const [isSubmitRequestModalOpen, setIsSubmitRequestModalOpen] = useState<boolean>(false);
 
-  const [isDenyModalOpen, setIsDenyModalOpen] = useState(false);
+  const [isDenyModalOpen, setIsDenyModalOpen] = useState<boolean>(false);
   const [requestToDeny, setRequestToDeny] = useState<number | null>(null);
-  const [employeeNameToDeny, setEmployeeNameToDeny] = useState("");
+  const [employeeNameToDeny, setEmployeeNameToDeny] = useState<string>("");
+
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState<boolean>(false);
+  const [requestToCancel, setRequestToCancel] = useState<number | null>(null);
 
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
-
-  const [viewDate, setViewDate] = useState(new Date());
+  const [viewDate, setViewDate] = useState<Date>(new Date());
 
   const [activeTab, setActiveTab] = useState<string>(
-      user.role === 'admin' || user.role === 'manager' ? "Pending" : "My Requests"
+      user.role.toLowerCase() === 'admin' || user.role.toLowerCase() === 'manager' ? "Pending" : "My Requests"
   );
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
@@ -71,7 +74,6 @@ const RequestPage = () => {
   const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
 
   /**
-   * Initialization Effect.
    * Loads Employees and Requests in parallel.
    */
   useEffect(() => {
@@ -107,14 +109,14 @@ const RequestPage = () => {
      }
 
      switch (activeTab) {
-        case "My Requests": return requests.filter(r => r.employee.id === user.id);
+        case "My Requests": return requests.filter(r => r.employee.id === user.employee_id);
         case "Pending": return requests.filter(r => r.status === "Pending");
         case "Approved": return requests.filter(r => r.status === "Approved");
         case "Denied": return requests.filter(r => r.status === "Denied");
         case "All": return requests;
         default: return requests;
      }
-  }, [viewMode, activeTab, requests, user.id]);
+  }, [viewMode, activeTab, requests, user.employee_id]);
 
   /**
    * Generates rows for the Timeline view based on filtered employees.
@@ -126,9 +128,7 @@ const RequestPage = () => {
         const request = filteredRequests.find(r => r.employee.id === id);
         return {
           id: id,
-          label: request?.employee.last_name +
-            ", " + request?.employee.first_name + " "
-            + request?.employee.middle_name || "Unknown"
+          label: `${request?.employee.last_name}, ${request?.employee.first_name} ${request?.employee.middle_name || ""}`.trim()
         };
     });
   }, [filteredRequests]);
@@ -188,7 +188,8 @@ const RequestPage = () => {
       toaster.create({
         title: "Action Failed",
         description: getErrorMessage(error, "Unable to perform action."),
-        type: "error" });
+        type: "error"
+      });
     }
   };
 
@@ -241,7 +242,7 @@ const RequestPage = () => {
           shadow="sm"
         >
           <HStack gap={4}>
-             <Heading size="md">Leave Tracker</Heading>
+             <Heading size="md">Time-Off Tracker</Heading>
              <Separator orientation="vertical" h="20px" />
 
              {/* Workflow Tabs */}
@@ -251,8 +252,9 @@ const RequestPage = () => {
                   {viewMode === "list" && (
                     <>
                       <Tabs.Trigger value="Pending" _selected={{ color: "orange.600", fontWeight: "bold" }}>
-                        Inbox ({requests.filter(r => r.status === "Pending").length})
+                        Pending ({requests.filter(r => r.status === "Pending").length})
                       </Tabs.Trigger>
+
                       <Tabs.Trigger value="Approved" _selected={{ color: "green.600", fontWeight: "bold" }}>
                         Approved
                       </Tabs.Trigger>
@@ -329,97 +331,121 @@ const RequestPage = () => {
           {viewMode === 'list' ? (
             // List View
             <Table.ScrollArea h="100%">
-                <Table.Root size="sm" stickyHeader interactive>
-                <Table.Header>
-                    <Table.Row bg={tableHeaderBg}>
-                    <Table.ColumnHeader>Member</Table.ColumnHeader>
-                    <Table.ColumnHeader>Dates</Table.ColumnHeader>
-                    <Table.ColumnHeader>Type</Table.ColumnHeader>
-                    <Table.ColumnHeader>Reason</Table.ColumnHeader>
-                    <Table.ColumnHeader>Status</Table.ColumnHeader>
-                    <Table.ColumnHeader textAlign="right">Actions</Table.ColumnHeader>
-                    </Table.Row>
-                </Table.Header>
+              <Table.Root size="sm" stickyHeader interactive>
+              <Table.Header>
+                <Table.Row bg={tableHeaderBg}>
+                  <Table.ColumnHeader>Member</Table.ColumnHeader>
+                  <Table.ColumnHeader>Dates</Table.ColumnHeader>
+                  <Table.ColumnHeader>Type</Table.ColumnHeader>
+                  <Table.ColumnHeader>Reason</Table.ColumnHeader>
+                  <Table.ColumnHeader>Status</Table.ColumnHeader>
+                  <Table.ColumnHeader textAlign="right">Actions</Table.ColumnHeader>
+                </Table.Row>
+              </Table.Header>
 
-                <Table.Body>
-                    {filteredRequests.length === 0 ? (
-                        <Table.Row>
-                            <Table.Cell colSpan={6} textAlign="center" py={10} color="gray.500">
-                                No {activeTab.toLowerCase()} requests found.
-                            </Table.Cell>
-                        </Table.Row>
-                    ) : (
-                        filteredRequests.map((request) => (
-                        <Table.Row key={request.id}>
-                            <Table.Cell fontWeight="bold">
-                              {request.employee.last_name}, {request.employee.first_name}
-                            </Table.Cell>
-                            <Table.Cell>
-                                <VStack align="start" gap={0}>
-                                    <Text>{request.start_date} <Text as="span" color="gray.400">→</Text> {request.end_date}</Text>
-                                </VStack>
-                            </Table.Cell>
-                            <Table.Cell>
-                                <Badge variant="outline">{request.request_type}</Badge>
-                            </Table.Cell>
-                            <Table.Cell maxW="300px" truncate>
-                                {request.request_type || "-"}
-                            </Table.Cell>
-                            <Table.Cell>
-                                <Badge colorPalette={getStatusColor(request.status)} variant="subtle">
-                                    {request.status}
-                                </Badge>
-                            </Table.Cell>
-                            <Table.Cell textAlign="right">
-                                {request.status === "Pending" && (user.role === 'admin' || user.role === 'manager') ? (
-                                    <HStack justify="end" gap={2}>
-                                        <Tooltip content="Approve Request">
-                                            <Button
-                                              size="xs"
-                                              colorPalette="green"
-                                              variant="surface"
-                                              onClick={() => handleAction(request.id, "Approved")}
-                                            >
-                                              Approve
-                                            </Button>
-                                        </Tooltip>
-                                        <Tooltip content="Deny Request">
-                                            <Button
-                                              size="xs"
-                                              colorPalette="red"
-                                              variant="ghost"
-                                              onClick={() => handleAction(request.id, "Denied")}
-                                            >
-                                              Deny
-                                            </Button>
-                                        </Tooltip>
-                                    </HStack>
-                                ) : request.status === "Approved" && (user.role === 'admin' || user.role === 'manager') ? (
-                                    <Tooltip content="Rescind Approved Request">
-                                        <Button
-                                          size="xs"
-                                          colorPalette="orange"
-                                          variant="ghost"
-                                          onClick={() => {
-                                            setRequestToDeny(request.id);
-                                            setEmployeeNameToDeny(`${request.employee.first_name} ${request.employee.last_name}`);
-                                            setIsDenyModalOpen(true);
-                                          }}
-                                        >
-                                          Rescind
-                                        </Button>
-                                    </Tooltip>
-                                ) : (
-                                    <Text fontSize="xs" color="gray.400">
-                                      {request.status === "Pending" ? "Pending Review" : "Archived"}
-                                    </Text>
-                                )}
-                            </Table.Cell>
-                        </Table.Row>
-                        ))
-                    )}
-                </Table.Body>
-                </Table.Root>
+              <Table.Body>
+                {filteredRequests.length === 0 ? (
+                  <Table.Row>
+                      <Table.Cell colSpan={6} textAlign="center" py={10} color="gray.500">
+                          No {activeTab.toLowerCase()} requests found.
+                      </Table.Cell>
+                  </Table.Row>
+                ) : (
+                  filteredRequests.map((request) => {
+                    const canManage = user.role.toLowerCase() === 'admin' || user.role.toLowerCase() === 'manager';
+                    const isOwner = request.employee.id === user.employee_id;
+
+                    return (
+                      <Table.Row key={request.id}>
+                        <Table.Cell fontWeight="bold">
+                          {request.employee.last_name}, {request.employee.first_name}
+                        </Table.Cell>
+                        <Table.Cell>
+                            <VStack align="start" gap={0}>
+                                <Text>{request.start_date} <Text as="span" color="gray.400">→</Text> {request.end_date}</Text>
+                            </VStack>
+                        </Table.Cell>
+                        <Table.Cell>
+                            <Badge variant="outline">{request.request_type}</Badge>
+                        </Table.Cell>
+                        <Table.Cell maxW="300px" truncate>
+                            {request.request_type || "-"}
+                        </Table.Cell>
+                        <Table.Cell>
+                            <Badge colorPalette={getStatusColor(request.status)} variant="subtle">
+                                {request.status}
+                            </Badge>
+                        </Table.Cell>
+                        <Table.Cell textAlign="right">
+                          {request.status === "Pending" ? (
+                            <HStack justify="end" gap={2}>
+                              {canManage && (
+                                <>
+                                  <Tooltip content="Approve Request">
+                                    <Button
+                                      size="xs"
+                                      colorPalette="green"
+                                      variant="surface"
+                                      onClick={() => handleAction(request.id, "Approved")}
+                                    >
+                                      Approve
+                                    </Button>
+                                  </Tooltip>
+                                  <Tooltip content="Deny Request">
+                                    <Button
+                                      size="xs"
+                                      colorPalette="red"
+                                      variant="ghost"
+                                      onClick={() => handleAction(request.id, "Denied")}
+                                    >
+                                      Deny
+                                    </Button>
+                                  </Tooltip>
+                                </>
+                              )}
+                                {!canManage && isOwner && (
+                                  <Tooltip content="Cancel Request">
+                                    <Button
+                                      size="xs"
+                                      colorPalette="red"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setRequestToCancel(request.id);
+                                        setIsCancelModalOpen(true);
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </Tooltip>
+                              )}
+                            </HStack>
+                          ) : request.status === "Approved" && canManage ? (
+                            <Tooltip content="Rescind Approved Request">
+                                <Button
+                                  size="xs"
+                                  colorPalette="orange"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setRequestToDeny(request.id);
+                                    setEmployeeNameToDeny(`${request.employee.first_name} ${request.employee.last_name}`);
+                                    setIsDenyModalOpen(true);
+                                  }}
+                                >
+                                  Rescind
+                                </Button>
+                            </Tooltip>
+                          ) : (
+                            <Text fontSize="xs" color="gray.400">
+                              {request.status === "Pending" ? "Pending Review" : "Archived"}
+                            </Text>
+                          )}
+                        </Table.Cell>
+                      </Table.Row>
+                    );
+                  })
+                )}
+              </Table.Body>
+              </Table.Root>
             </Table.ScrollArea>
           ) : (
             <VStack align="stretch" h="100%">
@@ -469,6 +495,17 @@ const RequestPage = () => {
           }
         }}
       />
+
+      <ConfirmRequestCancelModal
+        isOpen={isCancelModalOpen}
+        onOpenChange={(e) => setIsCancelModalOpen(e.open)}
+        requestId={requestToCancel}
+        onCancelSuccess={() => {
+          if (requestToCancel) {
+            setRequests(prev => prev.filter(req => req.id !== requestToCancel));
+          }
+        }}
+/>
     </Box>
   );
 };

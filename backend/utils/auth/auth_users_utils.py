@@ -7,7 +7,6 @@ auth_users_utils.py
 Utilities for creating/authenticating users safely.
 """
 
-import re
 from datetime import timezone, datetime
 from typing import Optional, Annotated
 
@@ -20,45 +19,36 @@ from utils.auth.auth_utils import verify_password
 from utils.auth.auth_tokens_utils import get_current_token, get_token_data
 
 
-def get_user(identifier: str, session: Session) -> Optional[User]:
+def get_user(email: str, session: Session) -> Optional[User]:
     """
-    Retrieve a user from the database using either their username OR email.
-
-    This function automatically detects if the identifier is an email address
-    and adjusts the database query accordingly.
+    Retrieve a user from the database using their email.
 
     Args:
-        identifier (str): The username or email string.
+        email (str): Email string.
         session (Session): The active database session.
 
     Returns:
         Optional[User]: The User object if found, otherwise None.
     """
-    # Regex for matching an email.
-    email_regex = r"^\S+@\S+\.\S+$"
-
-    statement = select(User).where(
-        User.email == identifier if re.match(email_regex, identifier)
-        else User.username == identifier
-    )
+    statement = select(User).where(User.email == email)
 
     user = session.exec(statement).one_or_none()
     return user
 
 
-def get_authenticated_user(identifier: str, password: str, session: Session) -> Optional[User]:
+def get_authenticated_user(email: str, password: str, session: Session) -> Optional[User]:
     """
     Authenticate a user by verifying their password.
 
     Args:
-        identifier (str): Username or email.
+        email (str): Email.
         password (str): The raw (unhashed) password to verify.
         session (Session): The active database session.
 
     Returns:
         Optional[User]: The authenticated User object if credentials are valid, else None.
     """
-    user = get_user(identifier, session)
+    user = get_user(email, session)
 
     if not user:
         return None
@@ -100,7 +90,7 @@ def get_current_user(
         return None
 
     token_data = get_token_data(token, "access")
-    user = get_user(token_data.username, session)
+    user = get_user(token_data.email, session)
 
     if user is None:
         raise HTTPException(
@@ -133,3 +123,26 @@ def get_current_active_user(
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Inactive user")
+
+
+def require_admin(
+        current_user: Annotated[User, Depends(get_current_active_user)]
+) -> User:
+    """
+    FastAPI Dependency: Retrieve the current user AND ensure they are an 'admin'.
+
+    Args:
+        current_user (User): The user resolved by `get_current_active_user`.
+
+    Returns:
+        User: The admin user object.
+
+    Raises:
+        HTTPException (403): If the user account is not an admin.
+    """
+    if current_user.role == "admin":
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admin privileges required"
+    )

@@ -20,7 +20,7 @@ from database.models.position import PositionRequirement
 from schemas.generic_schemas import MessageResponse
 from schemas.position_schemas import PositionAddRequest, PositionDeleteRequest, \
     PositionQueryResponse, PositionRequirementRead, PositionRequirementCreate, PositionWithRequirementsRead
-from utils.auth.auth_users_utils import get_current_active_user
+from utils.auth.auth_users_utils import require_admin, get_current_active_user
 
 router = APIRouter()
 
@@ -41,7 +41,7 @@ async def route_list_positions(
         List[PositionQueryResponse]: A list of position objects.
     """
     statement = (
-        select(Position, User.username)
+        select(Position, User.email)
         .where(Position.is_active == True)
         .join(User, Position.created_by == User.id, isouter=True)
         .options(
@@ -100,8 +100,7 @@ async def route_get_position(
     position = session.exec(statement).one_or_none()
     if position is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Position not found",
-                            headers={"WWW-Authenticate": "Bearer"})
+                            detail="Position not found")
 
     return position
 
@@ -109,7 +108,7 @@ async def route_get_position(
 @router.post('/positions/add')
 async def route_add_position(
         data: PositionAddRequest,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ) -> PositionQueryResponse:
     """
@@ -120,7 +119,7 @@ async def route_add_position(
 
     Args:
         data (PositionAddRequest): The payload containing name and description.
-        user (User): The currently authenticated user (creator).
+        admin (User): The currently authenticated user (creator).
         session (Session): Database session dependency.
 
     Returns:
@@ -130,14 +129,14 @@ async def route_add_position(
 
     if session.exec(statement).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="Position already exists",
-                            headers={"WWW-Authenticate": "Bearer"})
+                            detail="Position already exists"
+                            )
 
     position = Position(
         name=data.name,
         description=data.description,
         color=data.color,
-        created_by=user.id
+        created_by=admin.id
     )
 
     session.add(position)
@@ -150,14 +149,14 @@ async def route_add_position(
         description=position.description,
         color=position.color,
         created_at=position.created_at,
-        created_by=user.username
+        created_by=admin.email
     )
 
 @router.patch("/positions/{position_id}/update")
 async def route_update_position(
         position_id: int,
         data: PositionAddRequest,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -166,7 +165,7 @@ async def route_update_position(
     Args:
         position_id (int): The ID of the position to update.
         data (PositionAddRequest): The updated details.
-        user (User): Authentication dependency.
+        admin (User): Authentication dependency.
         session (Session): Database session dependency.
 
     Returns:
@@ -197,13 +196,13 @@ async def route_update_position(
         description=position.description,
         color=position.color,
         created_at=position.created_at,
-        created_by=user.username
+        created_by=admin.email
     )
 
 @router.post('/positions/delete')
 async def route_delete_position(
         data: List[PositionDeleteRequest],
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -211,7 +210,7 @@ async def route_delete_position(
 
     Args:
         data (List[PositionDeleteRequest]): A list of objects containing IDs to delete.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
     """
     ids_to_delete = [req.id for req in data]
@@ -233,7 +232,7 @@ async def route_delete_position(
 def create_position_requirement(
         position_id: int,
         req_in: PositionRequirementCreate,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """Map a time block to a position with specific rules."""
@@ -256,7 +255,7 @@ def create_position_requirement(
 def delete_position_requirement(
         position_id: int,
         req_id: int,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """Remove a shift mapping from a position."""

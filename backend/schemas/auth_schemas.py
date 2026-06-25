@@ -20,7 +20,7 @@ class Token(BaseModel):
     Note: The refresh_token is NOT included here as it is securely set
     as an HTTP-only cookie, not returned in the JSON body.
     """
-    username: str
+    email: str
     access_token: str
 
 
@@ -29,20 +29,18 @@ class TokenData(BaseModel):
     Internal model representing the decoded claims of a JWT.
 
     Used during token verification to ensure the token contains a valid
-    sub (subject/username) and expiration timestamp.
+    sub (subject/email) and expiration timestamp.
     """
-    username: Optional[str]
-    expiration: Optional[int]
+    email: str
+    expiration: int
 
 
 class RegisterRequest(BaseModel):
     """
     Request model for new user registration.
 
-    Validates that the client provides all necessary fields to create
-    a functioning user account before hitting the database logic.
+    Validates fields for creating a new account along with verifying a
+    valid invite token.
     """
-    username: str
-    email: str
-    role: Optional[str]
+    token: str
     password: str

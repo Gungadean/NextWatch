@@ -24,7 +24,7 @@ export const convertToLocalTime = (timeString: string) => {
     date = new Date(timeString);
   }
 
-  return date.toLocaleString();
+  return date.toLocaleString("en-US");
 }
 
 /**

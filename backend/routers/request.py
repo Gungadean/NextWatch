@@ -18,9 +18,9 @@ from starlette import status
 from database.models import User, TimeOffRequest
 from schemas.generic_schemas import MessageResponse
 from schemas.request_schemas import TimeOffAddRequest, TimeOffResponsePublic
-from utils.auth.auth_users_utils import get_current_active_user
+from utils.auth.auth_users_utils import get_current_active_user, require_admin
 from database.database import get_session
-from utils.request.request_utils import sanitize_request
+from utils.request.request_utils import sanitize_request, sanitize_requests
 
 router = APIRouter()
 
@@ -44,7 +44,7 @@ async def route_list_requests(
 
     requests = session.exec(stmt).all()
 
-    return [sanitize_request(request, user, session) for request in requests]
+    return sanitize_requests(requests, user, session)
 
 
 @router.post("/requests/add", response_model=TimeOffResponsePublic)
@@ -67,7 +67,16 @@ async def route_add_request(
 
     Raises:
         HTTPException (400): If a conflicting request exists in the given date range.
+        HTTPException (403): If a non-admin user tries to submit for someone else.
     """
+    # Enforce RBAC: Only admins can submit for other employees
+    user_emp_id = user.employee.id if user.employee else None
+    if user.role != "admin" and user_emp_id != data.employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only submit time off requests for yourself."
+        )
+
     # Check for any request overlaps for current employee
     stmt = select(func.count()).where(TimeOffRequest.employee_id == data.employee_id,
                                         TimeOffRequest.start_date <= data.end_date,
@@ -97,7 +106,7 @@ async def route_add_request(
 
     loaded_request = session.exec(fetch_stmt).one()
 
-    return sanitize_request(loaded_request, user, session)
+    return loaded_request
 
 
 @router.delete("/requests/{request_id}/delete")
@@ -116,12 +125,24 @@ async def route_delete_request(
 
     Returns:
         MessageResponse: A confirmation message.
+
+    Raises:
+        HTTPException (404): If the request is not found.
+        HTTPException (403): If a non-admin user tries to delete someone else's request.
     """
     stmt = select(TimeOffRequest).where(TimeOffRequest.id == request_id)
     request = session.exec(stmt).one_or_none()
 
     if not request:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
+
+    # Enforce RBAC: Only admins can delete for other employees
+    user_emp_id = user.employee.id if user.employee else None
+    if user.role != "admin" and user_emp_id != request.employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own time off requests."
+        )
 
     session.delete(request)
     session.commit()
@@ -155,13 +176,13 @@ async def route_get_request(
     if not request:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request not found")
 
-    return sanitize_request(request, user, session)
+    return sanitize_request(request) if request.status != "Denied" else None
 
 
 @router.patch("/requests/{request_id}/approve", response_model=TimeOffResponsePublic)
 async def route_approve_request(
         request_id: int,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -169,7 +190,7 @@ async def route_approve_request(
 
     Args:
         request_id (int): The ID of the request to be approved.
-        user (User): The currently authenticated user (dependency injection).
+        admin (User): The currently authenticated admin (dependency injection).
         session (Session): Database session dependency.
 
     Returns:
@@ -195,13 +216,13 @@ async def route_approve_request(
 
     loaded_request = session.exec(fetch_stmt).one()
 
-    return sanitize_request(loaded_request, user, session)
+    return loaded_request
 
 
 @router.patch("/requests/{request_id}/deny", response_model=TimeOffResponsePublic)
 async def route_deny_request(
         request_id: int,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -209,7 +230,7 @@ async def route_deny_request(
 
     Args:
         request_id (int): The ID of the request to be denied.
-        user (User): The currently authenticated user (dependency injection).
+        admin (User): The currently authenticated user (dependency injection).
         session (Session): Database session dependency.
 
     Returns:
@@ -233,4 +254,4 @@ async def route_deny_request(
 
     loaded_request = session.exec(fetch_stmt).one()
 
-    return sanitize_request(loaded_request, user, session)
+    return loaded_request

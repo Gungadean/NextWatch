@@ -43,3 +43,4 @@ class TimeOffResponsePublic(BaseModel):
     end_date: date
     status: str
     request_type: Optional[str] = None
+    #reason: Optional[str] = None

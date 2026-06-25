@@ -28,4 +28,5 @@ __pycache__
 data
 docker-compose.yml
 database*.db
+.venv
 .aiexclude

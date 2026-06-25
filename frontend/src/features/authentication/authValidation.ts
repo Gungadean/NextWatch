@@ -12,7 +12,6 @@ import type {AuthRequest} from "./authApi.ts";
  */
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const usernameRegex = /^[a-zA-Z0-9_]+$/;
 
 /**
  * Payload we send to /auth/register login.
@@ -20,13 +19,12 @@ const usernameRegex = /^[a-zA-Z0-9_]+$/;
 export interface AuthSignInData {
   identifier: string;
   password: string;
-  type: "username" | "email";
 }
 /**
  * Payload we send to /auth/register for creating a new user.
  */
 export interface AuthSignUpData {
-  username: string;
+  token: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -38,36 +36,6 @@ export interface AuthSignUpData {
 export interface PasswordUpdateData {
   password: string;
   confirmPassword: string;
-}
-
-/**
- * Use regexes to determine if login is of type username or email.
- */
-export const determineLoginType = (login: string) => {
-  const trimmed_login = login.trim();
-
-  if (emailRegex.test(trimmed_login)) {
-    return "email";
-  } else {
-    return "username";
-  }
-}
-
-/**
- * Validate a username against regex to ensure only allowed characters are used.
- */
-export const validateUsername = (username: string) => {
-  const errors: Record<string, string> = {};
-
-  if (!username) {
-    errors.username = "Username is required";
-  }
-
-  if (!usernameRegex.test(username)) {
-    errors.username = "Invalid characters. Please use only the following: a-zA-Z0-9_";
-  }
-
-  return errors;
 }
 
 /**
@@ -94,11 +62,7 @@ export const validateSignIn = (data: AuthRequest) => {
   let errors: Record<string, string> = {};
   const identifier = data.identifier.trim();
 
-  if (determineLoginType(identifier) === "email") {
-      errors = {...errors, ...validateEmail(identifier)};
-  } else {
-      errors = {...errors, ...validateUsername(identifier)};
-  }
+  errors = {...errors, ...validateEmail(identifier)};
 
   if (!data.password) {
     errors.password = "Password is required";
@@ -130,11 +94,9 @@ export const validatePasswords = (data: PasswordUpdateData) => {
  */
 export const validateSignUp = (data: AuthSignUpData) => {
   let errors: Record<string, string> = {};
-  const trimmed_user = data.username.trim();
   const trimmed_email = data.email.trim();
 
   errors = {...errors, ...validateEmail(trimmed_email)};
-  errors = {...errors, ...validateUsername(trimmed_user)};
   errors = {...errors, ...validatePasswords({password: data.password, confirmPassword: data.confirmPassword})}
 
   return errors;

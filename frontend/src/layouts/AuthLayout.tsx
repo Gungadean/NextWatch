@@ -10,17 +10,18 @@
  * (Login and Registration).
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Flex,
   Box,
   Stack,
-  Heading, IconButton,
+  Heading,
+  IconButton,
 } from '@chakra-ui/react';
-import {useColorMode, useColorModeValue} from "../components/ui/color-mode.tsx";
-import {LuMoon, LuSun} from "react-icons/lu";
-import {useAuth} from "@/hooks/useAuth.ts";
-import {useNavigate} from "react-router";
+import { useColorMode, useColorModeValue } from "../components/ui/color-mode.tsx";
+import { LuMoon, LuSun } from "react-icons/lu";
+import { useAuth } from "@/hooks/useAuth.ts";
+import { useNavigate } from "react-router";
 
 /**
  * Props for the AuthLayout wrapper.
@@ -36,14 +37,17 @@ interface AuthLayoutProps {
  */
 export const AuthLayout = ({ title, children }: AuthLayoutProps) => {
   const { toggleColorMode, colorMode } = useColorMode();
-  const {isAuthenticated} = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  if (isAuthenticated) {
-    navigate("/");
-  }
+  // Redirect authenticated users away from auth pages
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/");
+    }
+  }, [isAuthenticated, navigate]);
 
-  const cardBackground = useColorModeValue("white", "gray.900");
+  const cardBackground: string = useColorModeValue("white", "gray.900");
 
   return (
     <Flex
@@ -60,7 +64,6 @@ export const AuthLayout = ({ title, children }: AuthLayoutProps) => {
         </IconButton>
       </Box>
 
-      {/* Main Content Container */}
       <Stack gap="8" mx="auto" maxW="lg" paddingY="12" paddingX="6">
         <Stack align="center">
           <Heading size="2xl">{title}</Heading>

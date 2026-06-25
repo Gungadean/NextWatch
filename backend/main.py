@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
 
 from database.database import engine
-from routers import auth, account, position, employee, schedule, request, template
+from routers import auth, account, position, employee, schedule, request, template, user, invite
 
 from config.config import settings
 from utils.tests.seed_data import seed_database, create_default_admin
@@ -81,6 +81,8 @@ app.include_router(template.router, prefix=prefix)
 app.include_router(employee.router, prefix=prefix)
 app.include_router(schedule.router, prefix=prefix)
 app.include_router(request.router, prefix=prefix)
+app.include_router(user.router, prefix=prefix)
+app.include_router(invite.router, prefix=prefix)
 
 app.add_middleware(
     CORSMiddleware,

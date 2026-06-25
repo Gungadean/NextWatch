@@ -35,7 +35,6 @@ async def route_info_user(user: User = Depends(get_current_active_user)) -> Acco
     emp_id = user.employee.id if user.employee else None
 
     return AccountDataResponse(
-        username=user.username,
         email=user.email,
         role=user.role,
         employee_id=emp_id,
@@ -62,7 +61,7 @@ async def route_reset_password(
         HTTPException (400): If the update operation fails.
     """
     # Verify current password before proceeding
-    user = get_authenticated_user(user.username, data.current_password, session)
+    user = get_authenticated_user(user.email, data.current_password, session)
 
     if user is None:
         raise HTTPException(

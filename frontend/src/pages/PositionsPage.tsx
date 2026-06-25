@@ -7,7 +7,8 @@
  * PositionsPage.tsx
  *
  * Content page for displaying the list of Watch Stations (Positions).
- * Allows users to create, view, and delete positions.
+ * Allows Admins and Managers to create, view, edit, and delete positions.
+ * Standard users have read-only visibility to understand available roles.
  */
 
 import {
@@ -30,13 +31,14 @@ import {
   updatePosition,
   type PositionWithRequirementsRead
 } from "../features/position/positionApi.ts";
-import {useEffect, useState} from "react";
-import {convertToLocalTime} from "../utils/timeUtils.ts";
+import { useEffect, useState } from "react";
+import { convertToLocalTime } from "../utils/timeUtils.ts";
 import ConfirmPositionDeletionModal from "../features/position/components/ConfirmPositionDeletionModal.tsx";
-import {useColorModeValue} from "@/components/ui/color-mode.tsx";
-import {toaster} from "@/components/ui/toaster.tsx";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { useColorModeValue } from "@/components/ui/color-mode.tsx";
+import { toaster } from "@/components/ui/toaster.tsx";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
 import PositionModal from "@/features/position/components/PositionModal.tsx";
+import { useCurrentUser } from "@/hooks/useAuth.ts";
 
 /**
  * Main Layout for the Positions (Watch Stations) Management Page.
@@ -51,6 +53,9 @@ const PositionsPage = () => {
   const [isModalOpen, setModalOpen] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState<PositionWithRequirementsRead | null>(null);
   const [isConfirmDeletionModalOpen, setConfirmDeletionModalOpen] = useState(false);
+
+  const currentUser = useCurrentUser();
+  const canEdit = currentUser.role.toLowerCase() === 'admin' || currentUser.role.toLowerCase() === 'manager';
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -68,7 +73,6 @@ const PositionsPage = () => {
         const data = await getPositionList();
         setPositions(data);
       } catch (error: unknown) {
-        console.error("Failed to load positions:", error);
         toaster.create({
             title: "Data Load Error",
             description: getErrorMessage(error, "Could not retrieve positions."),
@@ -102,6 +106,7 @@ const PositionsPage = () => {
    * Handle clicking on a positions row.
    */
   const handleRowClick = (position: PositionWithRequirementsRead) => {
+    if (!canEdit) return;
     setSelectedPosition(position);
     setModalOpen(true);
   };
@@ -118,7 +123,7 @@ const PositionsPage = () => {
     );
   }
 
-return (
+  return (
     <Box bg={pageBg} h="calc(100vh - 64px)" p={6} overflow="hidden">
       <VStack gap={4} h="100%" align="stretch">
 
@@ -151,18 +156,22 @@ return (
             />
 
             {/* Action Buttons */}
-            <Button
-                size="sm"
-                colorPalette="red"
-                variant="surface"
-                disabled={selection.length === 0}
-                onClick={() => setConfirmDeletionModalOpen(true)}
-            >
-              Delete ({selection.length})
-            </Button>
-            <Button size="sm" colorPalette="blue" onClick={() => setModalOpen(true)}>
-              Add Position
-            </Button>
+            {canEdit && (
+              <>
+                <Button
+                    size="sm"
+                    colorPalette="red"
+                    variant="surface"
+                    disabled={selection.length === 0}
+                    onClick={() => setConfirmDeletionModalOpen(true)}
+                >
+                  Delete ({selection.length})
+                </Button>
+                <Button size="sm" colorPalette="blue" onClick={() => setModalOpen(true)}>
+                  Add Position
+                </Button>
+              </>
+            )}
           </HStack>
         </Flex>
 
@@ -177,10 +186,10 @@ return (
           shadow="sm"
         >
           <Table.ScrollArea h="100%">
-            <Table.Root size="sm" stickyHeader interactive>
+            <Table.Root size="sm" stickyHeader interactive={canEdit}>
               <Table.Header>
                 <Table.Row bg={headerBg}>
-                  <Table.ColumnHeader w="50px" /> {/* Checkbox Column */}
+                  {canEdit && <Table.ColumnHeader w="50px" />} {/* Checkbox Column */}
                   <Table.ColumnHeader>Name</Table.ColumnHeader>
                   <Table.ColumnHeader>Color</Table.ColumnHeader>
                   <Table.ColumnHeader>Description</Table.ColumnHeader>
@@ -192,7 +201,7 @@ return (
               <Table.Body>
                 {filteredPositions.length === 0 ? (
                      <Table.Row>
-                        <Table.Cell colSpan={6} textAlign="center" color="gray.500" py={10}>
+                        <Table.Cell colSpan={canEdit ? 6 : 5} textAlign="center" color="gray.500" py={10}>
                             No positions found.
                         </Table.Cell>
                      </Table.Row>
@@ -200,22 +209,24 @@ return (
                     filteredPositions.map((item) => (
                       <Table.Row
                         key={item.id}
-                        cursor="pointer"
+                        cursor={canEdit ? "pointer" : "default"}
                         onClick={() => handleRowClick(item)}
-                        _hover={{ bg: rowHoverBg }}
+                        _hover={canEdit ? { bg: rowHoverBg } : undefined}
                         transition="background 0.2s"
                       >
-                        <Table.Cell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox.Root
-                            size="sm"
-                            aria-label={`Select ${item.name}`}
-                            checked={selection.includes(item.id)}
-                            onCheckedChange={(e) => handleSelectionChange(item.id, !!e.checked)}
-                          >
-                              <Checkbox.HiddenInput />
-                              <Checkbox.Control />
-                          </Checkbox.Root>
-                        </Table.Cell>
+                        {canEdit && (
+                          <Table.Cell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox.Root
+                              size="sm"
+                              aria-label={`Select ${item.name}`}
+                              checked={selection.includes(item.id)}
+                              onCheckedChange={(e) => handleSelectionChange(item.id, !!e.checked)}
+                            >
+                                <Checkbox.HiddenInput />
+                                <Checkbox.Control />
+                            </Checkbox.Root>
+                          </Table.Cell>
+                        )}
 
                         <Table.Cell fontWeight="bold">{item.name}</Table.Cell>
 
@@ -239,42 +250,46 @@ return (
       </VStack>
 
       {/* Modals */}
-      <PositionModal
-        isOpen={isModalOpen}
-        onOpenChange={(open) => {
-            setModalOpen(open);
-            if (!open) setSelectedPosition(null);
-        }}
-        position={selectedPosition}
-        onSave={async (payload, id) => {
-          if (id) {
-            // Edit Flow
-            const updatedRecord = await updatePosition(id, payload);
-            setPositions(positions.map(p => p.id === id ? { ...p, ...updatedRecord } : p));
-            toaster.create({ title: "Position Updated", type: "success" });
-          } else {
-            // Add Flow
-            const newRecord = await addPosition(payload);
-            setPositions([...positions, { ...newRecord, requirements: [] }]);
-            toaster.create({ title: "Position Created", type: "success" });
-          }
-        }}
-        onDelete={(id) => {
-          setSelection([id]);
-          setConfirmDeletionModalOpen(true);
-        }}
-      />
+      {canEdit && (
+        <>
+          <PositionModal
+            isOpen={isModalOpen}
+            onOpenChange={(open) => {
+                setModalOpen(open);
+                if (!open) setSelectedPosition(null);
+            }}
+            position={selectedPosition}
+            onSave={async (payload, id) => {
+              if (id) {
+                // Edit Flow
+                const updatedRecord = await updatePosition(id, payload);
+                setPositions(positions.map(p => p.id === id ? { ...p, ...updatedRecord } : p));
+                toaster.create({ title: "Position Updated", type: "success" });
+              } else {
+                // Add Flow
+                const newRecord = await addPosition(payload);
+                setPositions([...positions, { ...newRecord, requirements: [] }]);
+                toaster.create({ title: "Position Created", type: "success" });
+              }
+            }}
+            onDelete={(id) => {
+              setSelection([id]);
+              setConfirmDeletionModalOpen(true);
+            }}
+          />
 
-      <ConfirmPositionDeletionModal
-        isOpen={isConfirmDeletionModalOpen}
-        onOpenChange={(e) => setConfirmDeletionModalOpen(e.open)}
-        selection={selection}
-        positions={positions}
-        onPositionsChange={(newPositions) => {
-            setPositions(newPositions);
-            setSelection([]);
-        }}
-      />
+          <ConfirmPositionDeletionModal
+            isOpen={isConfirmDeletionModalOpen}
+            onOpenChange={(e) => setConfirmDeletionModalOpen(e.open)}
+            selection={selection}
+            positions={positions}
+            onPositionsChange={(newPositions) => {
+                setPositions(newPositions);
+                setSelection([]);
+            }}
+          />
+        </>
+      )}
     </Box>
   );
 };

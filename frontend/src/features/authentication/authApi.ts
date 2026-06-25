@@ -45,7 +45,6 @@ export const clearAuthData = () => {
  */
 export interface AuthRequest {
   identifier: string;
-  type: string;
   password: string;
 }
 
@@ -54,7 +53,7 @@ export interface AuthRequest {
  * If successful, access_token should exist (and be stored in memory).
  */
 export interface AuthResponse {
-  username: string;
+  email: string;
   message: string;
   access_token: string;
 }
@@ -63,8 +62,7 @@ export interface AuthResponse {
  * Payload for registering a new user.
  */
 export interface RegisterRequest {
-  username: string;
-  email: string;
+  token: string;
   password: string;
 }
 
@@ -82,6 +80,18 @@ export const registerUser = async (data: RegisterRequest): Promise<AuthResponse>
     return response.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Registration failed"));
+  }
+};
+
+/**
+ * Take invite token and validate it against the backend for a valid invite.
+ */
+export const validateInviteToken = async (token: string) => {
+  try {
+    const response = await axiosInstance.get(`/invites/validate/${token}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, "Invalid or expired token"));
   }
 };
 

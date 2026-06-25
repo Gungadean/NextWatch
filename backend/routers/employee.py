@@ -18,7 +18,8 @@ from database.database import get_session
 from database.models import Employee, Position, User
 from schemas.employee_schemas import EmployeeAddRequest, EmployeeDeleteRequest, EmployeeReadWithTimeOff
 from schemas.generic_schemas import MessageResponse
-from utils.auth.auth_users_utils import get_current_active_user
+from utils.auth.auth_users_utils import get_current_active_user, require_admin
+from utils.request.request_utils import sanitize_request
 
 router = APIRouter()
 
@@ -56,6 +57,10 @@ async def route_read_employees(
     if not include_time_off:
         for employee in employees:
             employee.time_off_requests = []
+    else:
+        for employee in employees:
+            for time_off_request in employee.time_off_requests:
+                sanitize_request(time_off_request, user, session)
 
     return employees
 
@@ -96,13 +101,17 @@ async def route_get_employee(
             detail="Employee not found",
             headers={"WWW-Authenticate": "Bearer"}
         )
+
+    for time_off_request in employee.time_off_requests:
+        sanitize_request(time_off_request, user, session)
+
     return employee
 
 
 @router.post("/employees/add", response_model=EmployeeReadWithTimeOff)
 async def route_add_employee(
         data: EmployeeAddRequest,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ) -> Employee:
     """
@@ -110,7 +119,7 @@ async def route_add_employee(
 
     Args:
         data (EmployeeAddRequest): Data for new employee to be added.
-        user (User): Authentication dependency.
+        admin (User): Authentication dependency requiring admin role.
         session (Session): Database session dependency.
 
     Returns:
@@ -128,8 +137,7 @@ async def route_add_employee(
 
     if session.exec(statement).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail="Employee already exists",
-                            headers={"WWW-Authenticate": "Bearer"})
+                            detail="Employee already exists")
 
     position_statement = select(Position).where(Position.id.in_(data.positions))
     positions_to_link = session.exec(position_statement).all()
@@ -168,7 +176,7 @@ async def route_add_employee(
 async def route_update_employee(
         employee_id: int,
         data: EmployeeAddRequest,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -177,7 +185,7 @@ async def route_update_employee(
     Args:
         employee_id (int): The ID of the employee to update.
         data (EmployeeUpdateRequest): The updated details.
-        user (User): Authentication dependency.
+        admin (User): Authentication dependency requiring admin role.
         session (Session): Database session dependency.
 
     Returns:
@@ -238,14 +246,14 @@ async def route_update_employee(
 @router.post("/employees/delete")
 async def route_delete_employees(
         data: List[EmployeeDeleteRequest],
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)):
     """
     Delete one or more employees.
 
     Args:
         data (List[EmployeeDeleteRequest]): List of objects containing IDs to delete.
-        user (User): Authentication dependency.
+        admin (User): Authentication dependency requiring admin role.
         session (Session): Database session dependency.
 
     Returns:

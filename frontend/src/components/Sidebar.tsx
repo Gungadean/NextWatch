@@ -24,6 +24,7 @@ import {
 } from "react-icons/lu";
 import {useState} from "react";
 import {Footer} from "@/components/Footer.tsx";
+import {useCurrentUser} from "@/hooks/useAuth.ts";
 
 /**
  * Configuration for sidebar navigation links.
@@ -34,15 +35,17 @@ const LINK_ITEMS = [
   {
     name: 'Schedule Tools',
     icon: LuCalendar,
+    adminOnly: true,
     subItems: [
       { name: 'Schedule Generator', path: '/builder' },
       { name: 'Template Settings', path: '/templates' }
     ]
   },
-  { name: 'Leave Requests', icon: LuClock, path: '/requests' },
+  { name: 'Time-Off Requests', icon: LuClock, path: '/requests' },
   { name: 'Personnel', icon: LuUsers, path: '/personnel' },
   { name: 'Positions', icon: LuAward, path: '/positions' },
-  { name: 'Settings', icon: LuSettings, path: '/settings' },
+  { name: 'User Management', icon: LuUsers, path: '/users', adminOnly: true },
+  { name: 'Settings', icon: LuSettings, path: '/settings', adminOnly: true },
 ];
 
 /**
@@ -51,6 +54,7 @@ const LINK_ITEMS = [
 const Sidebar = () => {
   const [isPinned, setIsPinned] = useState(false); // Defaults to slim mode
   const [isHovered, setIsHovered] = useState(false);
+  const currentUser = useCurrentUser();
 
   const isExpanded = isPinned || isHovered;
 
@@ -108,7 +112,7 @@ const Sidebar = () => {
 
           {/* Navigation Links */}
           <VStack align="stretch" gap={2}>
-            {LINK_ITEMS.map((link) => (
+            {LINK_ITEMS.filter(link => !link.adminOnly || currentUser.role === 'admin').map((link) => (
               <SidebarItem
                 key={link.name}
                 icon={link.icon}

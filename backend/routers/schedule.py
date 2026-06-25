@@ -26,7 +26,7 @@ from ewatchbill.logic.evaluate_schedule import evaluate_draft_schedule, Validati
 from ewatchbill.logic.exceptions.IllegalScheduleException import IllegalScheduleException
 from schemas.schedule_schemas import ScheduleRequest, EmployeeShiftRequest, ScheduleDraftSummaryRequest, \
     DraftWatchstation, DraftWatchstander, DraftAssignment
-from utils.auth.auth_users_utils import get_current_active_user
+from utils.auth.auth_users_utils import get_current_active_user, require_admin
 from utils.schedule.schedule_builder import build_watchbill_params, merge_draft_assignments
 from ewatchbill.schedule_message_generator import schedule_message_generator
 from ewatchbill.models import WatchbillResponse, Assignment
@@ -199,7 +199,7 @@ async def sse_generator(
 async def generate_schedule(
         request_data: ScheduleRequest,
         request: Request,
-        user: User = Depends(get_current_active_user)
+        admin: User = Depends(require_admin)
 ):
     """
     Initiate the schedule generation process.
@@ -211,7 +211,7 @@ async def generate_schedule(
     Args:
         request_data (ScheduleRequest): The schedule generation parameters.
         request (Request): The incoming request object.
-        user (User): The current active user object.
+        admin (User): The current active user object.
 
     Returns:
         StreamingResponse: A stream of SSE events.
@@ -255,7 +255,7 @@ async def generate_schedule(
 
 @router.get("/schedule/drafts", response_model=List[ScheduleDraftSummaryRequest])
 async def get_schedule_drafts(
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -263,6 +263,7 @@ async def get_schedule_drafts(
     Ordered by creation date (newest first).
 
     Args:
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
 
     Returns:
@@ -305,7 +306,7 @@ async def get_schedule_draft(
 @router.post("/schedule/drafts/{uuid_str}/publish")
 async def route_publish_draft(
         uuid_str: str,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -314,7 +315,7 @@ async def route_publish_draft(
 
     Args:
         uuid_str (str): The UUID of the draft to publish.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
 
     Raises:
@@ -381,7 +382,7 @@ async def route_publish_draft(
 async def route_update_draft(
         uuid_str: str,
         data: List[dict],
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -390,7 +391,7 @@ async def route_update_draft(
     Args:
         uuid_str (str): The UUID of the draft to publish.
         data (ScheduleDraft): The updated draft data.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
 
     Raises:
@@ -416,7 +417,7 @@ async def regenerate_schedule(
         uuid_str: str,
         request_data: ScheduleRequest,
         request: Request,
-        user: User = Depends(get_current_active_user)
+        admin: User = Depends(require_admin)
 ):
     """
     This router takes an existing schedule and regenerates only for the user selected dates
@@ -430,7 +431,7 @@ async def regenerate_schedule(
         uuid_str (str): The UUID of the draft to regenerated.
         request_data (ScheduleRequest): The schedule generation parameters.
         request (Request): The incoming request object.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
 
     Returns:
         StreamingResponse: A stream of SSE events.
@@ -477,7 +478,7 @@ async def regenerate_schedule(
 @router.delete("/schedule/drafts/{uuid_str}/delete")
 async def route_delete_draft(
         uuid_str: str,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -485,7 +486,7 @@ async def route_delete_draft(
 
     Args:
         uuid_str (str): The UUID of the draft to regenerated.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
     """
     delete_statement = delete(ScheduleDraft).where(ScheduleDraft.public_id == uuid.UUID(uuid_str))
@@ -497,7 +498,7 @@ async def route_delete_draft(
 async def update_live_schedule_day(
         date_str: str,
         assignments: list[dict],
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -506,7 +507,7 @@ async def update_live_schedule_day(
     Args:
         date_str (str): Date string for the day to be replaced.
         assignments (list[dict]): The list of new assignments for that day.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
     """
     target_date = datetime.fromisoformat(date_str).date()
@@ -550,7 +551,7 @@ async def update_live_schedule_day(
 async def regenerate_live_days(
         request_data: LiveRegenRequest,
         request: Request,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -560,7 +561,7 @@ async def regenerate_live_days(
     Args:
         request_data (LiveRegenRequest): Dates to be regenerated.
         request (Request): The incoming request object.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
 
     Returns:
@@ -689,7 +690,7 @@ async def regenerate_live_days(
 @router.post("/schedule/validate", response_model=ValidationResponse)
 async def validate_schedule(
         request: ValidationRequest,
-        user: User = Depends(get_current_active_user),
+        admin: User = Depends(require_admin),
         session: Session = Depends(get_session)
 ):
     """
@@ -699,7 +700,7 @@ async def validate_schedule(
 
     Args:
         request (ValidationRequest): The schedule generation parameters.
-        user (User): The currently authenticated user.
+        admin (User): The currently authenticated user.
         session (Session): Database session dependency.
 
     Returns:

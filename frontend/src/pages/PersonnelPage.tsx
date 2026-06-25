@@ -8,12 +8,13 @@
  *
  * The primary management interface for Employee records.
  * Displays a searchable, selectable table of all personnel and provides
- * access to Add/Delete workflows.
+ * access to Add/Delete workflows for Admins and Managers. Standard users
+ * have read-only access.
  */
 
-import {useEffect, useState} from "react";
-import {getEmployees, type Employee, updateEmployee, addEmployee} from "../features/personnel/personnelApi.ts";
-import {getPositionList, type PositionQueryResponse} from "../features/position/positionApi.ts";
+import { useEffect, useState } from "react";
+import { getEmployees, type Employee, updateEmployee, addEmployee } from "../features/personnel/personnelApi.ts";
+import { getPositionList, type PositionQueryResponse } from "../features/position/positionApi.ts";
 import {
   Badge,
   Box,
@@ -31,10 +32,11 @@ import {
   Text
 } from "@chakra-ui/react";
 import ConfirmEmployeeDeletionModal from "../features/personnel/components/ConfirmEmployeeDeletionModal.tsx";
-import {useColorModeValue} from "@/components/ui/color-mode.tsx";
-import {toaster} from "@/components/ui/toaster.tsx";
-import {getErrorMessage} from "@/utils/errorUtils.ts";
+import { useColorModeValue } from "@/components/ui/color-mode.tsx";
+import { toaster } from "@/components/ui/toaster.tsx";
+import { getErrorMessage } from "@/utils/errorUtils.ts";
 import EmployeeModal from "@/features/personnel/components/EmployeeModal.tsx";
+import { useCurrentUser } from "@/hooks/useAuth.ts";
 
 /**
  * Main Personnel Management Page.
@@ -52,6 +54,9 @@ const PersonnelPage = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [selectedEmployeeForEdit, setSelectedEmployeeForEdit] = useState<Employee | null>(null);
+
+  const currentUser = useCurrentUser();
+  const canEdit = currentUser.role.toLowerCase() === 'admin' || currentUser.role.toLowerCase() === 'manager';
 
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
@@ -110,11 +115,11 @@ const PersonnelPage = () => {
    * Handles clicking on an employee for editing.
    */
   const handleRowClick = (employee: Employee) => {
+    if (!canEdit) return; // Failsafe to prevent opening modal for standard users
     setSelectedEmployeeForEdit(employee);
     setEditModalOpen(true);
   };
 
-  // Loading State View
   if (isLoading) {
     return (
       <Center height="100vh">
@@ -161,22 +166,26 @@ const PersonnelPage = () => {
             />
 
             {/* Action Buttons */}
-            <Button
-                size="sm"
-                colorPalette="red"
-                variant="surface"
-                disabled={selection.length === 0}
-                onClick={() => setConfirmDeletionModalOpen(true)}
-            >
-              Delete ({selection.length})
-            </Button>
-            <Button
-                size="sm"
-                colorPalette="blue"
-                onClick={() => setAddModalOpen(true)}
-            >
-              Add Employee
-            </Button>
+            {canEdit && (
+              <>
+                <Button
+                    size="sm"
+                    colorPalette="red"
+                    variant="surface"
+                    disabled={selection.length === 0}
+                    onClick={() => setConfirmDeletionModalOpen(true)}
+                >
+                  Delete ({selection.length})
+                </Button>
+                <Button
+                    size="sm"
+                    colorPalette="blue"
+                    onClick={() => setAddModalOpen(true)}
+                >
+                  Add Employee
+                </Button>
+              </>
+            )}
           </HStack>
         </Flex>
 
@@ -191,10 +200,10 @@ const PersonnelPage = () => {
           shadow="sm"
         >
           <Table.ScrollArea h="100%">
-            <Table.Root size="sm" stickyHeader interactive>
+            <Table.Root size="sm" stickyHeader interactive={canEdit}>
               <Table.Header>
                 <Table.Row bg={rowBg}>
-                  <Table.ColumnHeader w="50px" />
+                  {canEdit && <Table.ColumnHeader w="50px" />}
                   <Table.ColumnHeader>Last Name</Table.ColumnHeader>
                   <Table.ColumnHeader>First Name</Table.ColumnHeader>
                   <Table.ColumnHeader>Middle</Table.ColumnHeader>
@@ -206,7 +215,7 @@ const PersonnelPage = () => {
               <Table.Body>
                 {filteredEmployees.length === 0 ? (
                   <Table.Row>
-                    <Table.Cell colSpan={6} textAlign="center" color="gray.500" py={10}>
+                    <Table.Cell colSpan={canEdit ? 6 : 5} textAlign="center" color="gray.500" py={10}>
                       No employees found.
                     </Table.Cell>
                   </Table.Row>
@@ -214,23 +223,25 @@ const PersonnelPage = () => {
                   filteredEmployees.map((item) => (
                     <Table.Row
                       key={item.id}
-                      cursor="pointer"
+                      cursor={canEdit ? "pointer" : "default"}
                       onClick={() => handleRowClick(item)}
-                      _hover={{ bg: rowHoverBg }}
+                      _hover={canEdit ? { bg: rowHoverBg } : undefined}
                       transition={"background 0.2s"}
                     >
                       {/* Prevent clicking on the checkmark from accidentally triggering the row click */}
-                      <Table.Cell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox.Root
-                          size="sm"
-                          aria-label={`Select ${item.last_name}`}
-                          checked={selection.includes(item.id)}
-                          onCheckedChange={(e) => handleSelectionChange(item.id, !!e.checked)}
-                        >
-                            <Checkbox.HiddenInput />
-                            <Checkbox.Control />
-                        </Checkbox.Root>
-                      </Table.Cell>
+                      {canEdit && (
+                        <Table.Cell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox.Root
+                            size="sm"
+                            aria-label={`Select ${item.last_name}`}
+                            checked={selection.includes(item.id)}
+                            onCheckedChange={(e) => handleSelectionChange(item.id, !!e.checked)}
+                          >
+                              <Checkbox.HiddenInput />
+                              <Checkbox.Control />
+                          </Checkbox.Root>
+                        </Table.Cell>
+                      )}
 
                       <Table.Cell fontWeight="medium">{item.last_name}</Table.Cell>
                       <Table.Cell>{item.first_name}</Table.Cell>
@@ -261,44 +272,46 @@ const PersonnelPage = () => {
         </Box>
       </VStack>
 
-      <EmployeeModal
-        isOpen={isAddModalOpen || isEditModalOpen}
-        onOpenChange={(open) => {
-          setAddModalOpen(open);
-          setEditModalOpen(open);
-          if (!open) setSelectedEmployeeForEdit(null);
-        }}
-        employee={isEditModalOpen ? selectedEmployeeForEdit : null}
-        positions={positions}
-        onSave={async (payload, employeeId) => {
-          if (employeeId) {
-            // Edit Flow
-            const updatedRecord = await updateEmployee(employeeId, payload);
-            setEmployees(employees.map(e => e.id === employeeId ? updatedRecord : e));
-            toaster.create({ title: "Employee updated", type: "success" });
-          } else {
-            // Add Flow
-            const newRecord = await addEmployee(payload);
-            setEmployees([...employees, newRecord]);
-            toaster.create({ title: "Employee added", type: "success" });
-          }
-        }}
-        onDelete={(id) => {
-          setSelection([id]);
-          setConfirmDeletionModalOpen(true);
-        }}
-      />
+      {canEdit && (
+        <>
+          <EmployeeModal
+            isOpen={isAddModalOpen || isEditModalOpen}
+            onOpenChange={(open) => {
+              setAddModalOpen(open);
+              setEditModalOpen(open);
+              if (!open) setSelectedEmployeeForEdit(null);
+            }}
+            employee={isEditModalOpen ? selectedEmployeeForEdit : null}
+            positions={positions}
+            onSave={async (payload, employeeId) => {
+              if (employeeId) {
+                const updatedRecord = await updateEmployee(employeeId, payload);
+                setEmployees(employees.map(e => e.id === employeeId ? updatedRecord : e));
+                toaster.create({ title: "Employee updated", type: "success" });
+              } else {
+                const newRecord = await addEmployee(payload);
+                setEmployees([...employees, newRecord]);
+                toaster.create({ title: "Employee added", type: "success" });
+              }
+            }}
+            onDelete={(id) => {
+              setSelection([id]);
+              setConfirmDeletionModalOpen(true);
+            }}
+          />
 
-      <ConfirmEmployeeDeletionModal
-        isOpen={isConfirmDeletionModalOpen}
-        onOpenChange={(e) => setConfirmDeletionModalOpen(e.open)}
-        selection={selection}
-        employees={employees}
-        onEmployeesChange={(newEmployees) => {
-            setEmployees(newEmployees);
-            setSelection([]);
-        }}
-      />
+          <ConfirmEmployeeDeletionModal
+            isOpen={isConfirmDeletionModalOpen}
+            onOpenChange={(e) => setConfirmDeletionModalOpen(e.open)}
+            selection={selection}
+            employees={employees}
+            onEmployeesChange={(newEmployees) => {
+                setEmployees(newEmployees);
+                setSelection([]);
+            }}
+          />
+        </>
+      )}
     </Box>
   );
 };
