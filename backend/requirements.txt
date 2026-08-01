@@ -29,7 +29,7 @@ markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 marshmallow==4.3.0
 mdurl==0.1.2
-nltk==3.9.4
+nltk==3.10.0
 numpy==2.4.4
 ortools==9.15.6755
 packaging==26.1
