@@ -10,7 +10,7 @@ cffi==2.0.0
 charset-normalizer==3.4.7
 click==8.3.2
 config==0.5.1
-cryptography==46.0.7
+cryptography==50.0.0
 dparse==0.6.4
 fastapi==0.136.0
 filelock==3.29.0
